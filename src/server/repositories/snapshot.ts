@@ -23,7 +23,21 @@ interface SnapshotFile {
   data: SeedData;
 }
 
+/**
+ * El snapshot guarda nombres, correos y descripciones clínicas en texto plano.
+ * En desarrollo es cómodo; en producción sería un volcado de datos personales
+ * fuera de la base de datos, así que ahí exige opt-in explícito y avisa.
+ */
 export function snapshotEnabled(): boolean {
+  if (process.env.NODE_ENV === 'production') {
+    const forced = process.env.DATA_SNAPSHOT === 'true';
+    if (forced) {
+      console.warn(
+        '[temotiva-flow] DATA_SNAPSHOT activo en producción: se están volcando datos personales a .data/store.json.',
+      );
+    }
+    return forced;
+  }
   return process.env.DATA_SNAPSHOT !== 'false';
 }
 

@@ -65,8 +65,42 @@ acceso y **no se registra nunca en producción**, aunque la variable esté puest
 El token se rehidrata desde la tabla en cada petición, así que una baja o un cambio de rol
 surten efecto de inmediato, sin esperar a que caduque la sesión.
 
-Dirección administra la lista desde **Accesos** (`/team`), donde también se ajustan los
-objetivos de SLE y los límites de WIP de cada fase.
+### Quién da de alta a quién
+
+La gestión de personas baja en cascada, desde **Equipo** (`/team`):
+
+- **Dirección** crea, edita y da de baja a cualquiera, con cualquier rol, y reparte las
+  áreas de cada responsable. También ajusta los objetivos de SLE y los límites de WIP.
+- **Responsable de área** suma *miembros* a las áreas que lleva, los edita y los da de
+  baja. No puede crear responsables ni salirse de sus áreas.
+- **Miembro** no da de alta a nadie, pero tiene su panel en **Mi cuenta** (`/cuenta`).
+
+Una persona puede llevar **varias áreas** a la vez (por ejemplo RRHH y Finanzas): verá y
+podrá responder por todas ellas. Las áreas son diez: Producto, Psicología, Legal/DPO,
+Diseño, Tech, QA, Ciberseguridad, RRHH, Finanzas y Marketing.
+
+**Eliminar** a alguien es darle de baja: pierde el acceso en la siguiente petición pero su
+rastro en la caja negra permanece. Para el derecho de supresión del RGPD, Dirección puede
+además *anonimizar* un perfil ya dado de baja: nombre y correo se sustituyen por un
+identificador opaco y los eventos que firmó siguen atribuidos a ese identificador.
+
+**Contraseñas:** el sistema no guarda ninguna. Se entra con Google, que custodia también el
+segundo factor; el panel de cuenta remite ahí para cambiarla.
+
+---
+
+## Teclado
+
+| Atajo | Qué hace |
+| --- | --- |
+| `⌘K` / `Ctrl+K` | Paleta de comandos: saltar a una iniciativa por ID o título, cambiar de vista, lanzar acciones |
+| `C` | Nueva iniciativa |
+| `/` | Filtrar el tablero |
+| `G` + `B` / `R` / `D` / `N` / `A` | Ir a tablero, radar, dirección, notificaciones o accesos |
+| `Esc` | Cerrar el panel o el diálogo abierto |
+| `?` | Ver esta lista dentro de la aplicación |
+
+Los atajos de una sola tecla se desactivan mientras escribes en un campo.
 
 ---
 
@@ -94,7 +128,11 @@ src/
 │   ├── notifications/      # Centro de notificaciones
 │   ├── team/               # Lista de acceso y parámetros (solo Dirección)
 │   └── login/
-├── components/             # Interfaz (tarjetas, ficha 360°, gráficos, primitivas)
+├── components/
+│   ├── ui/                 # Primitivas del sistema visual (botón, panel lateral, diálogo…)
+│   ├── layout/             # Barra lateral, marco y cabecera de página
+│   ├── command/            # Paleta de comandos y atajos globales
+│   ├── board/ radar/ executive/ initiative/ admin/   # Cada vista
 ├── domain/                 # Tipos, enums, reglas y semilla — espejo del DDL
 ├── lib/                    # Auth, sesión, utilidades
 ├── proxy.ts                # Protección de rutas (antes middleware.ts)
@@ -130,9 +168,10 @@ con la misma interfaz. Ni los servicios ni las Server Actions cambian.
 
 ## Qué está y qué no
 
-**En V1:** tablero, radar, ficha 360° con sus cuatro pestañas, panel de dirección,
-compuertas por fase, avance excepcional auditado, dependencias y paradas, centro de
-notificaciones, lista de acceso y caja negra.
+**En V1:** tablero con filtros rápidos, radar, ficha 360° en panel lateral con sus cuatro
+pestañas, panel de dirección, compuertas por fase, avance excepcional auditado,
+dependencias y paradas, centro de notificaciones, lista de acceso, caja negra, temas claro
+y oscuro y navegación por teclado.
 
 **Fuera de V1:** integración con Slack/Teams, sincronización de PRs de GitHub, informes PDF
 y notificaciones push (ver `DESIGN.md` §12).

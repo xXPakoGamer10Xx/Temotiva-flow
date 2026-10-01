@@ -11,23 +11,41 @@ import { ActionError, useAction } from '@/lib/use-action';
 import { Button } from '@/components/ui/button';
 import { Label, Select, Textarea } from '@/components/ui/primitives';
 
-/** Activa o desactiva el estado de parada. Cualquier rol puede hacerlo. */
+/**
+ * Declara o levanta la parada.
+ *
+ * Cualquier rol puede hacerlo —lo dice la matriz de TemoFlow.md §2.1—, pero
+ * solo dentro del área que tiene el trabajo: mover el reloj de SLE de una
+ * iniciativa ajena no es una capacidad de nadie. El servidor lo revalida.
+ */
 export function BlockControl({
   initiativeId,
   isBlocked,
   stopReason,
   disabled = false,
+  canBlock,
+  ownerLabel,
 }: {
   initiativeId: string;
   isBlocked: boolean;
   stopReason: StopReason | null;
   disabled?: boolean;
+  canBlock: boolean;
+  ownerLabel: string;
 }) {
   const block = useAction(setBlockedAction);
   const clear = useAction(clearBlockedAction);
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState<StopReason>(stopReason ?? 'ESPERANDO_DECISION');
   const [description, setDescription] = React.useState('');
+
+  if (!canBlock) {
+    return (
+      <span className="text-[11px] text-fg-subtle">
+        La parada la gestiona {ownerLabel}, propietaria de la fase.
+      </span>
+    );
+  }
 
   if (isBlocked) {
     return (
@@ -37,6 +55,7 @@ export function BlockControl({
           variant="outline"
           disabled={disabled || clear.isPending}
           onClick={() => clear.run({ initiativeId })}
+          title="Si quedan dependencias bloqueantes abiertas, la iniciativa seguirá parada por ellas"
         >
           <PlayCircle className="size-4" />
           Levantar parada
@@ -99,7 +118,7 @@ export function BlockControl({
           Cancelar
         </Button>
       </div>
-      <p className="text-[11px] text-muted-foreground">
+      <p className="text-[11px] text-fg-muted">
         Mientras la iniciativa esté en parada, su reloj de SLE se detiene.
       </p>
     </div>

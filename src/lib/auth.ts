@@ -103,7 +103,7 @@ export const authConfig = {
       token.sub = profile.id;
       token.name = profile.name;
       token.email = profile.email;
-      token.department = profile.department;
+      token.departments = profile.departments;
       token.role = profile.role;
       return token;
     },
@@ -111,7 +111,7 @@ export const authConfig = {
     async session({ session, token }) {
       if (session.user) {
         session.user.id = typeof token.sub === 'string' ? token.sub : '';
-        session.user.department = token.department as Department;
+        session.user.departments = (token.departments as Department[]) ?? [];
         session.user.role = token.role as UserRole;
       }
       return session;

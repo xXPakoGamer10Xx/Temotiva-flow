@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import type { Route } from 'next';
 import { requireSession } from '@/lib/session';
-import { DEPARTMENT_LABELS, HELP_STATUS_LABELS } from '@/domain/labels';
+import { HELP_STATUS_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getNotifications, type NotificationView } from '@/server/services/views';
-import { AppShell } from '@/components/layout/app-shell';
-import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, EmptyState } from '@/components/ui/primitives';
+import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { Badge, Card, EmptyState, SectionLabel } from '@/components/ui/primitives';
 import { HelpTypeBadge } from '@/components/shared/signals';
-import { InitiativeDialogHost } from '@/components/initiative/initiative-dialog-host';
+import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 import { formatRelative } from '@/lib/utils';
 
 export const dynamic = 'force-dynamic';
@@ -28,52 +28,45 @@ export default async function NotificationsPage({
 
   return (
     <AppShell session={session}>
-      <div className="mx-auto max-w-4xl space-y-5 px-4 py-6 sm:px-6">
-        <header>
-          <h1 className="text-xl font-semibold tracking-tight">Notificaciones</h1>
-          <p className="text-xs text-muted-foreground">
-            Solicitudes de ayuda dirigidas a {DEPARTMENT_LABELS[session.department]} y las que has abierto tú.
-          </p>
-        </header>
+      <PageHeader
+        title="Notificaciones"
+        description={`Solicitudes de ayuda dirigidas a ${departmentsLabel(session.departments)} y las que has abierto tú.`}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recibidas ({received.length})</CardTitle>
-            <CardDescription>Pendientes de respuesta de tu departamento.</CardDescription>
-          </CardHeader>
-          <CardContent>
+      <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+        <div className="mx-auto max-w-3xl space-y-6">
+          <section className="space-y-2">
+            <SectionLabel>Recibidas · {received.length} pendientes</SectionLabel>
             {received.length === 0 ? (
-              <EmptyState title="Nada pendiente" description="Ningún departamento está esperando por vosotros." />
+              <EmptyState
+                title="Nada pendiente"
+                description="Aquí solo aparece lo que sigue abierto: ningún departamento está esperando por vosotros."
+              />
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="space-y-2">
                 {received.map((item) => (
                   <NotificationRow key={item.dependency.id} item={item} />
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </section>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Enviadas ({sent.length})</CardTitle>
-            <CardDescription>Solicitudes que has abierto tú, con su estado actual.</CardDescription>
-          </CardHeader>
-          <CardContent>
+          <section className="space-y-2">
+            <SectionLabel>Enviadas · {sent.length} en total</SectionLabel>
             {sent.length === 0 ? (
               <EmptyState title="No has pedido ayuda todavía" />
             ) : (
-              <ul className="space-y-2.5">
+              <ul className="space-y-2">
                 {sent.map((item) => (
                   <NotificationRow key={item.dependency.id} item={item} showStatus />
                 ))}
               </ul>
             )}
-          </CardContent>
-        </Card>
+          </section>
+        </div>
       </div>
 
-      <InitiativeDialogHost initiativeId={params.iniciativa} session={session} />
+      <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
     </AppShell>
   );
 }
@@ -83,35 +76,37 @@ function NotificationRow({ item, showStatus = false }: { item: NotificationView;
 
   return (
     <li>
-      <Link
-        href={`/notifications?iniciativa=${item.initiativeId}` as Route}
-        scroll={false}
-        className="block space-y-1.5 rounded-lg border border-border p-3 transition-colors hover:border-primary/45"
-      >
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="font-mono text-[11px] font-semibold text-muted-foreground">{item.initiativeId}</span>
-          <span className="text-sm font-medium">{item.initiativeTitle}</span>
-          <Badge tone="neutral">{item.stageName}</Badge>
-        </div>
+      <Card className="card-hover p-0">
+        <Link
+          href={`/notifications?iniciativa=${item.initiativeId}` as Route}
+          scroll={false}
+          className="block space-y-1.5 p-3"
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-mono text-[11px] text-fg-subtle">{item.initiativeId}</span>
+            <span className="text-[13px] font-medium">{item.initiativeTitle}</span>
+            <Badge tone="neutral">{item.stageName}</Badge>
+            <span className="ml-auto text-[11px] text-fg-subtle">{formatRelative(dependency.createdAt)}</span>
+          </div>
 
-        <div className="flex flex-wrap items-center gap-2">
-          <HelpTypeBadge helpType={dependency.helpType} isBlocking={dependency.isBlocking} />
-          {showStatus ? (
-            <Badge
-              tone={
-                dependency.status === 'PENDING' ? 'warning' : dependency.status === 'RESOLVED' ? 'success' : 'neutral'
-              }
-            >
-              {HELP_STATUS_LABELS[dependency.status]}
-            </Badge>
-          ) : (
-            <Badge tone="neutral">de {dependency.requestedBy?.name ?? '—'}</Badge>
-          )}
-          <span className="text-[11px] text-muted-foreground">{formatRelative(dependency.createdAt)}</span>
-        </div>
+          <div className="flex flex-wrap items-center gap-1.5">
+            <HelpTypeBadge helpType={dependency.helpType} isBlocking={dependency.isBlocking} />
+            {showStatus ? (
+              <Badge
+                tone={
+                  dependency.status === 'PENDING' ? 'warning' : dependency.status === 'RESOLVED' ? 'success' : 'neutral'
+                }
+              >
+                {HELP_STATUS_LABELS[dependency.status]}
+              </Badge>
+            ) : (
+              <Badge tone="neutral">de {dependency.requestedBy?.name ?? '—'}</Badge>
+            )}
+          </div>
 
-        <p className="text-xs text-muted-foreground">{dependency.description}</p>
-      </Link>
+          <p className="text-xs leading-relaxed text-fg-muted">{dependency.description}</p>
+        </Link>
+      </Card>
     </li>
   );
 }

@@ -18,15 +18,30 @@ import type {
  * serializarse de Server Components a componentes cliente sin perdida.
  */
 
-/** Tabla `users`. Extension V1: `is_active` (allowlist de acceso, ver SEGURIDAD.md §3.2). */
+/**
+ * Tabla `users` + `user_departments`.
+ *
+ * Extensiones V1: `is_active` (allowlist de acceso, SEGURIDAD.md §3.2) y
+ * **varias áreas por persona**: un responsable puede llevar más de un
+ * departamento a la vez (RRHH y Finanzas, o Tech y Ciberseguridad). La lista
+ * nunca está vacía y su primer elemento es el área principal, la que se muestra
+ * cuando solo cabe una.
+ */
 export interface User {
   id: string;
   name: string;
   email: string;
-  department: Department;
+  departments: Department[];
   role: UserRole;
   isActive: boolean;
+  /** Perfil anonimizado por derecho de supresión: se conserva la fila y su historial. */
+  isAnonymized: boolean;
   createdAt: string;
+}
+
+/** Área principal: la que representa a la persona cuando solo cabe una. */
+export function primaryDepartment(user: Pick<User, 'departments'>): Department {
+  return user.departments[0] ?? 'PRODUCT';
 }
 
 /** Tabla `workflow_stages`. */
@@ -82,12 +97,34 @@ export interface Initiative {
   currentAssigneeId: string | null;
   createdBy: string;
 
-  // Control de parada / bloqueo
+  // ---------------------------------------------------------------------------
+  // Control de parada.
+  //
+  // Una parada tiene dos orígenes posibles y pueden coexistir: la declarada a
+  // mano y la inducida por dependencias bloqueantes pendientes. Por eso el
+  // origen manual se guarda aparte: si se resuelve la última dependencia pero
+  // la causa manual sigue viva, la iniciativa debe seguir parada.
+  //
+  // `isBlocked`, `stopReason` y `blockedDescription` son el estado *efectivo*,
+  // recalculado a partir de ambos orígenes.
+  // ---------------------------------------------------------------------------
   isBlocked: boolean;
   stopReason: StopReason | null;
   blockedDescription: string | null;
-  /** Instante en que arranco el bloqueo vigente (null si no esta bloqueada). */
+  /** Causa declarada a mano; solo se levanta a mano. */
+  manualStopReason: StopReason | null;
+  manualStopDescription: string | null;
+  /**
+   * Ancla de contabilidad: instante en que arrancó el tramo de parada **en la
+   * fase actual**. Se reinicia al cambiar de fase para que el SLE neto de cada
+   * fase solo descuente el tiempo parado dentro de ella.
+   */
   blockedSince: string | null;
+  /**
+   * Instante en que empezó la parada actual, cruzando fases. Solo para mostrar
+   * y medir ("lleva 3 días parada"); nunca entra en el cálculo del SLE.
+   */
+  blockedStartedAt: string | null;
   /** Tiempo bloqueado ya consolidado en la fase actual, en ms. Base del SLE neto. */
   blockedMsInStage: number;
 
@@ -119,6 +156,12 @@ export interface Dependency {
   helpType: HelpType;
   isBlocking: boolean;
   description: string;
+  /**
+   * Requisito de compuerta que originó la petición, cuando nace del panel de
+   * pendientes. Extensión V1: permite saber si un pendiente concreto ya está
+   * solicitado, en vez de dar por cubierto todo el departamento.
+   */
+  checklistItemId: string | null;
   status: HelpStatus;
   resolutionNotes: string | null;
   resolvedBy: string | null;
@@ -138,6 +181,7 @@ export interface OverrideMetadata {
   pendingItems: { id: string; label: string; responsibleDepartment: Department }[];
   signature: string;
   ip: string | null;
+  ipChain?: string | null;
   userAgent: string | null;
   [key: string]: JsonValue | undefined;
 }
@@ -170,12 +214,21 @@ export interface SessionContext {
   userId: string;
   email: string;
   name: string;
-  department: Department;
+  /** Todas las áreas de la persona; manda la pertenencia, no el orden. */
+  departments: Department[];
   role: UserRole;
+}
+
+/** ¿La sesión pertenece a esta área? Toda comprobación de área pasa por aquí. */
+export function belongsTo(session: SessionContext, department: Department): boolean {
+  return session.departments.includes(department);
 }
 
 /** Datos de la peticion HTTP que acompanan a una firma de excepcion. */
 export interface RequestContext {
+  /** Salto de confianza más cercano al servidor, no el que declara el cliente. */
   ip: string | null;
+  /** Cadena completa de `x-forwarded-for` cuando hay más de un salto. */
+  ipChain?: string | null;
   userAgent: string | null;
 }

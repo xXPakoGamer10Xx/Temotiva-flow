@@ -88,7 +88,7 @@ export function DependenciesTab({
                   </option>
                 ))}
               </Select>
-              <p className="text-[11px] text-muted-foreground">{HELP_TYPE_HINTS[helpType]}</p>
+              <p className="text-[11px] text-fg-muted">{HELP_TYPE_HINTS[helpType]}</p>
             </div>
           </div>
 
@@ -105,10 +105,10 @@ export function DependenciesTab({
 
           <div className="flex items-start justify-between gap-4 rounded-md border border-border p-3">
             <div>
-              <Label htmlFor="dependency-blocking" className="text-foreground">
+              <Label htmlFor="dependency-blocking" className="text-fg">
                 ¿Bloquea totalmente el trabajo?
               </Label>
-              <p className="mt-0.5 text-[11px] text-muted-foreground">
+              <p className="mt-0.5 text-[11px] text-fg-muted">
                 Si lo bloquea, la iniciativa entra en parada y su reloj de SLE se detiene hasta resolverla.
               </p>
             </div>
@@ -139,11 +139,11 @@ export function DependenciesTab({
       <Separator />
 
       <div className="space-y-3">
-        <h4 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+        <h4 className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
           Historial de solicitudes
         </h4>
         {detail.dependencies.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Esta iniciativa no ha pedido ayuda a nadie todavía.</p>
+          <p className="text-xs text-fg-muted">Esta iniciativa no ha pedido ayuda a nadie todavía.</p>
         ) : (
           <ul className="space-y-2.5">
             {detail.dependencies.map((dependency) => (
@@ -164,7 +164,7 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
   const canClose =
     dependency.status === 'PENDING' &&
     (session.role === 'EXECUTIVE' ||
-      session.department === dependency.targetDepartment ||
+      session.departments.includes(dependency.targetDepartment) ||
       session.userId === dependency.requestedBy?.id);
 
   return (
@@ -179,7 +179,7 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
         >
           {HELP_STATUS_LABELS[dependency.status]}
         </Badge>
-        <span className="ml-auto text-[11px] text-muted-foreground">
+        <span className="ml-auto text-[11px] text-fg-muted">
           {dependency.requestedBy?.name ?? '—'} · {formatDateTime(dependency.createdAt)}
         </span>
       </div>
@@ -187,12 +187,12 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
       <p className="text-xs leading-relaxed">{dependency.description}</p>
 
       {dependency.status !== 'PENDING' ? (
-        <div className="rounded-md bg-muted px-3 py-2 text-[11px]">
+        <div className="rounded-md bg-surface-2 px-3 py-2 text-[11px]">
           <p className="font-medium">
             {dependency.resolvedBy?.name ?? '—'}
             {dependency.resolvedAt ? ` · ${formatDateTime(dependency.resolvedAt)}` : ''}
           </p>
-          <p className="mt-0.5 text-muted-foreground">{dependency.resolutionNotes}</p>
+          <p className="mt-0.5 text-fg-muted">{dependency.resolutionNotes}</p>
         </div>
       ) : canClose ? (
         <div className="space-y-2">
@@ -223,13 +223,13 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
             </Button>
           </div>
           {dependency.isBlocking ? (
-            <p className="text-[11px] text-muted-foreground">
+            <p className="text-[11px] text-fg-muted">
               Al cerrar la última solicitud bloqueante, la parada se levanta automáticamente.
             </p>
           ) : null}
         </div>
       ) : (
-        <p className="text-[11px] text-muted-foreground">
+        <p className="text-[11px] text-fg-muted">
           Pendiente de respuesta de {DEPARTMENT_LABELS[dependency.targetDepartment]}.
         </p>
       )}

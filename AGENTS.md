@@ -83,7 +83,11 @@ db/01-schema.sql          # DDL PostgreSQL con las extensiones V1 marcadas
 6. **Entradas:** validar formularios con `zod` dentro de la Server Action antes de llamar al servicio.
 7. **Next 16:** usar `auth()` en Server Components (nunca `getSession()`). Rutas auth con `export const dynamic = 'force-dynamic'`. `params`/`searchParams` async. `proxy.ts` para proteger rutas.
 8. **Audit log:** todo evento se inserta (append-only) con `user_id` de la sesión criptográficamente validada. No reescribir ni borrar entradas del log.
-9. **Estilo:** Tailwind + componentes shadcn/ui. Iconografía coherente con lucide-react. Código modular, tipado fuerte, sin dependencias innecesarias.
+9. **Estilo:** Tailwind v4 + primitivas locales sobre Radix. Iconografía lucide-react a 14 px. Código modular, tipado fuerte, sin dependencias innecesarias.
+10. **Sistema visual:** los colores se usan **siempre** por token (`bg-surface`, `text-fg-muted`, `border-border`, `text-accent`, `--success/--warning/--danger/--info`). Prohibido escribir un color literal de Tailwind (`bg-zinc-100`, `text-red-500`) fuera de los puntos de departamento. El estado se pinta con las clases `.tone-*` de `globals.css`, nunca componiendo fondo, borde y texto a mano.
+11. **Tipografía:** base de 13 px (Geist). `text-[13px]` para contenido, `text-xs` para apoyo, `text-[11px]` para metadatos. Cifras comparables con `tabular-nums`.
+12. **Pictogramas:** se conservan los emoji que la especificación fija literalmente (⛔ 🔗 ⏳ ✅ ⚠️ 🔒 🚨 🆘 🟢 🟡), siempre dentro de una etiqueta y con `aria-hidden`. Cualquier otro icono es lucide.
+13. **Teclado:** toda acción nueva que merezca atajo se registra en la paleta (`command-center.tsx`) y, si lleva tecla propia, también en la ayuda `?`. Los atajos de una tecla nunca deben dispararse escribiendo en un campo (`isTypingTarget`).
 
 ---
 
@@ -99,7 +103,12 @@ db/01-schema.sql          # DDL PostgreSQL con las extensiones V1 marcadas
 8. **Ciclo de vida:** archivado = soft-delete (`is_archived`); las entidades nunca se borran físicamente y el audit log permanece intacto.
 9. **Fases:** 7 cerradas y secuenciales: IDEACIÓN → VIABILIDAD → CO-DISEÑO → READY → DESARROLLO → QA & STAGING → PRODUCCIÓN. Sin saltos sin compuerta.
 10. **Compuerta por departamento:** cada item de checklist lo marca su `responsible_department` (EXECUTIVE puede sobre cualquiera). No se marcan items de otra fase.
-11. **Acceso:** la tabla `users` es la lista de acceso; sin perfil activo no hay sesión, y solo EXECUTIVE la administra.
+11. **Acceso:** la tabla `users` es la lista de acceso; sin perfil activo no hay sesión.
+12. **Áreas múltiples:** una persona puede llevar varias. Toda comprobación es `session.departments.includes(x)` (o `belongsTo`), **nunca** `session.department === x`.
+13. **Jerarquía de altas:** EXECUTIVE crea a cualquiera; LEAD solo miembros y solo dentro de sus áreas; MEMBER a nadie. Nadie otorga rol ni área que no tenga, ni se revoca o asciende a sí mismo.
+14. **Ámbito del trabajo:** avanzar fase, asignar y parar exigen pertenecer al `owner_department` (o ser EXECUTIVE). La prioridad exige LEAD del área o EXECUTIVE. Los campos descriptivos siguen abiertos a todos (§1.3).
+15. **Parada:** nunca se escribe `is_blocked` a mano desde un servicio; se llama a `recomputeBlockState`, que concilia la causa manual con las dependencias bloqueantes y decide si hay evento.
+16. **Supresión:** "eliminar" es baja lógica; la anonimización conserva la fila y no filtra el correo al log. Nunca se borra físicamente una persona.
 
 ---
 

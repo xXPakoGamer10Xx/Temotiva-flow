@@ -9,13 +9,16 @@ import { PRIORITY_LABELS, PRIORITY_REASON_HINTS, PRIORITY_REASON_LABELS } from '
 import { MIN_INITIATIVE_TITLE } from '@/domain/rules';
 import { createInitiativeAction } from '@/server/actions/initiatives';
 import { ActionError, useAction } from '@/lib/use-action';
+import { UI_EVENTS, useUiEvent } from '@/components/command/command-bus';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input, Label, Select, Textarea } from '@/components/ui/primitives';
+import { Input, Kbd, Label, Select, Textarea } from '@/components/ui/primitives';
 
 /**
  * Alta de iniciativa. Toda iniciativa nace en Ideación, propiedad del
  * departamento por defecto de esa fase, y exige prioridad **con motivo**.
+ *
+ * Se abre con el botón o con la tecla `C` desde cualquier punto de la vista.
  */
 export function NewInitiativeDialog() {
   const router = useRouter();
@@ -26,6 +29,8 @@ export function NewInitiativeDialog() {
   const [currentTask, setCurrentTask] = React.useState('');
   const [priority, setPriority] = React.useState<PriorityLevel>('NORMAL');
   const [priorityReason, setPriorityReason] = React.useState<PriorityReason>('ROADMAP');
+
+  useUiEvent(UI_EVENTS.newInitiative, () => setOpen(true));
 
   const canSubmit = title.trim().length >= MIN_INITIATIVE_TITLE && !create.isPending;
 
@@ -42,21 +47,22 @@ export function NewInitiativeDialog() {
   return (
     <>
       <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-4" />
+        <Plus className="size-3.5" />
         Nueva iniciativa
+        <Kbd className="ml-0.5 border-transparent bg-white/15 text-inherit">C</Kbd>
       </Button>
 
       {open ? (
-        <Dialog open onOpenChange={(next) => setOpen(next)}>
-          <DialogContent className="w-[min(38rem,calc(100vw-2rem))]">
+        <Dialog open onOpenChange={setOpen}>
+          <DialogContent className="w-[min(34rem,calc(100vw-2rem))]">
             <DialogHeader>
               <DialogTitle>Nueva iniciativa</DialogTitle>
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 text-xs text-fg-muted">
                 Entra en Ideación como unidad de valor transversal, no como tarea técnica.
               </p>
             </DialogHeader>
 
-            <DialogBody className="space-y-4">
+            <DialogBody className="space-y-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="new-title">Título</Label>
                 <Input
@@ -108,7 +114,7 @@ export function NewInitiativeDialog() {
                       </option>
                     ))}
                   </Select>
-                  <p className="text-[11px] text-muted-foreground">{PRIORITY_REASON_HINTS[priorityReason]}</p>
+                  <p className="text-[11px] text-fg-subtle">{PRIORITY_REASON_HINTS[priorityReason]}</p>
                 </div>
               </div>
 

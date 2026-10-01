@@ -4,12 +4,14 @@ import * as React from 'react';
 import * as TabsPrimitive from '@radix-ui/react-tabs';
 import { cn } from '@/lib/utils';
 
+/** Pestañas como línea inferior: ocupan menos que un control segmentado y no compiten con el contenido. */
+
 export const Tabs = TabsPrimitive.Root;
 
 export function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      className={cn('inline-flex items-center gap-1 rounded-lg bg-muted p-1', className)}
+      className={cn('flex items-center gap-4 border-b border-border', className)}
       {...props}
     />
   );
@@ -19,7 +21,7 @@ export function TabsTrigger({ className, ...props }: React.ComponentProps<typeof
   return (
     <TabsPrimitive.Trigger
       className={cn(
-        'inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm',
+        'relative -mb-px inline-flex items-center gap-1.5 border-b border-transparent pb-2 text-xs font-medium text-fg-muted transition-colors hover:text-fg data-[state=active]:border-fg data-[state=active]:text-fg',
         className,
       )}
       {...props}

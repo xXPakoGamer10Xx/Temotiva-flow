@@ -3,42 +3,49 @@ import { cva, type VariantProps } from 'class-variance-authority';
 import { cn } from '@/lib/utils';
 
 /**
- * Primitivas de presentación sin estado (tarjetas, etiquetas, campos).
- * Se mantienen juntas porque son piezas pequeñas del mismo sistema visual.
+ * Primitivas de presentación del sistema visual: superficies, etiquetas,
+ * campos y microcomponentes. Bordes de 1 px, esquinas cortas, densidad alta y
+ * color solo donde hay señal.
  */
 
 export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('rounded-lg border border-border bg-card text-card-foreground', className)} {...props} />;
+  return (
+    <div
+      className={cn('rounded-lg border border-border bg-surface shadow-[var(--shadow-card)]', className)}
+      {...props}
+    />
+  );
 }
 
 export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('flex flex-col gap-1 p-4', className)} {...props} />;
+  return <div className={cn('flex flex-col gap-1 px-4 pt-4 pb-3', className)} {...props} />;
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn('text-sm font-semibold tracking-tight', className)} {...props} />;
+  return <h3 className={cn('text-[13px] font-medium tracking-tight text-fg', className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
-  return <p className={cn('text-xs text-muted-foreground', className)} {...props} />;
+  return <p className={cn('text-xs leading-relaxed text-fg-muted', className)} {...props} />;
 }
 
 export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn('p-4 pt-0', className)} {...props} />;
+  return <div className={cn('px-4 pb-4', className)} {...props} />;
 }
 
+/** Etiqueta translúcida: la receta de color vive en `globals.css` (.tone-*). */
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium leading-tight',
+  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-[1.35] whitespace-nowrap',
   {
     variants: {
       tone: {
-        neutral: 'border-border bg-muted text-muted-foreground',
-        outline: 'border-border bg-transparent text-foreground',
-        primary: 'border-transparent bg-primary/12 text-primary',
-        success: 'border-transparent bg-success-soft text-success',
-        warning: 'border-transparent bg-warning-soft text-warning',
-        danger: 'border-transparent bg-danger-soft text-danger',
-        info: 'border-transparent bg-info-soft text-info',
+        neutral: 'tone-neutral',
+        accent: 'tone-accent',
+        success: 'tone-success',
+        warning: 'tone-warning',
+        danger: 'tone-danger',
+        info: 'tone-info',
+        bare: 'text-fg-muted',
       },
     },
     defaultVariants: { tone: 'neutral' },
@@ -53,44 +60,36 @@ export function Badge({ className, tone, ...props }: BadgeProps) {
   return <span className={cn(badgeVariants({ tone }), className)} {...props} />;
 }
 
+const fieldStyles =
+  'w-full rounded-md border border-border bg-surface px-2.5 text-[13px] text-fg transition-[border-color,box-shadow] placeholder:text-fg-subtle hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] disabled:cursor-not-allowed disabled:opacity-55';
+
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <input
-      className={cn(
-        'flex h-9 w-full rounded-md border border-input bg-card px-3 py-1 text-sm transition-colors placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <input className={cn(fieldStyles, 'h-8', className)} {...props} />;
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return (
-    <textarea
-      className={cn(
-        'flex min-h-20 w-full rounded-md border border-input bg-card px-3 py-2 text-sm transition-colors placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    />
-  );
+  return <textarea className={cn(fieldStyles, 'min-h-18 resize-y py-2 leading-relaxed', className)} {...props} />;
 }
 
-export function Select({ className, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
+export function Select({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <select
-      className={cn(
-        'flex h-9 w-full appearance-none rounded-md border border-input bg-card px-3 py-1 text-sm transition-colors disabled:cursor-not-allowed disabled:opacity-50',
-        className,
-      )}
-      {...props}
-    />
+    <div className="relative">
+      <select className={cn(fieldStyles, 'h-8 appearance-none pr-7', className)} {...props}>
+        {children}
+      </select>
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 12 12"
+        className="pointer-events-none absolute right-2 top-1/2 size-3 -translate-y-1/2 text-fg-subtle"
+      >
+        <path d="M3 4.5 6 7.5 9 4.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+      </svg>
+    </div>
   );
 }
 
 export function Label({ className, ...props }: React.LabelHTMLAttributes<HTMLLabelElement>) {
-  return <label className={cn('text-xs font-medium text-muted-foreground', className)} {...props} />;
+  return <label className={cn('text-xs font-medium text-fg-muted', className)} {...props} />;
 }
 
 export function Separator({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -114,7 +113,7 @@ export function Progress({
   const percent = max > 0 ? Math.min(100, Math.max(0, (value / max) * 100)) : 0;
   return (
     <div
-      className={cn('h-1.5 w-full overflow-hidden rounded-full bg-muted', className)}
+      className={cn('h-1 w-full overflow-hidden rounded-full bg-surface-3', className)}
       role="progressbar"
       aria-valuenow={value}
       aria-valuemin={0}
@@ -122,7 +121,7 @@ export function Progress({
       aria-label={label}
     >
       <div
-        className={cn('h-full rounded-full bg-primary transition-[width] duration-300', barClassName)}
+        className={cn('h-full rounded-full bg-accent transition-[width] duration-300', barClassName)}
         style={{ width: `${percent}%` }}
       />
     </div>
@@ -141,7 +140,7 @@ export function Avatar({ name, className }: { name: string; className?: string }
   return (
     <span
       className={cn(
-        'inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[10px] font-semibold text-secondary-foreground',
+        'inline-flex size-5 shrink-0 items-center justify-center rounded-full bg-surface-3 text-[9px] font-semibold tracking-tight text-fg-muted ring-1 ring-border',
         className,
       )}
       aria-hidden="true"
@@ -155,8 +154,32 @@ export function Avatar({ name, className }: { name: string; className?: string }
 export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
-      <p className="text-sm font-medium">{title}</p>
-      {description ? <p className="mt-1 text-xs text-muted-foreground">{description}</p> : null}
+      <p className="text-[13px] font-medium">{title}</p>
+      {description ? <p className="mt-1 text-xs text-fg-muted">{description}</p> : null}
     </div>
+  );
+}
+
+/** Tecla de atajo, para que los atajos se puedan ver además de aprender. */
+export function Kbd({ className, children }: { className?: string; children: React.ReactNode }) {
+  return (
+    <kbd
+      className={cn(
+        'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded border border-border bg-surface-2 px-1 font-mono text-[10px] font-medium text-fg-muted',
+        className,
+      )}
+    >
+      {children}
+    </kbd>
+  );
+}
+
+/** Rótulo de sección: versalitas finas, como separador de bloques densos. */
+export function SectionLabel({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
+  return (
+    <p
+      className={cn('text-[10px] font-medium uppercase tracking-[0.06em] text-fg-subtle', className)}
+      {...props}
+    />
   );
 }

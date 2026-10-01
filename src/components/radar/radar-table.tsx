@@ -68,7 +68,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full border-collapse text-left text-xs">
-            <thead className="bg-muted/60 text-[11px] uppercase tracking-wide text-muted-foreground">
+            <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-fg-muted">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Iniciativa</th>
                 <th scope="col" className="px-3 py-2 font-medium">Fase</th>
@@ -80,17 +80,17 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
             </thead>
             <tbody className="divide-y divide-border">
               {filtered.map((row) => (
-                <tr key={row.initiativeId} className="align-top transition-colors hover:bg-muted/40">
+                <tr key={row.initiativeId} className="align-top transition-colors hover:bg-surface-2/60">
                   <td className="px-3 py-3">
                     <Link
                       href={`/radar?iniciativa=${row.initiativeId}` as Route}
                       scroll={false}
                       className="block space-y-1"
                     >
-                      <span className="font-mono text-[11px] font-semibold text-muted-foreground">
+                      <span className="font-mono text-[11px] font-semibold text-fg-muted">
                         {row.initiativeId}
                       </span>
-                      <span className="block max-w-56 font-medium leading-snug text-foreground hover:text-primary">
+                      <span className="block max-w-56 font-medium leading-snug text-fg hover:text-accent">
                         {row.title}
                       </span>
                       <PriorityBadge priority={row.priority} reason={row.priorityReason} compact />
@@ -103,26 +103,26 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                   <td className="px-3 py-3">
                     <DepartmentChip department={row.ownerDepartment} />
                     {row.assignee ? (
-                      <span className="mt-1 block text-[11px] text-muted-foreground">{row.assignee.name}</span>
+                      <span className="mt-1 block text-[11px] text-fg-muted">{row.assignee.name}</span>
                     ) : null}
                   </td>
-                  <td className="hidden max-w-48 px-3 py-3 text-muted-foreground lg:table-cell">
+                  <td className="hidden max-w-48 px-3 py-3 text-fg-muted lg:table-cell">
                     {row.currentTask ?? '—'}
                   </td>
                   <td className="px-3 py-3">
                     {row.dependencies.length === 0 ? (
-                      <span className="text-muted-foreground">—</span>
+                      <span className="text-fg-muted">—</span>
                     ) : (
                       <ul className="space-y-1">
                         {row.dependencies.map((dependency) => (
                           <li key={dependency.id} className="flex flex-wrap items-center gap-1.5">
                             <span aria-hidden="true">⏳</span>
                             <span className="font-medium">{DEPARTMENT_LABELS[dependency.department]}</span>
-                            <span className="text-muted-foreground">
+                            <span className="text-fg-muted">
                               ({HELP_TYPE_LABELS[dependency.helpType]})
                             </span>
                             {dependency.isBlocking ? <Badge tone="danger">bloqueante</Badge> : null}
-                            <span className="text-[11px] text-muted-foreground">
+                            <span className="text-[11px] text-fg-muted">
                               {formatRelative(dependency.createdAt)}
                             </span>
                           </li>
@@ -133,7 +133,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                   <td className="px-3 py-3">
                     <FlowStateBadge state={row.flowState} />
                     {row.flowState === 'BLOCKED' ? (
-                      <span className="mt-1 block text-[11px] text-muted-foreground">
+                      <span className="mt-1 block text-[11px] text-fg-muted">
                         {row.stopReason ? STOP_REASON_LABELS[row.stopReason] : ''}
                         {row.blockedDescription ? ` · ${row.blockedDescription}` : ''}
                       </span>

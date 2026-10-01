@@ -25,7 +25,7 @@ import { notFound } from './errors';
 export interface PersonView {
   id: string;
   name: string;
-  department: Department;
+  departments: Department[];
 }
 
 export interface DependencyChip {
@@ -62,6 +62,8 @@ export interface InitiativeCardView {
   isBlocked: boolean;
   stopReason: StopReason | null;
   blockedDescription: string | null;
+  /** Inicio de la parada actual aunque haya cambiado de fase desde entonces. */
+  blockedStartedAt: string | null;
   sle: SleReading;
   gate: { completed: number; total: number };
   dependencies: DependencyChip[];
@@ -74,7 +76,10 @@ export interface InitiativeCardView {
 
 export interface BoardColumnView {
   stage: WorkflowStage;
+  /** Tarjetas que pasan el filtro activo. */
   cards: InitiativeCardView[];
+  /** Tarjetas que hay en la fase, filtro aparte. */
+  totalInStage: number;
   wipCount: number;
   wipLimit: number;
   isSaturated: boolean;
@@ -84,7 +89,7 @@ export interface BoardColumnView {
 }
 
 function personOf(user: User | undefined): PersonView | null {
-  return user ? { id: user.id, name: user.name, department: user.department } : null;
+  return user ? { id: user.id, name: user.name, departments: user.departments } : null;
 }
 
 function overrideMarkOf(
@@ -136,6 +141,7 @@ function buildCard(initiative: Initiative, context: CardContext): InitiativeCard
     isBlocked: initiative.isBlocked,
     stopReason: initiative.stopReason,
     blockedDescription: initiative.blockedDescription,
+    blockedStartedAt: initiative.blockedStartedAt,
     sle: computeSle(initiative, stage ?? fallbackStage(initiative.currentStageId), context.now),
     gate: context.gateByInitiative.get(initiative.id) ?? { completed: 0, total: 0 },
     dependencies: dependencies
@@ -215,12 +221,59 @@ async function buildContext(
   };
 }
 
-/** Vista 1 — Tablero de flujo. Una columna por fase, con WIP y SLE medio real. */
+export interface BoardFilter {
+  /** Departamento propietario o destinatario de una solicitud abierta. */
+  department?: Department;
+  /** `parada` deja solo las detenidas; `riesgo`, las que rozan o superan su SLE. */
+  flow?: 'parada' | 'riesgo';
+  /** Texto libre contra el identificador, el título y la tarea en curso. */
+  query?: string;
+}
+
+/** Quita acentos y mayúsculas para que el filtro de texto no sea quisquilloso. */
+function normalizeText(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/\p{Diacritic}/gu, '')
+    .toLowerCase();
+}
+
+function matchesFilter(card: InitiativeCardView, filter: BoardFilter): boolean {
+  if (filter.department) {
+    const isOwner = card.ownerDepartment === filter.department;
+    const isAsked = card.dependencies.some(
+      (dependency) => dependency.status === 'PENDING' && dependency.department === filter.department,
+    );
+    if (!isOwner && !isAsked) return false;
+  }
+
+  if (filter.flow === 'parada' && !card.isBlocked) return false;
+  if (filter.flow === 'riesgo' && card.sle.state === 'ON_TIME') return false;
+
+  if (filter.query) {
+    const needle = normalizeText(filter.query.trim());
+    if (needle) {
+      const haystack = normalizeText(`${card.id} ${card.title} ${card.currentTask ?? ''}`);
+      if (!haystack.includes(needle)) return false;
+    }
+  }
+
+  return true;
+}
+
+/**
+ * Vista 1 — Tablero de flujo. Una columna por fase, con WIP y SLE medio real.
+ *
+ * El filtro solo afecta a las tarjetas visibles: el contador de WIP y la
+ * permanencia media siguen describiendo la fase entera, porque son propiedades
+ * del proceso y no de lo que uno esté mirando ahora.
+ */
 export async function getBoardView(
   store: DataStore,
-  options: { now?: Date; includeArchived?: boolean } = {},
+  options: { now?: Date; includeArchived?: boolean; filter?: BoardFilter } = {},
 ): Promise<BoardColumnView[]> {
   const now = options.now ?? new Date();
+  const filter = options.filter ?? {};
   const [stages, initiatives] = await Promise.all([
     store.listStages(),
     store.listInitiatives({ includeArchived: options.includeArchived }),
@@ -229,18 +282,19 @@ export async function getBoardView(
   const cards = initiatives.map((initiative) => buildCard(initiative, context));
 
   return stages.map((stage) => {
-    const columnCards = cards
+    const stageCards = cards
       .filter((card) => card.stageId === stage.id)
       .sort((a, b) => priorityWeight(b.priority) - priorityWeight(a.priority) || b.sle.ratio - a.sle.ratio);
-    const wipCount = columnCards.filter((card) => !card.isArchived).length;
+    const wipCount = stageCards.filter((card) => !card.isArchived).length;
     const averageNetMs =
-      columnCards.length === 0
+      stageCards.length === 0
         ? 0
-        : columnCards.reduce((total, card) => total + card.sle.netMs, 0) / columnCards.length;
+        : stageCards.reduce((total, card) => total + card.sle.netMs, 0) / stageCards.length;
 
     return {
       stage,
-      cards: columnCards,
+      cards: stageCards.filter((card) => matchesFilter(card, filter)),
+      totalInStage: stageCards.length,
       wipCount,
       wipLimit: stage.wipLimit,
       // El WIP es informativo: advierte, nunca impide mover una iniciativa (D5).
@@ -379,6 +433,7 @@ export interface InitiativeDetailView {
   creator: PersonView | null;
   departmentMembers: PersonView[];
   createdAt: string;
+  stageEnteredAt: string;
 }
 
 /** Vista 3 — Ficha 360° de la iniciativa (4 pestañas). */
@@ -404,8 +459,17 @@ export async function getInitiativeDetail(
   const stage = stagesById.get(initiative.currentStageId) ?? fallbackStage(initiative.currentStageId);
   const nextStage = stages.find((candidate) => candidate.orderIndex === stage.orderIndex + 1) ?? null;
 
-  const context = await buildContext(store, [initiative], now);
-  const card = buildCard(initiative, context);
+  // Se arma el contexto con lo que ya está cargado para esta iniciativa: antes
+  // se llamaba a `buildContext`, que volvía a traer todos los usuarios, todas
+  // las dependencias y el log completo para pintar una sola ficha.
+  const card = buildCard(initiative, {
+    stagesById,
+    usersById,
+    dependenciesByInitiative: new Map([[initiative.id, dependencies]]),
+    logByInitiative: new Map([[initiative.id, log]]),
+    gateByInitiative: new Map([[initiative.id, { completed: gate.completedCount, total: gate.mandatoryCount }]]),
+    now,
+  });
 
   const pendingDependencies = dependencies.filter((dependency) => dependency.status === 'PENDING');
 
@@ -418,9 +482,10 @@ export async function getInitiativeDetail(
     isCompleted: state.isCompleted,
     completedBy: personOf(state.completedBy ? usersById.get(state.completedBy) : undefined),
     completedAt: state.completedAt,
+    // Se casa con el requisito concreto: dar por cubierto todo el departamento
+    // escondía el botón "Solicitar a…" de pendientes que nadie había pedido.
     linkedDependencyId:
-      pendingDependencies.find((dependency) => dependency.targetDepartment === state.item.responsibleDepartment)?.id ??
-      null,
+      pendingDependencies.find((dependency) => dependency.checklistItemId === state.item.id)?.id ?? null,
   }));
 
   return {
@@ -462,9 +527,10 @@ export async function getInitiativeDetail(
       })),
     creator: personOf(usersById.get(initiative.createdBy)),
     departmentMembers: users
-      .filter((user) => user.isActive && user.department === initiative.ownerDepartment)
-      .map((user) => ({ id: user.id, name: user.name, department: user.department })),
+      .filter((user) => user.isActive && user.departments.includes(initiative.ownerDepartment))
+      .map((user) => ({ id: user.id, name: user.name, departments: user.departments })),
     createdAt: initiative.createdAt,
+    stageEnteredAt: initiative.stageEnteredAt,
   };
 }
 
@@ -530,13 +596,21 @@ export async function getNotifications(
     };
   };
 
+  // Con varias áreas, llega lo dirigido a cualquiera de ellas.
   const received = dependencies
-    .filter((dependency) => dependency.status === 'PENDING' && dependency.targetDepartment === session.department)
+    .filter(
+      (dependency) =>
+        dependency.status === 'PENDING' && session.departments.includes(dependency.targetDepartment),
+    )
     .map(toView)
     .filter((view): view is NotificationView => view !== null);
 
+  // "Enviadas" incluye a propósito las ya cerradas: es el seguimiento de lo que
+  // pediste. "Recibidas" es una bandeja de trabajo pendiente, así que solo
+  // muestra lo que sigue abierto. La interfaz nombra esa diferencia.
   const sent = dependencies
     .filter((dependency) => dependency.requestedBy === session.userId)
+    .sort((a, b) => Number(b.status === 'PENDING') - Number(a.status === 'PENDING'))
     .map(toView)
     .filter((view): view is NotificationView => view !== null);
 

@@ -1,4 +1,6 @@
 import type { Metadata, Viewport } from 'next';
+import { GeistMono } from 'geist/font/mono';
+import { GeistSans } from 'geist/font/sans';
 import './globals.css';
 
 export const metadata: Metadata = {
@@ -13,8 +15,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f7f9fa' },
-    { media: '(prefers-color-scheme: dark)', color: '#16191d' },
+    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
+    { media: '(prefers-color-scheme: dark)', color: '#111113' },
   ],
 };
 
@@ -30,17 +32,20 @@ const THEME_SCRIPT = `
     if (stored === 'dark' || (stored !== 'light' && prefersDark)) {
       document.documentElement.classList.add('dark');
     }
+    if (localStorage.getItem('temotiva-sidebar') === 'collapsed') {
+      document.documentElement.classList.add('sidebar-collapsed');
+    }
   } catch (error) {}
 })();
 `;
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" suppressHydrationWarning>
+    <html lang="es" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="min-h-dvh bg-background text-foreground">{children}</body>
+      <body className="min-h-dvh bg-bg text-fg antialiased">{children}</body>
     </html>
   );
 }

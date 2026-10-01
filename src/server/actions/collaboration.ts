@@ -3,7 +3,7 @@
 import { z } from 'zod';
 import { DEPARTMENTS, HELP_TYPES_V1, STOP_REASONS } from '@/domain/enums';
 import { MIN_BLOCK_DESCRIPTION, MIN_DEPENDENCY_DESCRIPTION, MIN_RESOLUTION_NOTES } from '@/domain/rules';
-import { clearBlocked, setBlocked } from '@/server/services/blocking';
+import { clearManualStop, setManualStop } from '@/server/services/blocking';
 import { setChecklistItemState } from '@/server/services/checklist';
 import { createDependency, rejectDependency, resolveDependency } from '@/server/services/dependencies';
 import { type ActionResult, initiativeIdSchema, runAction } from './shared';
@@ -69,7 +69,7 @@ export async function rejectDependencyAction(input: unknown): Promise<ActionResu
   });
 }
 
-const setBlockedSchema = z.object({
+const setManualStopSchema = z.object({
   initiativeId: initiativeIdSchema,
   stopReason: z.enum(STOP_REASONS),
   description: z
@@ -81,10 +81,10 @@ const setBlockedSchema = z.object({
 
 export async function setBlockedAction(input: unknown): Promise<ActionResult<undefined>> {
   return runAction({
-    schema: setBlockedSchema,
+    schema: setManualStopSchema,
     input,
     handler: async ({ store, session, input: data }) => {
-      await setBlocked(store, session, data);
+      await setManualStop(store, session, data);
       return undefined;
     },
   });
@@ -98,7 +98,7 @@ export async function clearBlockedAction(input: unknown): Promise<ActionResult<u
     }),
     input,
     handler: async ({ store, session, input: data }) => {
-      await clearBlocked(store, session, data);
+      await clearManualStop(store, session, data);
       return undefined;
     },
   });

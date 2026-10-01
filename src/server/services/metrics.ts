@@ -108,17 +108,49 @@ export async function getFlowMetrics(store: DataStore, options: { now?: Date } =
   });
 
   // --- Gráfico 2: distribución de causas de parada ------------------------------
+  //
+  // Se recorre el historial por iniciativa emparejando apertura con cierre. Si
+  // llegaran dos aperturas seguidas sin cierre (datos antiguos, antes de que el
+  // estado de parada se recalculara en un solo sitio), la segunda se ignora:
+  // contar ambas inflaba el recuento y sumaba intervalos solapados.
   const causeCounts = new Map<StopReason, { count: number; totalMs: number }>();
+  const byInitiative = new Map<string, ActivityLogEntry[]>();
 
-  for (const entry of blockEvents) {
-    const reason = stringField(entry, 'stopReason') as StopReason | null;
-    if (!reason) continue;
-    const current = causeCounts.get(reason) ?? { count: 0, totalMs: 0 };
-    const closure = unblockEvents.find((candidate) => candidate.initiativeId === entry.initiativeId && candidate.createdAt > entry.createdAt);
-    const endedAt = closure ? new Date(closure.createdAt).getTime() : now.getTime();
-    current.count += 1;
-    current.totalMs += Math.max(0, endedAt - new Date(entry.createdAt).getTime());
-    causeCounts.set(reason, current);
+  for (const entry of [...blockEvents, ...unblockEvents]) {
+    const key = entry.initiativeId ?? '—';
+    const list = byInitiative.get(key) ?? [];
+    list.push(entry);
+    byInitiative.set(key, list);
+  }
+
+  for (const entries of byInitiative.values()) {
+    let open: { reason: StopReason; startedAt: number } | null = null;
+
+    for (const entry of entries.sort((a, b) => a.createdAt.localeCompare(b.createdAt))) {
+      if (entry.actionType === 'BLOCKED_SET') {
+        if (open) continue; // ya había una parada viva: no es una parada nueva
+        const reason = stringField(entry, 'stopReason') as StopReason | null;
+        if (!reason) continue;
+        open = { reason, startedAt: new Date(entry.createdAt).getTime() };
+        continue;
+      }
+
+      if (entry.actionType === 'BLOCKED_CLEARED' && open) {
+        const current = causeCounts.get(open.reason) ?? { count: 0, totalMs: 0 };
+        current.count += 1;
+        current.totalMs += Math.max(0, new Date(entry.createdAt).getTime() - open.startedAt);
+        causeCounts.set(open.reason, current);
+        open = null;
+      }
+    }
+
+    // Parada todavía abierta: cuenta desde su inicio hasta ahora.
+    if (open) {
+      const current = causeCounts.get(open.reason) ?? { count: 0, totalMs: 0 };
+      current.count += 1;
+      current.totalMs += Math.max(0, now.getTime() - open.startedAt);
+      causeCounts.set(open.reason, current);
+    }
   }
 
   const totalStops = [...causeCounts.values()].reduce((total, value) => total + value.count, 0);

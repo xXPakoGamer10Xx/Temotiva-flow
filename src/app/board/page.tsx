@@ -1,50 +1,94 @@
+import type { Department } from '@/domain/enums';
+import { DEPARTMENTS } from '@/domain/enums';
 import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
-import { getBoardView } from '@/server/services/views';
-import { AppShell } from '@/components/layout/app-shell';
+import { getBoardView, type BoardFilter } from '@/server/services/views';
+import { AppShell, PageHeader } from '@/components/layout/app-shell';
 import { BoardColumn } from '@/components/board/board-column';
-import { InitiativeDialogHost } from '@/components/initiative/initiative-dialog-host';
+import { BoardFilters } from '@/components/board/board-filters';
+import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Tablero de flujo' };
 
+interface BoardSearchParams {
+  iniciativa?: string;
+  archivadas?: string;
+  dep?: string;
+  estado?: string;
+  q?: string;
+}
+
 /** Vista 1 — Tablero de flujo (Kanban de iniciativas). */
-export default async function BoardPage({
-  searchParams,
-}: {
-  searchParams: Promise<{ iniciativa?: string; archivadas?: string }>;
-}) {
+export default async function BoardPage({ searchParams }: { searchParams: Promise<BoardSearchParams> }) {
   const session = await requireSession();
   const params = await searchParams;
-  const includeArchived = params.archivadas === '1';
-  const columns = await getBoardView(getDataStore(), { includeArchived });
 
-  const totalActive = columns.reduce((total, column) => total + column.wipCount, 0);
+  const department = DEPARTMENTS.includes(params.dep as Department) ? (params.dep as Department) : undefined;
+  const flow = params.estado === 'parada' || params.estado === 'riesgo' ? params.estado : undefined;
+  const filter: BoardFilter = { department, flow, query: params.q };
+  const includeArchived = params.archivadas === '1';
+
+  const store = getDataStore();
+  const [columns, unfiltered] = await Promise.all([
+    getBoardView(store, { includeArchived, filter }),
+    getBoardView(store, { includeArchived }),
+  ]);
+
+  const allCards = unfiltered.flatMap((column) => column.cards);
+  const counts = {
+    total: allCards.length,
+    blocked: allCards.filter((card) => card.isBlocked).length,
+    atRisk: allCards.filter((card) => card.sle.state !== 'ON_TIME').length,
+    byDepartment: Object.fromEntries(
+      DEPARTMENTS.map((value) => [
+        value,
+        allCards.filter(
+          (card) =>
+            card.ownerDepartment === value ||
+            card.dependencies.some((dependency) => dependency.status === 'PENDING' && dependency.department === value),
+        ).length,
+      ]),
+    ) as Record<Department, number>,
+  };
+
+  const visible = columns.reduce((total, column) => total + column.cards.length, 0);
   const saturated = columns.filter((column) => column.isSaturated).length;
+
+  // Se conserva el filtro al abrir una ficha, para poder volver a lo mismo.
+  const queryString = new URLSearchParams(
+    Object.entries({ dep: params.dep, estado: params.estado, q: params.q, archivadas: params.archivadas })
+      .filter((entry): entry is [string, string] => Boolean(entry[1]))
+      .map(([key, value]) => [key, value]),
+  ).toString();
 
   return (
     <AppShell session={session}>
-      <div className="flex h-full flex-col gap-4 px-4 py-5 sm:px-6">
-        <header className="flex flex-wrap items-end justify-between gap-3">
-          <div>
-            <h1 className="text-xl font-semibold tracking-tight">Tablero de flujo</h1>
-            <p className="text-xs text-muted-foreground">
-              {totalActive} iniciativas activas en 7 fases secuenciales
-              {saturated > 0 ? ` · ${saturated} fase(s) por encima del WIP recomendado` : ''}
-            </p>
-          </div>
-          <NewInitiativeDialog />
-        </header>
+      <PageHeader
+        title="Tablero de flujo"
+        description={
+          <>
+            {visible === counts.total
+              ? `${counts.total} iniciativas en 7 fases secuenciales`
+              : `${visible} de ${counts.total} iniciativas visibles`}
+            {saturated > 0 ? ` · ${saturated} fase(s) por encima del WIP recomendado` : ''}
+          </>
+        }
+        actions={<NewInitiativeDialog />}
+      >
+        <BoardFilters counts={counts} />
+      </PageHeader>
 
-        <div className="scrollbar-slim -mx-4 flex gap-4 overflow-x-auto px-4 pb-4 sm:-mx-6 sm:px-6">
+      <div className="scrollbar-slim flex-1 overflow-x-auto px-4 pb-6 pt-3 sm:px-6">
+        <div className="flex h-full min-w-max gap-3">
           {columns.map((column) => (
-            <BoardColumn key={column.stage.id} column={column} basePath="/board" />
+            <BoardColumn key={column.stage.id} column={column} basePath="/board" query={queryString} />
           ))}
         </div>
       </div>
 
-      <InitiativeDialogHost initiativeId={params.iniciativa} session={session} />
+      <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
     </AppShell>
   );
 }

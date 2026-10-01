@@ -1,11 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import type { Department, HelpType, StopReason } from '@/domain/enums';
+import type { Department, HelpType } from '@/domain/enums';
 import type { Dependency, Initiative, SessionContext } from '@/domain/types';
-import { DEPARTMENT_LABELS, HELP_TYPE_LABELS } from '@/domain/labels';
+import { belongsTo } from '@/domain/types';
+import { DEPARTMENT_LABELS } from '@/domain/labels';
+import { MIN_DEPENDENCY_DESCRIPTION, MIN_RESOLUTION_NOTES } from '@/domain/rules';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
 import { forbidden, invalid, invalidState, notFound } from './errors';
-import { STOP_REASON_BY_HELP_TYPE, loadInitiative, refreshBlockFromDependencies, setBlocked } from './blocking';
+import { loadInitiative, syncBlockFromDependencies } from './blocking';
 
 /**
  * Dependencias 🆘 (TemoFlow.md §1.1.B, DESIGN.md §7.4).
@@ -15,17 +17,13 @@ import { STOP_REASON_BY_HELP_TYPE, loadInitiative, refreshBlockFromDependencies,
  * fase actual; el otro departamento colabora sin heredar la responsabilidad.
  */
 
-import { MIN_DEPENDENCY_DESCRIPTION, MIN_RESOLUTION_NOTES } from '@/domain/rules';
-
 export interface CreateDependencyInput {
   initiativeId: string;
   targetDepartment: Department;
   helpType: HelpType;
   description: string;
   isBlocking: boolean;
-  /** Causa de parada explícita; si se omite se deriva del tipo de ayuda. */
-  stopReason?: StopReason;
-  /** Item de compuerta que originó la solicitud, cuando nace del panel de pendientes. */
+  /** Requisito de compuerta que originó la solicitud, si nace del panel de pendientes. */
   checklistItemId?: string;
   now?: Date;
 }
@@ -44,6 +42,25 @@ export async function createDependency(
     throw invalid(`Describe la petición con al menos ${MIN_DEPENDENCY_DESCRIPTION} caracteres.`);
   }
 
+  // Pedirse ayuda a uno mismo no es una dependencia, es el propio trabajo. Y
+  // permitirlo abría la puerta a pararse y despararse a voluntad.
+  if (input.targetDepartment === initiative.ownerDepartment) {
+    throw invalid(
+      `La iniciativa ya es de ${DEPARTMENT_LABELS[initiative.ownerDepartment]}: una solicitud de ayuda se dirige a otro departamento.`,
+    );
+  }
+
+  // El vínculo con el requisito solo vale si es de la fase en curso: cualquier
+  // otro identificador vendría de un cliente manipulado.
+  let checklistItemId: string | null = null;
+  if (input.checklistItemId) {
+    const item = await store.checklistItemById(input.checklistItemId);
+    if (!item || item.stageId !== initiative.currentStageId) {
+      throw invalid('El requisito indicado no pertenece a la fase actual de la iniciativa.');
+    }
+    checklistItemId = item.id;
+  }
+
   const dependency: Dependency = {
     id: randomUUID(),
     initiativeId: initiative.id,
@@ -52,6 +69,7 @@ export async function createDependency(
     helpType: input.helpType,
     isBlocking: input.isBlocking,
     description,
+    checklistItemId,
     status: 'PENDING',
     resolutionNotes: null,
     resolvedBy: null,
@@ -70,24 +88,24 @@ export async function createDependency(
       targetDepartment: dependency.targetDepartment,
       helpType: dependency.helpType,
       isBlocking: dependency.isBlocking,
-      ...(input.checklistItemId ? { checklistItemId: input.checklistItemId } : {}),
+      // Sin el texto, la trazabilidad decía que se pidió ayuda pero no qué.
+      description,
+      ...(checklistItemId ? { checklistItemId } : {}),
     },
     at: now,
   });
 
-  // Trigger de bloqueo automático: solo si la dependencia se declaró bloqueante.
-  let current = await loadInitiative(store, initiative.id);
-  if (input.isBlocking) {
-    current = await setBlocked(store, session, {
-      initiativeId: initiative.id,
-      stopReason: input.stopReason ?? STOP_REASON_BY_HELP_TYPE[input.helpType],
-      description: `${DEPARTMENT_LABELS[input.targetDepartment]} · ${HELP_TYPE_LABELS[input.helpType]}: ${description}`,
-      dependencyId: dependency.id,
-      now,
-    });
-  }
+  // Trigger de bloqueo automático: el estado se recalcula a partir de todas las
+  // dependencias bloqueantes vivas, así que abrir la segunda no vuelve a
+  // registrar una parada que ya estaba abierta.
+  const current = input.isBlocking
+    ? await syncBlockFromDependencies(store, session, initiative.id, {
+        dependencyId: dependency.id,
+        now,
+      })
+    : await loadInitiative(store, initiative.id);
 
-  // La propiedad no se mueve: se devuelve tal cual estaba (no-ping-pong).
+  // La propiedad no se mueve (no-ping-pong).
   return { dependency, initiative: current };
 }
 
@@ -102,7 +120,7 @@ async function loadDependency(store: DataStore, dependencyId: string): Promise<D
  * Dirección, o quien la abrió si decide retirarla.
  */
 function assertCanClose(session: SessionContext, dependency: Dependency): void {
-  const isTarget = session.department === dependency.targetDepartment;
+  const isTarget = belongsTo(session, dependency.targetDepartment);
   const isRequester = session.userId === dependency.requestedBy;
   if (session.role !== 'EXECUTIVE' && !isTarget && !isRequester) {
     throw forbidden(
@@ -157,10 +175,12 @@ async function closeDependency(
     at: now,
   });
 
-  // Desbloqueo automático solo si lo que se cerró era una dependencia bloqueante.
+  // Al cerrar una bloqueante se recalcula la parada: se levanta sola solo si no
+  // queda ninguna otra dependencia bloqueante **ni** una parada manual viva.
   const initiative = dependency.isBlocking
-    ? await refreshBlockFromDependencies(store, session, dependency.initiativeId, {
+    ? await syncBlockFromDependencies(store, session, dependency.initiativeId, {
         dependencyId: dependency.id,
+        note: 'Parada levantada automáticamente al resolverse la última dependencia bloqueante.',
         now,
       })
     : await loadInitiative(store, dependency.initiativeId);

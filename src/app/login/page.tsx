@@ -3,7 +3,7 @@ import { ShieldCheck } from 'lucide-react';
 import { isDevAuthEnabled, isGoogleConfigured } from '@/lib/auth';
 import { getSessionContext } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
-import { DEPARTMENT_LABELS, USER_ROLE_LABELS } from '@/domain/labels';
+import { USER_ROLE_LABELS, departmentsLabel } from '@/domain/labels';
 import { LoginPanel } from './login-panel';
 
 export const dynamic = 'force-dynamic';
@@ -21,7 +21,7 @@ export default async function LoginPage() {
         .map((user) => ({
           email: user.email,
           name: user.name,
-          description: `${DEPARTMENT_LABELS[user.department]} · ${USER_ROLE_LABELS[user.role]}`,
+          description: `${departmentsLabel(user.departments)} · ${USER_ROLE_LABELS[user.role]}`,
         }))
     : [];
 
@@ -29,12 +29,12 @@ export default async function LoginPage() {
     <div className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-primary text-sm font-bold text-primary-foreground">
+          <span className="grid size-10 place-items-center rounded-lg bg-accent text-[13px] font-bold text-accent-fg">
             TF
           </span>
           <div>
-            <h1 className="text-lg font-semibold tracking-tight">Temotiva Flow</h1>
-            <p className="text-xs text-muted-foreground">Gestión y trazabilidad de iniciativas interdisciplinares</p>
+            <h1 className="text-[17px] font-semibold tracking-tight">Temotiva Flow</h1>
+            <p className="text-xs text-fg-muted">Gestión y trazabilidad de iniciativas interdisciplinares</p>
           </div>
         </div>
 
@@ -44,7 +44,7 @@ export default async function LoginPage() {
           devProfiles={devProfiles}
         />
 
-        <p className="mt-6 flex items-start gap-2 text-[11px] leading-relaxed text-muted-foreground">
+        <p className="mt-6 flex items-start gap-2 text-[11px] leading-relaxed text-fg-muted">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
           El acceso está restringido a las personas dadas de alta en el sistema. Si tu cuenta no aparece o fue dada de
           baja, la entrada se deniega por defecto. Contenido confidencial de Temotiva.

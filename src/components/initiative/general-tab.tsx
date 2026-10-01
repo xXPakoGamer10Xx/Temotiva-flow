@@ -23,7 +23,7 @@ import { ActionError, useAction } from '@/lib/use-action';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Separator, Textarea } from '@/components/ui/primitives';
 import { formatDateTime } from '@/lib/utils';
-import type { InitiativeCapabilities } from './initiative-dialog';
+import type { InitiativeCapabilities } from './initiative-sheet';
 
 /**
  * Pestaña General: campos descriptivos, enlaces, propiedad y asignación.
@@ -117,7 +117,7 @@ export function GeneralTab({
                 id="initiative-priority"
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as PriorityLevel)}
-                disabled={card.isArchived}
+                disabled={card.isArchived || !capabilities.canChangePriority}
               >
                 {PRIORITY_LEVELS.map((level) => (
                   <option key={level} value={level}>
@@ -132,7 +132,7 @@ export function GeneralTab({
                 id="initiative-priority-reason"
                 value={priorityReason}
                 onChange={(event) => setPriorityReason(event.target.value as PriorityReason)}
-                disabled={card.isArchived}
+                disabled={card.isArchived || !capabilities.canChangePriority}
               >
                 {PRIORITY_REASONS.map((reason) => (
                   <option key={reason} value={reason}>
@@ -146,12 +146,17 @@ export function GeneralTab({
 
         <ActionError message={update.error} />
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button onClick={save} disabled={!isDirty || update.isPending || card.isArchived} size="sm">
             <Save className="size-4" />
             {update.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
-          {isDirty ? <span className="text-[11px] text-muted-foreground">Hay cambios sin guardar</span> : null}
+          {isDirty ? <span className="text-[11px] text-fg-muted">Hay cambios sin guardar</span> : null}
+          {!capabilities.canChangePriority ? (
+            <span className="text-[11px] text-fg-subtle">
+              La prioridad la decide el responsable de {capabilities.ownerLabel} o Dirección.
+            </span>
+          ) : null}
         </div>
       </div>
 
@@ -160,8 +165,8 @@ export function GeneralTab({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Propiedad</Label>
-          <p className="text-sm">{DEPARTMENT_LABELS[card.ownerDepartment]}</p>
-          <p className="text-[11px] text-muted-foreground">
+          <p className="text-[13px]">{DEPARTMENT_LABELS[card.ownerDepartment]}</p>
+          <p className="text-[11px] text-fg-muted">
             La propiedad viaja con la fase. Abrir una dependencia a otro departamento no la transfiere.
           </p>
           {capabilities.canReassign && !card.isArchived ? (
@@ -220,7 +225,7 @@ export function GeneralTab({
           <Select
             id="initiative-assignee"
             value={card.assignee?.id ?? ''}
-            disabled={assign.isPending || card.isArchived}
+            disabled={assign.isPending || card.isArchived || !capabilities.canAssign}
             onChange={(event) =>
               assign.run({ initiativeId: card.id, assigneeId: event.target.value || null })
             }
@@ -233,8 +238,10 @@ export function GeneralTab({
             ))}
           </Select>
           <ActionError message={assign.error} />
-          <p className="text-[11px] text-muted-foreground">
-            Solo personas del departamento propietario de la fase actual.
+          <p className="text-[11px] text-fg-muted">
+            {capabilities.canAssign
+              ? 'Solo personas del departamento propietario de la fase actual.'
+              : `La asignación la hace ${capabilities.ownerLabel}, propietaria de la fase.`}
           </p>
         </div>
       </div>
@@ -244,7 +251,7 @@ export function GeneralTab({
       <div className="space-y-2">
         <Label>Enlaces</Label>
         {card.links.length === 0 ? (
-          <p className="text-xs text-muted-foreground">Sin enlaces de Figma, Notion o repositorio.</p>
+          <p className="text-xs text-fg-muted">Sin enlaces de Figma, Notion o repositorio.</p>
         ) : (
           <ul className="space-y-1.5">
             {card.links.map((link) => (
@@ -253,7 +260,7 @@ export function GeneralTab({
                   href={link.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1.5 text-xs text-primary hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
                 >
                   <ExternalLink className="size-3.5" />
                   <span className="font-medium">{LINK_KIND_LABELS[link.kind]}</span> · {link.label}
@@ -267,19 +274,19 @@ export function GeneralTab({
       <Separator />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <dl className="grid gap-x-6 gap-y-1 text-[11px] text-muted-foreground sm:grid-cols-2">
+        <dl className="grid gap-x-6 gap-y-1 text-[11px] text-fg-muted sm:grid-cols-2">
           <div className="flex gap-1">
             <dt>Creada por:</dt>
-            <dd className="text-foreground">{detail.creator?.name ?? '—'}</dd>
+            <dd className="text-fg">{detail.creator?.name ?? '—'}</dd>
           </div>
           <div className="flex gap-1">
             {/* "Alta" a secas se confundía con el nivel de prioridad. */}
             <dt>Creada el:</dt>
-            <dd className="text-foreground">{formatDateTime(detail.createdAt)}</dd>
+            <dd className="text-fg">{formatDateTime(detail.createdAt)}</dd>
           </div>
           <div className="flex gap-1">
             <dt>Última actividad:</dt>
-            <dd className="text-foreground">{formatDateTime(card.updatedAt)}</dd>
+            <dd className="text-fg">{formatDateTime(card.updatedAt)}</dd>
           </div>
         </dl>
 
@@ -316,7 +323,7 @@ export function GeneralTab({
                   Cancelar
                 </Button>
               </div>
-              <p className="text-[11px] text-muted-foreground">
+              <p className="text-[11px] text-fg-muted">
                 El archivado es lógico: la iniciativa sale del tablero pero su trazabilidad permanece intacta.
               </p>
             </div>

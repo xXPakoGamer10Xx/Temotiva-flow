@@ -1,15 +1,23 @@
 import type { SessionContext } from '@/domain/types';
 import { getDataStore } from '@/server/repositories';
-import { canArchiveInitiative, canOverrideGate } from '@/server/services/rbac';
+import {
+  canAdvanceInitiative,
+  canArchiveInitiative,
+  canAssignInitiative,
+  canBlockInitiative,
+  canChangePriority,
+  canOverrideGate,
+} from '@/server/services/rbac';
+import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { getInitiativeDetail } from '@/server/services/views';
-import { InitiativeDialog } from './initiative-dialog';
+import { InitiativeSheet } from './initiative-sheet';
 
 /**
  * Puente entre la URL y la ficha: cualquier vista que reciba
- * `?iniciativa=TEMO-XXX` monta aquí el modal ya resuelto en el servidor,
- * incluidas las capacidades del rol que mira.
+ * `?iniciativa=TEMO-XXX` monta aquí el panel lateral ya resuelto en el
+ * servidor, incluidas las capacidades del rol que mira.
  */
-export async function InitiativeDialogHost({
+export async function InitiativeSheetHost({
   initiativeId,
   session,
 }: {
@@ -25,7 +33,7 @@ export async function InitiativeDialogHost({
   const detail = await getInitiativeDetail(store, initiativeId);
 
   return (
-    <InitiativeDialog
+    <InitiativeSheet
       detail={detail}
       session={session}
       capabilities={{
@@ -33,6 +41,11 @@ export async function InitiativeDialogHost({
         // El servidor comprueba además que sea LEAD del área actual o destino.
         canReassign: session.role !== 'MEMBER',
         canArchive: canArchiveInitiative(session, initiative),
+        canAdvance: canAdvanceInitiative(session, initiative),
+        canAssign: canAssignInitiative(session, initiative),
+        canBlock: canBlockInitiative(session, initiative),
+        canChangePriority: canChangePriority(session, initiative),
+        ownerLabel: DEPARTMENT_LABELS[initiative.ownerDepartment],
       }}
     />
   );

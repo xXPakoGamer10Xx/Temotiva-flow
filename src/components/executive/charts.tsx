@@ -25,14 +25,14 @@ function BarCell({
 }) {
   // Un valor cero no dibuja barra: un resto de color ahí se lee como "algo hay".
   const width = ratio <= 0 ? 0 : Math.max(2, Math.min(100, ratio * 100));
-  const toneClass = { primary: 'bg-primary', danger: 'bg-danger', info: 'bg-info' }[tone];
+  const toneClass = { primary: 'bg-accent', danger: 'bg-[var(--danger)]', info: 'bg-[var(--info)]' }[tone];
 
   return (
-    <div className="relative h-4 w-full min-w-28 rounded-sm bg-muted" aria-hidden="true">
-      <div className={cn('h-full rounded-sm', toneClass)} style={{ width: `${width}%` }} />
+    <div className="relative h-3.5 w-full min-w-28 overflow-hidden rounded-[3px] bg-surface-2" aria-hidden="true">
+      <div className={cn('h-full rounded-[3px]', toneClass)} style={{ width: `${width}%` }} />
       {markerRatio !== undefined ? (
         <span
-          className="absolute top-[-3px] h-[22px] w-0.5 rounded-full bg-foreground/55"
+          className="absolute inset-y-0 w-px bg-fg/45"
           style={{ left: `calc(${Math.min(100, markerRatio * 100)}% - 1px)` }}
           title="Objetivo de SLE"
         />
@@ -58,7 +58,7 @@ export function StageTimeChart({ stages }: { stages: FlowMetrics['stages'] }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <table className="w-full text-xs">
+        <table className="relative w-full text-xs">
           <caption className="sr-only">Tiempo medio neto por fase frente al objetivo de SLE</caption>
           <thead className="sr-only">
             <tr>
@@ -84,14 +84,19 @@ export function StageTimeChart({ stages }: { stages: FlowMetrics['stages'] }) {
                     />
                   </td>
                   <td className="w-28 py-1.5 pl-3 text-right tabular-nums">
-                    <span className={cn('font-medium', exceeded ? 'text-danger' : 'text-foreground')}>
+                    <span className={cn('font-medium', exceeded ? 'text-[var(--danger)]' : 'text-fg')}>
                       {stage.samples ? formatDuration(stage.averageNetMs) : '—'}
                     </span>
-                    <span className="text-muted-foreground"> / {formatDuration(stage.targetMs)}</span>
+                    <span className="text-fg-muted"> / {formatDuration(stage.targetMs)}</span>
                   </td>
-                  <td className="w-24 py-1.5 pl-3 text-right text-[11px] text-muted-foreground">
+                  <td className="w-32 py-1.5 pl-3 text-right text-[11px] text-fg-muted">
                     {stage.samples} salida{stage.samples === 1 ? '' : 's'}
                     {stage.breaches > 0 ? ` · ${stage.breaches} fuera` : ''}
+                    {stage.averageBlockedMs > 0 ? (
+                      <span className="block" title="Tiempo medio en parada dentro de la fase, ya descontado del neto">
+                        +{formatDuration(stage.averageBlockedMs)} parada
+                      </span>
+                    ) : null}
                   </td>
                 </tr>
               );
@@ -117,9 +122,9 @@ export function StopCausesChart({ causes }: { causes: FlowMetrics['stopCauses'] 
       </CardHeader>
       <CardContent>
         {causes.length === 0 ? (
-          <p className="text-xs text-muted-foreground">No hay paradas registradas todavía.</p>
+          <p className="text-xs text-fg-muted">No hay paradas registradas todavía.</p>
         ) : (
-          <table className="w-full text-xs">
+          <table className="relative w-full text-xs">
             <caption className="sr-only">Distribución de causas de parada</caption>
             <thead className="sr-only">
               <tr>
@@ -140,7 +145,7 @@ export function StopCausesChart({ causes }: { causes: FlowMetrics['stopCauses'] 
                   <td className="w-16 py-1.5 pl-3 text-right font-medium tabular-nums">
                     {formatPercent(cause.share)}
                   </td>
-                  <td className="w-28 py-1.5 pl-3 text-right text-[11px] text-muted-foreground">
+                  <td className="w-28 py-1.5 pl-3 text-right text-[11px] text-fg-muted">
                     {formatDuration(cause.totalMs)} parada
                   </td>
                 </tr>
@@ -168,15 +173,15 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-end gap-3">
-          <span className={cn('text-3xl font-semibold tabular-nums', highPressure ? 'text-danger' : 'text-foreground')}>
+          <span className={cn('text-[28px] font-medium leading-none tracking-tight tabular-nums', highPressure ? 'text-[var(--danger)]' : 'text-fg')}>
             {formatPercent(overrides.rate, 1)}
           </span>
-          <span className="pb-1 text-xs text-muted-foreground">
+          <span className="pb-1 text-xs text-fg-muted">
             {overrides.total} de {overrides.transitions} transiciones de fase
           </span>
         </div>
 
-        <table className="w-full text-xs">
+        <table className="relative w-full text-xs">
           <caption className="sr-only">Avances excepcionales por fase de salida</caption>
           <thead className="sr-only">
             <tr>
@@ -195,7 +200,7 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
                   <td className="py-1">
                     <BarCell ratio={stage.rate} tone={stage.overrides > 0 ? 'danger' : 'primary'} />
                   </td>
-                  <td className="w-24 py-1 pl-3 text-right tabular-nums text-muted-foreground">
+                  <td className="w-24 py-1 pl-3 text-right tabular-nums text-fg-muted">
                     {stage.overrides}/{stage.transitions}
                   </td>
                 </tr>
@@ -205,15 +210,15 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
 
         {overrides.recent.length > 0 ? (
           <div className="space-y-2 rounded-md border border-border p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
               Últimas excepciones firmadas
             </p>
             <ul className="space-y-1.5">
               {overrides.recent.map((override) => (
                 <li key={`${override.initiativeId}-${override.createdAt}`} className="text-[11px]">
                   <span className="font-mono font-semibold">{override.initiativeId}</span> ·{' '}
-                  <span className="text-muted-foreground">{override.authorizedBy}</span>
-                  <span className="block text-muted-foreground">{override.reason}</span>
+                  <span className="text-fg-muted">{override.authorizedBy}</span>
+                  <span className="block text-fg-muted">{override.reason}</span>
                 </li>
               ))}
             </ul>
@@ -227,17 +232,17 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
 /** Cifras de cabecera del panel. */
 export function HeadlineTiles({ headline }: { headline: FlowMetrics['headline'] }) {
   const tiles = [
-    { label: 'Iniciativas activas', value: headline.activeInitiatives, tone: 'text-foreground' },
-    { label: 'En parada', value: headline.blockedInitiatives, tone: 'text-danger' },
+    { label: 'Iniciativas activas', value: headline.activeInitiatives, tone: 'text-fg' },
+    { label: 'En parada', value: headline.blockedInitiatives, tone: 'text-[var(--danger)]' },
     { label: 'Solicitudes pendientes', value: headline.pendingDependencies, tone: 'text-info' },
-    { label: 'En riesgo o fuera de SLE', value: headline.atRiskOrExceeded, tone: 'text-warning' },
+    { label: 'En riesgo o fuera de SLE', value: headline.atRiskOrExceeded, tone: 'text-[var(--warning)]' },
   ];
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {tiles.map((tile) => (
         <Card key={tile.label} className="p-4">
-          <p className="text-[11px] uppercase tracking-wide text-muted-foreground">{tile.label}</p>
+          <p className="text-[11px] uppercase tracking-wide text-fg-muted">{tile.label}</p>
           <p className={cn('mt-1 text-2xl font-semibold tabular-nums', tile.tone)}>{tile.value}</p>
         </Card>
       ))}

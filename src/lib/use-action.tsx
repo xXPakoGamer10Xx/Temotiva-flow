@@ -38,7 +38,7 @@ export function useAction<Input, Output>(action: (input: Input) => Promise<Actio
 export function ActionError({ message }: { message: string | null }) {
   if (!message) return null;
   return (
-    <p role="alert" className="rounded-md bg-danger-soft px-3 py-2 text-xs text-danger">
+    <p role="alert" className="tone-danger rounded-md px-2.5 py-1.5 text-xs">
       {message}
     </p>
   );

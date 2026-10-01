@@ -15,25 +15,37 @@ import { cn } from '@/lib/utils';
 
 /**
  * Señales operativas del tablero: prioridad, reloj de SLE, parada, satélites de
- * dependencia y progreso de compuerta. Todas son componentes de servidor: no
- * necesitan estado, solo pintar lo que el dominio ya calculó.
+ * dependencia y progreso de compuerta.
+ *
+ * Los pictogramas que la especificación fija literalmente (⛔, 🔗, ⏳, ✅, ⚠️,
+ * 🟢, 🟡) se conservan, encajados en etiquetas translúcidas para que tengan un
+ * tamaño y una línea base consistentes en toda la interfaz.
  */
 
-const PRIORITY_TONE: Record<PriorityLevel, 'danger' | 'warning' | 'neutral' | 'outline'> = {
+/** Emoji de la especificación, alineado y a tamaño fijo. */
+function Glyph({ children }: { children: string }) {
+  return (
+    <span aria-hidden="true" className="text-[10px] leading-none">
+      {children}
+    </span>
+  );
+}
+
+const PRIORITY_TONE: Record<PriorityLevel, 'danger' | 'warning' | 'neutral' | 'bare'> = {
   CRITICAL: 'danger',
   HIGH: 'warning',
   NORMAL: 'neutral',
-  LOW: 'outline',
+  LOW: 'bare',
 };
 
 const PRIORITY_DOT: Record<PriorityLevel, string> = {
-  CRITICAL: 'bg-danger',
-  HIGH: 'bg-warning',
-  NORMAL: 'bg-muted-foreground/60',
-  LOW: 'bg-muted-foreground/35',
+  CRITICAL: 'bg-[var(--danger)]',
+  HIGH: 'bg-[var(--warning)]',
+  NORMAL: 'bg-fg-subtle',
+  LOW: 'bg-fg-subtle/60',
 };
 
-/** `🔴 Alta · Cliente B2B` — prioridad siempre acompañada de su motivo. */
+/** `Alta · Cliente B2B` — la prioridad nunca aparece sin su motivo. */
 export function PriorityBadge({
   priority,
   reason,
@@ -44,10 +56,13 @@ export function PriorityBadge({
   compact?: boolean;
 }) {
   return (
-    <Badge tone={PRIORITY_TONE[priority]} title={`Prioridad ${PRIORITY_LABELS[priority]} · ${PRIORITY_REASON_LABELS[reason]}`}>
+    <Badge
+      tone={PRIORITY_TONE[priority]}
+      title={`Prioridad ${PRIORITY_LABELS[priority]} · ${PRIORITY_REASON_LABELS[reason]}`}
+    >
       <span className={cn('size-1.5 rounded-full', PRIORITY_DOT[priority])} aria-hidden="true" />
       {PRIORITY_LABELS[priority]}
-      {compact ? null : <span className="font-normal opacity-80">· {PRIORITY_REASON_LABELS[reason]}</span>}
+      {compact ? null : <span className="font-normal opacity-70">· {PRIORITY_REASON_LABELS[reason]}</span>}
     </Badge>
   );
 }
@@ -60,6 +75,9 @@ const DEPARTMENT_DOT: Record<Department, string> = {
   TECH: 'bg-emerald-500',
   QA: 'bg-cyan-500',
   CYBER: 'bg-rose-500',
+  HR: 'bg-orange-500',
+  FINANCE: 'bg-lime-500',
+  MARKETING: 'bg-fuchsia-500',
 };
 
 export function DepartmentChip({
@@ -73,32 +91,43 @@ export function DepartmentChip({
 }) {
   return (
     <span
-      className={cn('inline-flex items-center gap-1.5 text-xs text-muted-foreground', className)}
+      className={cn('inline-flex items-center gap-1.5 text-xs text-fg-muted', className)}
       title={DEPARTMENT_LABELS[department]}
     >
-      <span className={cn('size-2 rounded-full', DEPARTMENT_DOT[department])} aria-hidden="true" />
+      <span className={cn('size-1.5 rounded-full', DEPARTMENT_DOT[department])} aria-hidden="true" />
       {short ? DEPARTMENT_SHORT[department] : DEPARTMENT_LABELS[department]}
     </span>
   );
 }
 
+export function DepartmentDot({ department, className }: { department: Department; className?: string }) {
+  return (
+    <span
+      className={cn('inline-block size-1.5 shrink-0 rounded-full', DEPARTMENT_DOT[department], className)}
+      aria-hidden="true"
+    />
+  );
+}
+
 const SLE_DOT = {
-  ON_TIME: 'bg-success',
-  AT_RISK: 'bg-warning',
-  EXCEEDED: 'bg-danger',
+  ON_TIME: 'bg-[var(--success)]',
+  AT_RISK: 'bg-[var(--warning)]',
+  EXCEEDED: 'bg-[var(--danger)]',
 } as const;
 
 const SLE_TEXT = {
-  ON_TIME: 'text-muted-foreground',
-  AT_RISK: 'text-warning',
-  EXCEEDED: 'text-danger',
+  ON_TIME: 'text-fg-muted',
+  AT_RISK: 'text-[var(--warning)]',
+  EXCEEDED: 'text-[var(--danger)]',
 } as const;
 
 /** Reloj sobrio: un punto de color y el dato. Sin parpadeos (TemoFlow.md §3.1). */
 export function SleClock({ reading, className }: { reading: SleReading; className?: string }) {
   return (
-    <span className={cn('inline-flex items-center gap-1.5 text-xs font-medium', SLE_TEXT[reading.state], className)}>
-      <span className={cn('size-2 rounded-full', SLE_DOT[reading.state])} aria-hidden="true" />
+    <span
+      className={cn('inline-flex items-center gap-1.5 text-xs tabular-nums', SLE_TEXT[reading.state], className)}
+    >
+      <span className={cn('size-1.5 rounded-full', SLE_DOT[reading.state])} aria-hidden="true" />
       {sleLabel(reading)}
     </span>
   );
@@ -115,22 +144,19 @@ export function StopBanner({
   className?: string;
 }) {
   return (
-    <div
-      className={cn(
-        'flex items-start gap-2 rounded-t-lg border-b border-danger/30 bg-danger-soft px-3 py-1.5 text-[11px] font-medium text-danger',
-        className,
-      )}
-    >
-      <span aria-hidden="true">⛔</span>
-      <span className="leading-snug">
-        PARADA: {stopReason ? STOP_REASON_LABELS[stopReason] : 'sin causa declarada'}
-        {description ? <span className="block font-normal opacity-90">{description}</span> : null}
+    <div className={cn('tone-danger flex items-start gap-1.5 px-3 py-1.5 text-[11px] leading-snug', className)}>
+      <Glyph>⛔</Glyph>
+      <span>
+        <span className="font-medium">
+          PARADA: {stopReason ? STOP_REASON_LABELS[stopReason] : 'sin causa declarada'}
+        </span>
+        {description ? <span className="mt-0.5 block opacity-80">{description}</span> : null}
       </span>
     </div>
   );
 }
 
-const HELP_STATUS_ICON: Record<HelpStatus, string> = {
+const HELP_STATUS_GLYPH: Record<HelpStatus, string> = {
   PENDING: '⏳',
   RESOLVED: '✅',
   REJECTED: '✖️',
@@ -152,9 +178,9 @@ export function DependencySatellites({ dependencies, max = 3 }: { dependencies: 
             dependency.isBlocking ? ' · bloqueante' : ''
           }`}
         >
-          <span aria-hidden="true">🔗</span>
+          <Glyph>🔗</Glyph>
           {DEPARTMENT_SHORT[dependency.department]}
-          <span aria-hidden="true">{HELP_STATUS_ICON[dependency.status]}</span>
+          <Glyph>{HELP_STATUS_GLYPH[dependency.status]}</Glyph>
         </Badge>
       ))}
       {rest > 0 ? <Badge tone="neutral">+{rest}</Badge> : null}
@@ -171,38 +197,38 @@ export function HelpTypeBadge({ helpType, isBlocking }: { helpType: HelpType; is
   );
 }
 
-/** `Compuerta: 3/5` con barra discreta. */
+/** `Compuerta 3/5` con barra discreta. */
 export function GateProgress({ completed, total }: { completed: number; total: number }) {
   const isComplete = total > 0 && completed === total;
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+      <div className="flex items-center justify-between text-[11px] text-fg-subtle">
         <span>Compuerta</span>
-        <span className={cn('font-medium tabular-nums', isComplete ? 'text-success' : 'text-foreground')}>
+        <span className={cn('tabular-nums', isComplete ? 'text-[var(--success)]' : 'text-fg-muted')}>
           {completed}/{total}
         </span>
       </div>
       <Progress
         value={completed}
         max={Math.max(total, 1)}
-        barClassName={isComplete ? 'bg-success' : 'bg-primary'}
+        barClassName={isComplete ? 'bg-[var(--success)]' : 'bg-accent'}
         label={`Compuerta de salida: ${completed} de ${total}`}
       />
     </div>
   );
 }
 
-const FLOW_STATE_META: Record<FlowState, { tone: 'danger' | 'warning' | 'success'; icon: string; label: string }> = {
-  BLOCKED: { tone: 'danger', icon: '⛔', label: 'Parada' },
-  PARALLEL: { tone: 'warning', icon: '🟡', label: 'Avanzando en paralelo' },
-  MOVING: { tone: 'success', icon: '🟢', label: 'Avanzando' },
+const FLOW_STATE_META: Record<FlowState, { tone: 'danger' | 'warning' | 'success'; glyph: string; label: string }> = {
+  BLOCKED: { tone: 'danger', glyph: '⛔', label: 'Parada' },
+  PARALLEL: { tone: 'warning', glyph: '🟡', label: 'Avanzando en paralelo' },
+  MOVING: { tone: 'success', glyph: '🟢', label: 'Avanzando' },
 };
 
 export function FlowStateBadge({ state }: { state: FlowState }) {
   const meta = FLOW_STATE_META[state];
   return (
     <Badge tone={meta.tone}>
-      <span aria-hidden="true">{meta.icon}</span>
+      <Glyph>{meta.glyph}</Glyph>
       {meta.label}
     </Badge>
   );
@@ -212,7 +238,7 @@ export function FlowStateBadge({ state }: { state: FlowState }) {
 export function OverrideMarkBadge({ className }: { className?: string }) {
   return (
     <Badge tone="warning" className={className} title="Esta iniciativa avanzó saltando una compuerta">
-      <span aria-hidden="true">⚠️</span>
+      <Glyph>⚠️</Glyph>
       Avance excepcional
     </Badge>
   );

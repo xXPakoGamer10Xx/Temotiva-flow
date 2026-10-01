@@ -26,7 +26,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     userId: profile.id,
     email: profile.email,
     name: profile.name,
-    department: profile.department,
+    departments: profile.departments,
     role: profile.role,
   };
 }
@@ -45,8 +45,20 @@ export async function requireSession(): Promise<SessionContext> {
 export async function getRequestContext(): Promise<RequestContext> {
   const headerList = await headers();
   const forwarded = headerList.get('x-forwarded-for');
+  const hops = (forwarded ?? '')
+    .split(',')
+    .map((hop) => hop.trim())
+    .filter(Boolean);
+
   return {
-    ip: forwarded ? (forwarded.split(',')[0]?.trim() ?? null) : headerList.get('x-real-ip'),
+    // `x-forwarded-for` se rellena de izquierda a derecha y el cliente controla
+    // el primer valor: tomarlo permitiría firmar una excepción desde una IP
+    // inventada. Se usa el salto más cercano al servidor (el que añade nuestro
+    // proxy) y, si existe, `x-real-ip`, que el proxy fija por su cuenta.
+    ip: headerList.get('x-real-ip') ?? hops.at(-1) ?? null,
+    // La cadena completa se guarda para el análisis forense: deja ver si el
+    // cliente intentó inyectar saltos por delante.
+    ipChain: hops.length > 1 ? hops.join(' → ') : null,
     userAgent: headerList.get('user-agent'),
   };
 }

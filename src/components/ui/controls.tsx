@@ -13,7 +13,7 @@ export function Checkbox({ className, ...props }: React.ComponentProps<typeof Ch
   return (
     <CheckboxPrimitive.Root
       className={cn(
-        'peer size-4 shrink-0 rounded border border-input bg-card transition-colors disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:border-primary data-[state=checked]:bg-primary data-[state=checked]:text-primary-foreground',
+        'peer size-4 shrink-0 rounded-[5px] border border-border-strong bg-surface transition-[background-color,border-color,box-shadow] hover:border-accent disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:border-border-strong data-[state=checked]:border-accent data-[state=checked]:bg-accent data-[state=checked]:text-accent-fg',
         className,
       )}
       {...props}
@@ -29,12 +29,12 @@ export function Switch({ className, ...props }: React.ComponentProps<typeof Swit
   return (
     <SwitchPrimitive.Root
       className={cn(
-        'peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border-2 border-transparent transition-colors disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-danger data-[state=unchecked]:bg-muted',
+        'peer inline-flex h-4.5 w-8 shrink-0 cursor-pointer items-center rounded-full border border-transparent bg-surface-3 transition-colors disabled:cursor-not-allowed disabled:opacity-50 data-[state=checked]:bg-[var(--danger)]',
         className,
       )}
       {...props}
     >
-      <SwitchPrimitive.Thumb className="pointer-events-none block size-4 rounded-full bg-card shadow-sm ring-0 transition-transform data-[state=checked]:translate-x-4 data-[state=unchecked]:translate-x-0" />
+      <SwitchPrimitive.Thumb className="pointer-events-none block size-3.5 translate-x-0.5 rounded-full bg-surface shadow-sm transition-transform data-[state=checked]:translate-x-4" />
     </SwitchPrimitive.Root>
   );
 }
@@ -53,8 +53,9 @@ export function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         align={align}
         sideOffset={sideOffset}
+        data-motion="dialog"
         className={cn(
-          'z-50 min-w-52 overflow-hidden rounded-lg border border-border bg-card p-1 shadow-lg',
+          'z-50 min-w-52 overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-panel)]',
           className,
         )}
         {...props}
@@ -67,7 +68,7 @@ export function DropdownMenuItem({ className, ...props }: React.ComponentProps<t
   return (
     <DropdownMenuPrimitive.Item
       className={cn(
-        'flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs outline-none transition-colors focus:bg-muted data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
+        'flex cursor-pointer select-none items-center gap-2 rounded-md px-2 py-1.5 text-xs text-fg outline-none transition-colors focus:bg-surface-2 data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
         className,
       )}
       {...props}
@@ -78,7 +79,7 @@ export function DropdownMenuItem({ className, ...props }: React.ComponentProps<t
 export function DropdownMenuLabel({ className, ...props }: React.ComponentProps<typeof DropdownMenuPrimitive.Label>) {
   return (
     <DropdownMenuPrimitive.Label
-      className={cn('px-2 py-1.5 text-[11px] font-semibold text-muted-foreground', className)}
+      className={cn('px-2 py-1.5 text-[11px] font-medium text-fg-muted', className)}
       {...props}
     />
   );

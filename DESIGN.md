@@ -59,6 +59,17 @@ El MVP es un **prototipo funcional** de front-end completo con una **capa de dat
 | D15 | Persistencia de trabajo | El store en memoria vuelca un snapshot JSON en `.data/` (desactivable con `DATA_SNAPSHOT=false`) para que las demos sobrevivan a reinicios y al hot-reload. No es la base de datos del sistema. |
 | D16 | Unidad del SLE | V1 mide horas naturales **netas** (descontando la parada). El calendario laborable real queda para V2: "48 h laborables" se modela como 48 h de reloj neto. |
 | D17 | Administración | Vista `/team` (solo EXECUTIVE) para la lista de acceso y para los parámetros de WIP y SLE por fase. |
+| D18 | Sistema visual | Estética de herramienta densa (referencia Linear/Vercel): Geist, base zinc, bordes de 1 px, etiquetas translúcidas `.tone-*` y elevación solo al pasar por encima. Los emoji que fija la especificación se conservan. |
+| D19 | Navegación | Barra lateral plegable en lugar de barra superior, paleta de comandos `⌘K` y atajos de una tecla. La ficha de iniciativa es un **panel lateral** (Sheet), no un modal centrado: no tapa el tablero. |
+| D25 | Ámbito del trabajo | Avanzar fase, asignar persona y declarar parada quedan abiertos a los tres roles (matriz §2.1) pero **acotados al área propietaria** o a Dirección: la capacidad es de oficio, no de jerarquía, y nadie mueve el trabajo de otro departamento. La prioridad, que ordena el trabajo ajeno, exige responsable del área o Dirección. |
+| D26 | Orígenes de la parada | El estado de parada se **recalcula** a partir de dos orígenes que pueden coexistir (manual y dependencias bloqueantes pendientes) en un único sitio, `recomputeBlockState`. Solo se registra evento cuando el estado cambia de verdad. |
+| D27 | Antigüedad de la parada | `blocked_since` es el ancla de contabilidad de la fase en curso y se reinicia al transicionar (cada fase descuenta solo lo suyo); `blocked_started_at` conserva el inicio real de la parada para mostrarla y medirla sin truncar. |
+| D28 | PII en la caja negra | Los eventos de acceso referencian a la persona por `user_id`, nunca por su correo: así la anonimización puede borrar el correo de verdad sin dejar copias en un log que es inmutable. |
+| D21 | Áreas | Una persona puede pertenecer a **varias áreas** (`user_departments`), porque hay responsables que llevan más de un departamento. Toda comprobación de área es pertenencia, no igualdad. Se añaden RRHH, Finanzas y Marketing: no son propietarias de ninguna fase, pero reciben solicitudes y tienen responsable. |
+| D22 | Altas | Jerarquía descendente: Dirección da de alta a cualquiera con cualquier rol y áreas; un responsable suma **miembros** dentro de las áreas que lleva; un miembro no da de alta a nadie. Nadie otorga lo que no tiene. |
+| D23 | Supresión | "Eliminar" es baja lógica; la anonimización (Dirección) sustituye nombre y correo por un identificador opaco y conserva la fila, para no romper la atribución de la caja negra. |
+| D24 | Cuenta propia | Cualquier rol edita su nombre visible en `/cuenta`. El correo no se cambia ahí (es la llave de acceso) y no hay contraseña que gestionar: la custodia Google (D2). |
+| D20 | Filtros | Los filtros del tablero (departamento, estado de flujo, texto, archivadas) viven en la URL, así que una vista filtrada es compartible; el WIP y la media siguen describiendo la fase entera, no lo filtrado. |
 
 ---
 
@@ -210,9 +221,11 @@ No se permiten saltos arbitrarios de etapa sin compuerta.
 
 ### 7.4 Dependencias y bloqueo automático
 
-- Abrir dependencia **no** cambia el propietario.
-- Si `is_blocking == true` → la iniciativa pasa a `is_blocked = true` con `stop_reason` automático (trigger).
-- Al resolver la **última** dependencia bloqueante pendiente → `is_blocked = false` automático.
+- Abrir dependencia **no** cambia el propietario, y siempre apunta a **otro** departamento: pedirse ayuda a uno mismo no es una dependencia y permitía autoinducirse paradas.
+- El estado de parada tiene **dos orígenes que pueden coexistir** (D26): la causa declarada a mano y las dependencias bloqueantes pendientes. `recomputeBlockState` es la única función que escribe `is_blocked`, y solo emite evento cuando el estado cambia:
+  - primera causa viva → `BLOCKED_SET`; una segunda dependencia bloqueante **no** vuelve a registrarla (contarla dos veces inflaba el recuento y sumaba intervalos solapados en el panel);
+  - resolver la última dependencia bloqueante levanta la parada **solo si no queda causa manual**;
+  - levantar la causa manual la mantiene parada si aún hay dependencias bloqueantes abiertas.
 - Resolver exige nota de respuesta y registra `DEPENDENCY_RESOLVED`.
 - Dependencia no bloqueante: la iniciativa sigue avanzando en paralelo (led amarillo "Avanzando en paralelo").
 
@@ -265,22 +278,52 @@ No se permiten saltos arbitrarios de etapa sin compuerta.
 | Modificar WIP/SLE del sistema | ❌ | ❌ | ✅ |
 | **Avance Excepcional (override)** | ❌ | ✅ (su área) | ✅ (total) |
 | Archivar iniciativa | ❌ | ✅ (su área) | ✅ |
-| Administrar la lista de acceso (altas, bajas, rol) | ❌ | ❌ | ✅ |
+| Dar de alta miembros en sus áreas | ❌ | ✅ | ✅ |
+| Editar rol y áreas de cualquiera | ❌ | ❌ | ✅ |
+| Crear responsables o dirección | ❌ | ❌ | ✅ |
+| Dar de baja a alguien de sus áreas | ❌ | ✅ (miembros) | ✅ |
+| Anonimizar un perfil (RGPD) | ❌ | ❌ | ✅ |
+| Editar su propio nombre visible | ✅ | ✅ | ✅ |
 
 **Regla de oro:** la matriz se valida en el servidor (services + actions). La UI solo oculta/deshabilita botones; nunca es la frontera de seguridad.
+
+### 8.3 Jerarquía de gestión de personas (D22)
+
+```
+Dirección (EXECUTIVE)
+  ├── crea, edita y da de baja a cualquiera, con cualquier rol y cualquier área
+  ├── reparte las áreas de cada responsable (una o varias)
+  └── anonimiza perfiles dados de baja (derecho de supresión)
+        │
+   Responsable de área (LEAD) — una o varias áreas
+        ├── da de alta MIEMBROS dentro de las áreas que lleva
+        ├── edita nombre y áreas de esos miembros (sin salirse de las suyas)
+        └── les da de baja
+              │
+         Miembro (MEMBER)
+              └── solo su propia cuenta
+```
+
+Dos reglas sostienen la jerarquía y las dos viven en `rbac.ts`:
+
+1. **Nadie otorga lo que no tiene.** `canGrantAccess` exige que el rol resultante sea otorgable por quien edita y que **todas** las áreas resultantes estén entre las suyas. Un responsable no puede ascender a nadie ni colocarlo en un área ajena.
+2. **El alcance se mide sobre la persona entera.** `canManageUser` exige cubrir **todas** las áreas de quien se edita: si alguien pertenece a Tech y a Finanzas, quien solo lleva Tech no decide por esa persona.
+
+Además, nadie puede revocarse el acceso ni cambiarse el rol a sí mismo: evita quedarse fuera del sistema y evita la autoconcesión de permisos.
 
 ---
 
 ## 9. UI/UX — Vistas y Modales
 
 ### Vista 1 — Tablero de Flujo (Kanban)
-- Columna por fase: nombre, WIP (`Co-Diseño: 4/4`) con estado ámbar si saturado, SLE medio real.
+- Barra de filtros rápidos en la cabecera: texto, estado de flujo (todas / paradas / en riesgo), departamento (propietario o destinatario de una solicitud abierta) y archivadas. Todo en la URL.
+- Columna por fase: nombre, WIP (`Co-Diseño: 4/4`) con estado ámbar si saturado, SLE medio real. Si el filtro esconde tarjetas, la columna lo dice.
 - Tarjeta: ID + badge de prioridad con motivo · título · propietario (avatar + departamento) · reloj SLE (verde/amarillo/rojo) · satélites de dependencia (`🔗 [Legal: ✅ Resuelto]`, `🔗 [Psicología: ⏳ Pendiente]`) · franja de bloqueo (`⛔ PARADA: ...`) · progreso `Checklist: 3/5`.
 
 ### Vista 2 — Radar de Esperas
 - Tabla interactiva con filtros por departamento: Iniciativa · Fase actual · Propietario · Tarea en curso · Dependencias activas · Estado de flujo (`⛔ Parada`, `🟢 Avanzando`, `🟡 Avanzando en paralelo`).
 
-### Vista 3 — Modal de Iniciativa (4 pestañas)
+### Vista 3 — Ficha de Iniciativa (panel lateral, 4 pestañas)
 1. General (título, descripción, enlaces Figma/Notion/Repo, propietario, asignado).
 2. Compuerta de Salida (checklist interactiva con autor + fecha por item).
 3. Dependencias (🆘 → formulario: departamento, tipo, descripción, `¿Bloquea totalmente? Sí/No`; historial con responder/cerrar).
@@ -300,10 +343,24 @@ No se permiten saltos arbitrarios de etapa sin compuerta.
 - Parámetros de fase: objetivo de SLE (horas netas) y límite de WIP.
 - Ambas capacidades se revalidan en el servidor dentro de cada Server Action, no solo al pintar la página.
 
-### Sistema visual
-- Tokens de color en `src/app/globals.css` con tema claro y oscuro; el tema se aplica antes de pintar para evitar parpadeo y se recuerda en el navegador.
-- Base neutra y un único acento de marca: el color saturado queda reservado a la señal operativa (prioridad, reloj de SLE, parada, saturación de WIP).
-- Los gráficos de dirección son tablas reales con una barra dibujada en una celda: legibles con lector de pantalla y sin depender del color.
+### Sistema visual (D18)
+
+Referencia estética: herramientas de trabajo densas tipo Linear o Vercel. Sobrio, tipografía pequeña y mucho aire entre bloques, no entre líneas.
+
+- **Tipografía:** Geist Sans y Geist Mono (`geist` + `next/font`), 13 px de base. Cifras tabulares en todo dato comparable (relojes, contadores, porcentajes).
+- **Color:** escala neutra fría (zinc) en cuatro superficies (`--bg`, `--surface`, `--surface-2`, `--surface-3`), bordes de 1 px en dos intensidades y **un único acento** de marca. El color saturado queda reservado a la señal operativa.
+- **Etiquetas translúcidas:** las clases `.tone-*` de `globals.css` son la única receta de color de estado — fondo del tono al 12 %, anillo interior al 22 % y texto del tono. Badges, franjas de parada, filtros activos y barras comparten esa receta, así que nunca se desalinean entre sí.
+- **Elevación:** las tarjetas usan `.card-hover`: al pasar por encima el borde se afirma, aparece una sombra corta y la tarjeta sube 1 px. Nada de sombras permanentes.
+- **Movimiento:** 150-260 ms con curva de salida, enganchado al `data-state` de Radix vía `data-motion`; se anula entero bajo `prefers-reduced-motion`.
+- **Pictogramas:** los emoji que la especificación fija (⛔ 🔗 ⏳ ✅ ⚠️ 🔒 🚨 🆘 🟢 🟡) se conservan, siempre dentro de una etiqueta translúcida y a tamaño fijo; el resto de iconografía es lucide a 14 px.
+- **Gráficos:** el panel de dirección son tablas reales con una barra dibujada en una celda: legibles con lector de pantalla y sin depender del color.
+
+### Navegación y teclado (D19)
+
+- **Barra lateral plegable** con las vistas, el contador de notificaciones, el tema y la sesión. El plegado vive como clase en `<html>` (la aplica el script del layout antes de pintar), no como estado de React: así el servidor y el cliente no discrepan al hidratar. En pantallas estrechas se sustituye por una barra superior.
+- **Paleta de comandos** (`⌘K` / `Ctrl+K`): salta a cualquier iniciativa por ID o título — con búsqueda insensible a acentos —, cambia de vista y lanza acciones.
+- **Atajos:** `C` nueva iniciativa, `/` filtrar el tablero, `G`+`B`/`R`/`D`/`N`/`A` para cambiar de vista, `Esc` cerrar, `?` ayuda. Se desactivan mientras el foco está en un campo de texto.
+- La paleta y los atajos hablan con el resto de la interfaz por eventos de `window` (`src/components/command/command-bus.ts`) en vez de subir estado hasta la raíz.
 
 ---
 
@@ -322,6 +379,10 @@ export interface DataStore {
   // ... + métodos para crear/actualizar, siempre append-only en logs
 }
 ```
+
+### 10.1.1 Limitación conocida de V1
+
+`nextInitiativeId` deriva el siguiente `TEMO-XXX` del máximo presente en el store. Con una sola instancia y su snapshot es correcto, pero **dos procesos sembrados a la vez generarían identificadores duplicados**. La numeración pasa a la base de datos (secuencia o `SELECT … FOR UPDATE`) cuando llegue `PostgresDataStore`; V1 no contempla multi-instancia.
 
 ### 10.2 Implementación V1: `InMemoryDataStore`
 

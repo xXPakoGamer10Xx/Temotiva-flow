@@ -1,4 +1,5 @@
 import type { Department, PriorityLevel, PriorityReason } from '@/domain/enums';
+import type { JsonValue } from '@/domain/types';
 import type {
   Initiative,
   InitiativeLink,
@@ -12,7 +13,16 @@ import { audit } from './audit';
 import { consolidateBlockedTime, loadInitiative } from './blocking';
 import { forbidden, invalid, invalidState, notFound } from './errors';
 import { evaluateGate, type GateEvaluation } from './gate';
-import { assertPermission, canArchiveInitiative, canOverrideGate, canReassignOwner } from './rbac';
+import {
+  assertPermission,
+  canAdvanceInitiative,
+  canArchiveInitiative,
+  canAssignInitiative,
+  canChangePriority,
+  canOverrideGate,
+  canReassignOwner,
+} from './rbac';
+import { DEPARTMENT_LABELS } from '@/domain/labels';
 
 /**
  * Ciclo de vida de la iniciativa: alta, edición, avance de fase, avance
@@ -73,7 +83,10 @@ export async function createInitiative(
     isBlocked: false,
     stopReason: null,
     blockedDescription: null,
+    manualStopReason: null,
+    manualStopDescription: null,
     blockedSince: null,
+    blockedStartedAt: null,
     blockedMsInStage: 0,
     currentTask: input.currentTask?.trim() || null,
     links: input.links ?? [],
@@ -129,8 +142,20 @@ export async function updateInitiative(
     throw invalid(`El título debe tener al menos ${MIN_INITIATIVE_TITLE} caracteres.`);
   }
 
+  // La prioridad ordena el trabajo de otros departamentos: no viaja con el
+  // resto de campos descriptivos, que sí son de edición continua (§1.3).
+  const touchesPriority =
+    (input.priority !== undefined && input.priority !== initiative.priority) ||
+    (input.priorityReason !== undefined && input.priorityReason !== initiative.priorityReason);
+  if (touchesPriority) {
+    assertPermission(
+      canChangePriority(session, initiative),
+      `La prioridad la decide el responsable de ${DEPARTMENT_LABELS[initiative.ownerDepartment]} o Dirección.`,
+    );
+  }
+
   const patch: Partial<Initiative> = { updatedAt: now.toISOString() };
-  const changes: Record<string, { from: unknown; to: unknown }> = {};
+  const changes: Record<string, { from: JsonValue; to: JsonValue }> = {};
 
   if (input.title !== undefined && input.title.trim() !== initiative.title) {
     patch.title = input.title.trim();
@@ -148,8 +173,16 @@ export async function updateInitiative(
     }
   }
   if (input.links !== undefined) {
-    patch.links = input.links;
-    changes.links = { from: initiative.links.length, to: input.links.length };
+    // Se compara por contenido, no por longitud: el log tiene que poder decir
+    // qué enlace entró y cuál salió.
+    const before = initiative.links.map((link) => link.url);
+    const after = input.links.map((link) => link.url);
+    const added = after.filter((url) => !before.includes(url));
+    const removed = before.filter((url) => !after.includes(url));
+    if (added.length > 0 || removed.length > 0) {
+      patch.links = input.links;
+      changes.links = { from: removed, to: added };
+    }
   }
   if (input.priority !== undefined && input.priority !== initiative.priority) {
     patch.priority = input.priority;
@@ -168,8 +201,10 @@ export async function updateInitiative(
     session,
     actionType: 'INITIATIVE_UPDATED',
     fieldName: Object.keys(changes).join(','),
-    oldValue: Object.fromEntries(Object.entries(changes).map(([key, value]) => [key, String(value.from ?? '')])),
-    newValue: Object.fromEntries(Object.entries(changes).map(([key, value]) => [key, String(value.to ?? '')])),
+    // Los valores viajan con su tipo original (el log es JSONB): convertirlos a
+    // texto dejaba la auditoría sin forma de reconstruir el cambio real.
+    oldValue: Object.fromEntries(Object.entries(changes).map(([key, value]) => [key, value.from])),
+    newValue: Object.fromEntries(Object.entries(changes).map(([key, value]) => [key, value.to])),
     at: now,
   });
 
@@ -186,10 +221,15 @@ export async function assignInitiative(
   const initiative = await loadInitiative(store, input.initiativeId);
   if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
 
+  assertPermission(
+    canAssignInitiative(session, initiative),
+    `Solo ${DEPARTMENT_LABELS[initiative.ownerDepartment]}, que tiene el trabajo, o Dirección pueden asignarla.`,
+  );
+
   if (input.assigneeId) {
     const assignee = await store.userById(input.assigneeId);
     if (!assignee || !assignee.isActive) throw notFound('La persona seleccionada no tiene acceso activo.');
-    if (assignee.department !== initiative.ownerDepartment) {
+    if (!assignee.departments.includes(initiative.ownerDepartment)) {
       throw invalid('Solo se puede asignar a alguien del departamento propietario de la fase actual.');
     }
   }
@@ -290,6 +330,14 @@ export async function advanceStage(
   const initiative = await loadInitiative(store, input.initiativeId);
   if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
 
+  // La matriz abre el avance a los tres roles, pero siempre dentro del área que
+  // tiene el trabajo: sin esto, cualquiera movería la iniciativa de otro
+  // departamento (SEGURIDAD.md §4.2.1).
+  assertPermission(
+    canAdvanceInitiative(session, initiative),
+    `Esta iniciativa la avanza ${DEPARTMENT_LABELS[initiative.ownerDepartment]}, propietaria de la fase, o Dirección.`,
+  );
+
   const stages = await store.listStages();
   const fromStage = stages.find((stage) => stage.id === initiative.currentStageId);
   if (!fromStage) throw notFound('La fase actual de la iniciativa no existe.');
@@ -337,7 +385,10 @@ export async function advanceStage(
     currentAssigneeId: null,
     stageEnteredAt: now.toISOString(),
     blockedMsInStage: 0,
-    // Una parada vigente sobrevive al cambio de fase, pero su reloj se reinicia.
+    // Una parada vigente sobrevive al cambio de fase. El ancla de contabilidad
+    // sí se reinicia (cada fase descuenta solo su propio tiempo parado), pero
+    // `blockedStartedAt` se conserva para no truncar la duración real de la
+    // parada en el radar ni en las métricas.
     blockedSince: initiative.isBlocked ? now.toISOString() : null,
     updatedAt: now.toISOString(),
   });
@@ -415,6 +466,7 @@ function buildOverrideMetadata(
     })),
     signature: OVERRIDE_SIGNATURE,
     ip: request?.ip ?? null,
+    ipChain: request?.ipChain ?? null,
     userAgent: request?.userAgent ?? null,
   };
 }

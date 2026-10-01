@@ -14,7 +14,12 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
 -- ENUMS ---------------------------------------------------------------------
 
-CREATE TYPE department_enum AS ENUM ('PRODUCT', 'PSYCHOLOGY', 'LEGAL', 'DESIGN', 'TECH', 'QA', 'CYBER');
+-- EXTENSIÓN V1: RRHH, Finanzas y Marketing no son propietarias de ninguna fase,
+-- pero reciben solicitudes de ayuda y tienen responsable propio.
+CREATE TYPE department_enum AS ENUM (
+    'PRODUCT', 'PSYCHOLOGY', 'LEGAL', 'DESIGN', 'TECH', 'QA', 'CYBER',
+    'HR', 'FINANCE', 'MARKETING'
+);
 CREATE TYPE priority_level_enum AS ENUM ('LOW', 'NORMAL', 'HIGH', 'CRITICAL');
 CREATE TYPE priority_reason_enum AS ENUM ('REGULATORY_RISK', 'B2B_CLIENT', 'SECURITY_INCIDENT', 'ROADMAP', 'INTERNAL_IMPROVEMENT');
 CREATE TYPE help_type_enum AS ENUM ('INFORMATION', 'VALIDATION', 'DECISION', 'RESOURCE', 'REVIEW', 'UNBLOCK');
@@ -31,13 +36,32 @@ CREATE TABLE users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     email VARCHAR(150) UNIQUE NOT NULL,
-    department department_enum NOT NULL,
     role user_role_enum NOT NULL DEFAULT 'MEMBER',
-    is_active BOOLEAN NOT NULL DEFAULT TRUE, -- EXTENSIÓN V1: allowlist fail-closed
+    is_active BOOLEAN NOT NULL DEFAULT TRUE,      -- EXTENSIÓN V1: allowlist fail-closed
+    is_anonymized BOOLEAN NOT NULL DEFAULT FALSE, -- EXTENSIÓN V1: derecho de supresión (§5.3)
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 CREATE INDEX users_email_lower_idx ON users (LOWER(email));
+
+-- EXTENSIÓN V1: una persona puede llevar varias áreas a la vez (un responsable
+-- de RRHH y Finanzas, o de Tech y Ciberseguridad). Sustituye a la antigua
+-- columna `users.department`, que solo admitía una.
+CREATE TABLE user_departments (
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    department department_enum NOT NULL,
+    PRIMARY KEY (user_id, department)
+);
+
+CREATE INDEX user_departments_department_idx ON user_departments (department);
+
+-- Sin áreas no hay permisos posibles: la aplicación exige al menos una y esta
+-- vista permite auditar que ninguna fila se quede huérfana.
+CREATE VIEW users_without_department AS
+SELECT u.id, u.email
+FROM users u
+LEFT JOIN user_departments d ON d.user_id = u.id
+WHERE d.user_id IS NULL;
 
 -- 2. FASES DEL WORKFLOW -------------------------------------------------------
 
@@ -83,11 +107,19 @@ CREATE TABLE initiatives (
     current_assignee_id UUID REFERENCES users(id),
     created_by UUID REFERENCES users(id) NOT NULL,
 
-    -- Control de parada / bloqueo
+    -- Control de parada.
+    -- El estado efectivo (`is_blocked`, `stop_reason`, `blocked_description`) se
+    -- recalcula a partir de dos orígenes que pueden coexistir: la parada
+    -- declarada a mano y las dependencias bloqueantes pendientes. Por eso el
+    -- origen manual se guarda aparte: resolver la última dependencia no debe
+    -- levantar una causa manual que sigue viva.
     is_blocked BOOLEAN DEFAULT FALSE,
     stop_reason stop_reason_enum,
     blocked_description TEXT,
-    blocked_since TIMESTAMPTZ,                       -- EXTENSIÓN V1: inicio de la parada vigente
+    manual_stop_reason stop_reason_enum,             -- EXTENSIÓN V1: causa declarada a mano
+    manual_stop_description TEXT,                    -- EXTENSIÓN V1
+    blocked_since TIMESTAMPTZ,                       -- EXTENSIÓN V1: ancla de contabilidad de ESTA fase
+    blocked_started_at TIMESTAMPTZ,                  -- EXTENSIÓN V1: inicio real de la parada, cruzando fases
     blocked_ms_in_stage BIGINT NOT NULL DEFAULT 0,   -- EXTENSIÓN V1: parada consolidada de la fase
 
     current_task VARCHAR(255),                       -- EXTENSIÓN V1: columna del Radar de Esperas
@@ -99,7 +131,9 @@ CREATE TABLE initiatives (
     updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 
     -- Una parada siempre declara su causa.
-    CONSTRAINT initiatives_stop_reason_required CHECK (NOT is_blocked OR stop_reason IS NOT NULL)
+    CONSTRAINT initiatives_stop_reason_required CHECK (NOT is_blocked OR stop_reason IS NOT NULL),
+    -- Si hay causa manual, la iniciativa está necesariamente parada.
+    CONSTRAINT initiatives_manual_stop_implies_blocked CHECK (manual_stop_reason IS NULL OR is_blocked)
 );
 
 CREATE INDEX initiatives_stage_idx ON initiatives (current_stage_id) WHERE NOT is_archived;
@@ -121,6 +155,8 @@ CREATE TABLE initiative_checklist_values (
 );
 
 -- 6. DEPENDENCIAS / SOLICITUDES SATÉLITE ("🆘 SOLICITAR AYUDA") ----------------
+-- Una solicitud siempre apunta a OTRO departamento: pedirse ayuda a uno mismo
+-- no es una dependencia y permitía autoinducirse paradas.
 
 CREATE TABLE initiative_dependencies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -130,6 +166,10 @@ CREATE TABLE initiative_dependencies (
     help_type help_type_enum NOT NULL,
     is_blocking BOOLEAN DEFAULT FALSE, -- determina si disparó un estado de parada
     description TEXT NOT NULL,
+    -- EXTENSIÓN V1: requisito de compuerta que originó la petición. Permite
+    -- saber si un pendiente concreto ya está solicitado, en lugar de dar por
+    -- cubierto todo el departamento.
+    checklist_item_id UUID REFERENCES stage_checklists(id) ON DELETE SET NULL,
     status help_status_enum DEFAULT 'PENDING',
     resolution_notes TEXT,
     resolved_by UUID REFERENCES users(id),

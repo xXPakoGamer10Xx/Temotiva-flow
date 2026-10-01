@@ -5,7 +5,18 @@
  * Identificadores en ingles; las etiquetas visibles en espanol viven en labels.ts.
  */
 
-export const DEPARTMENTS = ['PRODUCT', 'PSYCHOLOGY', 'LEGAL', 'DESIGN', 'TECH', 'QA', 'CYBER'] as const;
+export const DEPARTMENTS = [
+  'PRODUCT',
+  'PSYCHOLOGY',
+  'LEGAL',
+  'DESIGN',
+  'TECH',
+  'QA',
+  'CYBER',
+  'HR',
+  'FINANCE',
+  'MARKETING',
+] as const;
 export type Department = (typeof DEPARTMENTS)[number];
 
 export const PRIORITY_LEVELS = ['LOW', 'NORMAL', 'HIGH', 'CRITICAL'] as const;
@@ -67,6 +78,8 @@ export const ACTION_TYPES = [
   'ACCESS_GRANTED',
   'ACCESS_UPDATED',
   'ACCESS_REVOKED',
+  'ACCESS_ANONYMIZED',
+  'PROFILE_UPDATED',
   'SYSTEM_SETTINGS_UPDATED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];

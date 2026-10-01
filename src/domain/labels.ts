@@ -23,6 +23,9 @@ export const DEPARTMENT_LABELS: Record<Department, string> = {
   TECH: 'Tech',
   QA: 'QA',
   CYBER: 'Ciberseguridad',
+  HR: 'RRHH',
+  FINANCE: 'Finanzas',
+  MARKETING: 'Marketing',
 };
 
 /** Forma corta para chips y tablas densas. */
@@ -34,6 +37,9 @@ export const DEPARTMENT_SHORT: Record<Department, string> = {
   TECH: 'Tech',
   QA: 'QA',
   CYBER: 'Ciber',
+  HR: 'RRHH',
+  FINANCE: 'Finanzas',
+  MARKETING: 'Marketing',
 };
 
 export const PRIORITY_LABELS: Record<PriorityLevel, string> = {
@@ -116,6 +122,8 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   ACCESS_GRANTED: 'Acceso concedido',
   ACCESS_UPDATED: 'Perfil de acceso modificado',
   ACCESS_REVOKED: 'Acceso revocado',
+  ACCESS_ANONYMIZED: 'Perfil anonimizado',
+  PROFILE_UPDATED: 'Perfil actualizado',
   SYSTEM_SETTINGS_UPDATED: 'Parámetros del sistema modificados',
 };
 
@@ -125,6 +133,14 @@ export const LINK_KIND_LABELS: Record<LinkKind, string> = {
   REPO: 'Repositorio',
   OTHER: 'Enlace',
 };
+
+/** "Legal / DPO" con una sola área; "RRHH · Finanzas" cuando hay varias. */
+export function departmentsLabel(departments: Department[]): string {
+  const [first] = departments;
+  if (!first) return '—';
+  if (departments.length === 1) return DEPARTMENT_LABELS[first];
+  return departments.map((department) => DEPARTMENT_SHORT[department]).join(' · ');
+}
 
 /** Etiqueta compacta de tarjeta: "Alta · Cliente B2B". */
 export function priorityBadgeLabel(priority: PriorityLevel, reason: PriorityReason): string {

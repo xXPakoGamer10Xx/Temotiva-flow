@@ -98,9 +98,9 @@ describe('ciclo de vida de la iniciativa', () => {
   });
 
   it('solo asigna a personas activas del departamento propietario', async () => {
-    const legalMember = makeUser({ department: 'LEGAL', role: 'MEMBER' });
-    const designMember = makeUser({ department: 'DESIGN', role: 'MEMBER' });
-    const inactive = makeUser({ department: 'LEGAL', role: 'MEMBER', isActive: false });
+    const legalMember = makeUser({ departments: ['LEGAL'], role: 'MEMBER' });
+    const designMember = makeUser({ departments: ['DESIGN'], role: 'MEMBER' });
+    const inactive = makeUser({ departments: ['LEGAL'], role: 'MEMBER', isActive: false });
     const { store } = makeTestStore([makeInitiative({ ownerDepartment: 'LEGAL' })], [
       legalMember,
       designMember,

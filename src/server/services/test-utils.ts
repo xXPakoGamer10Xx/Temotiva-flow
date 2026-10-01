@@ -27,9 +27,10 @@ export function makeUser(overrides: Partial<User> = {}): User {
     id: `00000000-0000-4000-8000-${String(userSequence).padStart(12, '0')}`,
     name: `Persona ${userSequence}`,
     email: `persona${userSequence}@ejemplo.com`,
-    department: 'PRODUCT',
+    departments: ['PRODUCT'],
     role: 'MEMBER',
     isActive: true,
+    isAnonymized: false,
     createdAt: hoursBefore(1000),
     ...overrides,
   };
@@ -40,13 +41,14 @@ export function sessionOf(user: User): SessionContext {
     userId: user.id,
     email: user.email,
     name: user.name,
-    department: user.department,
+    departments: user.departments,
     role: user.role,
   };
 }
 
-export function makeSession(department: Department, role: UserRole): SessionContext {
-  return sessionOf(makeUser({ department, role }));
+export function makeSession(departments: Department | Department[], role: UserRole): SessionContext {
+  const list = Array.isArray(departments) ? departments : [departments];
+  return sessionOf(makeUser({ departments: list, role }));
 }
 
 export function makeInitiative(overrides: Partial<Initiative> = {}): Initiative {
@@ -63,7 +65,10 @@ export function makeInitiative(overrides: Partial<Initiative> = {}): Initiative 
     isBlocked: false,
     stopReason: null,
     blockedDescription: null,
+    manualStopReason: null,
+    manualStopDescription: null,
     blockedSince: null,
+    blockedStartedAt: null,
     blockedMsInStage: 0,
     currentTask: null,
     links: [],

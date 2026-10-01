@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDependency, rejectDependency, resolveDependency } from './dependencies';
-import { clearBlocked, setBlocked } from './blocking';
+import { clearManualStop, setManualStop } from './blocking';
 import { TEST_NOW, makeInitiative, makeSession, makeTestStore } from './test-utils';
 
 /**
@@ -100,7 +100,7 @@ describe('dependencias y estado de parada', () => {
     const { store } = makeTestStore();
     const owner = makeSession('LEGAL', 'MEMBER');
 
-    await setBlocked(store, owner, {
+    await setManualStop(store, owner, {
       initiativeId: 'TEMO-500',
       stopReason: 'FALTA_CAPACIDAD',
       description: 'Sin capacidad en el equipo hasta el próximo sprint.',
@@ -197,14 +197,14 @@ describe('dependencias y estado de parada', () => {
     const { store } = makeTestStore();
     const session = makeSession('LEGAL', 'LEAD');
 
-    await setBlocked(store, session, {
+    await setManualStop(store, session, {
       initiativeId: 'TEMO-500',
       stopReason: 'EXTERNO',
       description: 'Esperando respuesta del proveedor externo de identidad.',
       now: TEST_NOW,
     });
 
-    await clearBlocked(store, session, {
+    await clearManualStop(store, session, {
       initiativeId: 'TEMO-500',
       now: new Date(TEST_NOW.getTime() + 5 * 60 * 60 * 1000),
     });

@@ -48,7 +48,10 @@ Regla práctica: **si cabe duda, trátalo como Confidencial**.
 - En el callback `signIn` se busca el correo autenticado en `users`. Si no existe o tiene `is_active = false`, el acceso se **deniega** (fail-closed). Si existe, se inyectan `id`, `department` y `role` en el token.
 - El token se **rehidrata desde `users` en cada petición**: una baja o un cambio de rol surten efecto de inmediato, sin esperar a que caduque la sesión. Si el perfil desaparece o se desactiva, la sesión se invalida.
 - Las Server Actions y los Server Components vuelven a comprobar la lista por su cuenta (`getSessionContext`), no solo `proxy.ts`.
-- Solo `EXECUTIVE` administra la lista (altas, bajas, rol y departamento), desde la vista `/team`, y cada cambio queda auditado (`ACCESS_GRANTED`, `ACCESS_UPDATED`, `ACCESS_REVOKED`).
+- La administración es **jerárquica y descendente** (DESIGN.md §8.3): `EXECUTIVE` da de alta a cualquiera y reparte las áreas; `LEAD` suma **miembros** dentro de las áreas que lleva; `MEMBER` no da de alta a nadie. Nadie otorga un rol o un área que no tenga, y nadie se revoca ni se asciende a sí mismo.
+- Una persona puede pertenecer a **varias áreas**: toda comprobación de permiso es pertenencia a la lista, nunca igualdad con un único departamento.
+- Cada cambio queda auditado como evento de sistema (`ACCESS_GRANTED`, `ACCESS_UPDATED`, `ACCESS_REVOKED`, `ACCESS_ANONYMIZED`, `PROFILE_UPDATED`).
+- **No existen contraseñas en el sistema** (D2): las custodia Google, junto con el segundo factor. La aplicación no guarda hashes ni gestiona recuperación, y el panel de cuenta remite a la seguridad de la cuenta de Google.
 
 ### 3.3 Acceso de desarrollo
 
@@ -73,7 +76,7 @@ Regla práctica: **si cabe duda, trátalo como Confidencial**.
 1. Toda capacidad sensible (avanzar fase, override, reasignación, resolución, archivado) se valida en el **servidor** (Server Action + servicio de dominio).
 2. El override exige rol `LEAD` (solo su área) o `EXECUTIVE` (total) verificado por `auth()`.
 3. La reasignación de propietario exige ser `LEAD` del departamento actual o destino, o `EXECUTIVE`, con motivo obligatorio.
-4. El control de acceso dinámico (a nivel de FASE y de DEPARTAMENTO) se aplica tanto a la lectura como a la mutación.
+4. El control de acceso dinámico (a nivel de FASE y de DEPARTAMENTO) se aplica tanto a la lectura como a la mutación. En concreto, **avanzar de fase, asignar persona y declarar o levantar una parada exigen pertenecer al área propietaria** (o ser Dirección): la matriz de roles abre esas capacidades a los tres roles, pero ninguna de ellas incluye operar sobre el trabajo de otro departamento. Cambiar la prioridad exige responsable del área o Dirección.
 5. Sesiones stub en tests: solo para verificar reglas puras; **prohibido** usarlas como mecanismo de login en la aplicación.
 
 ---
@@ -93,8 +96,9 @@ Regla práctica: **si cabe duda, trátalo como Confidencial**.
 ### 5.3 Ciclo de vida del dato
 - **Reducción:** no se piden datos personales que no se necesiten.
 - **Retención:** definida por Dirección/DPO; el archivado (soft-delete) oculta del tablero pero conserva metadatos y audit log.
-- **Supresión:** si existieran datos personales sujetos a derecho de supresión, se gestionan por procedimiento documentado sin romper la inmutabilidad del audit log (anónimizar referencias).
+- **Supresión:** implementada como anonimización (`anonymizeUser`, solo `EXECUTIVE`, y solo sobre perfiles ya dados de baja). Sustituye nombre y correo por un identificador opaco y **conserva la fila**: los eventos que la persona firmó siguen atribuidos a un sujeto estable, de modo que el audit log no pierde el no repudio. El correo original nunca se copia al evento de anonimización. Es irreversible: un perfil anonimizado no se reactiva ni se reutiliza.
 - **Seguridad en tránsito:** HTTPS obligatorio en cualquier entorno accesible por red (desarrollo incluido si no es solo localhost).
+- **Snapshot en disco:** `.data/store.json` guarda nombres, correos y descripciones en texto plano. En producción no se activa salvo `DATA_SNAPSHOT=true` explícito, y entonces avisa por consola. Queda fuera del control de versiones y no debe entrar en backups corporativos sin cifrar.
 
 ---
 
@@ -103,6 +107,8 @@ Regla práctica: **si cabe duda, trátalo como Confidencial**.
 - `activity_log` es **append-only e inmutable**: no existen UPDATE ni DELETE. El código no expone operaciones de reescritura o borrado.
 - Cada evento registra `user_id` de la sesión validada + timestamp + valores old/new (JSON) + metadata.
 - Eventos críticos (`EXCEPTION_OVERRIDE`) incluyen `reason`, `risk_accepted`, `authorized_by` y recogen `IP` y `User-Agent` del contexto HTTP en `override_metadata`.
+- La IP se toma del **salto de confianza más cercano al servidor** (`x-real-ip`, o el último elemento de `x-forwarded-for`), nunca del primero: ese lo rellena el cliente y permitiría firmar una excepción desde una dirección inventada. La cadena completa se guarda en `ip_chain` para el análisis forense. El valor solo es tan fiable como la configuración del proxy: si se despliega sin uno, debe documentarse.
+- Los eventos de acceso (`ACCESS_*`) referencian a la persona por `user_id`, **nunca por su correo**: copiar el correo a un log inmutable dejaba fuera del alcance del derecho de supresión un dato que la anonimización sí borra de `users`.
 - El log se expone en la pestaña Trazabilidad en orden cronológico inverso; la UI solo lee.
 - Cualquier intento de mutar el log (incluso por mantenimiento) debe pasar por procedimiento de excepción aprobado por EXECUTIVE y quedar igualmente registrado.
 
