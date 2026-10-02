@@ -312,12 +312,23 @@ export function CommandCenter({
               onKeyDown={onListKeyDown}
               placeholder="Busca una iniciativa, una vista o una acción…"
               aria-label="Buscar"
+              role="combobox"
+              aria-expanded="true"
+              aria-controls="command-results"
+              aria-autocomplete="list"
+              aria-activedescendant={results[safeIndex] ? `command-${results[safeIndex].id}` : undefined}
               className="h-11 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-subtle"
             />
             <Kbd>Esc</Kbd>
           </div>
 
-          <div ref={listRef} className="scrollbar-slim max-h-80 overflow-y-auto p-1.5">
+          <div
+            ref={listRef}
+            id="command-results"
+            role="listbox"
+            aria-label="Resultados"
+            className="scrollbar-slim max-h-80 overflow-y-auto p-1.5"
+          >
             {results.length === 0 ? (
               <p className="px-3 py-6 text-center text-xs text-fg-muted">Nada coincide con «{query}».</p>
             ) : (
@@ -330,6 +341,10 @@ export function CommandCenter({
                     {showGroup ? <SectionLabel className="px-2 pb-1 pt-2">{command.group}</SectionLabel> : null}
                     <button
                       type="button"
+                      id={`command-${command.id}`}
+                      role="option"
+                      aria-selected={index === safeIndex}
+                      tabIndex={-1}
                       onClick={command.run}
                       onMouseEnter={() => setActiveIndex(index)}
                       className={cn(
@@ -379,6 +394,7 @@ const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['G', 'R'], label: 'Ir al radar de esperas' },
   { keys: ['G', 'D'], label: 'Ir al panel de dirección' },
   { keys: ['G', 'N'], label: 'Ir a notificaciones' },
+  { keys: ['G', 'A'], label: 'Ir al equipo (responsables y dirección)' },
   { keys: ['Esc'], label: 'Cerrar el panel o el diálogo abierto' },
   { keys: ['?'], label: 'Ver esta ayuda' },
 ];

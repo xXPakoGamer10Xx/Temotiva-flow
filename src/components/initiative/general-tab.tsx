@@ -37,11 +37,11 @@ export function GeneralTab({
   capabilities: InitiativeCapabilities;
 }) {
   const { card } = detail;
-  const update = useAction(updateInitiativeAction);
-  const assign = useAction(assignInitiativeAction);
-  const reassign = useAction(reassignOwnerAction);
-  const archive = useAction(archiveInitiativeAction);
-  const restore = useAction(restoreInitiativeAction);
+  const update = useAction(updateInitiativeAction, { success: 'Cambios guardados' });
+  const assign = useAction(assignInitiativeAction, { success: 'Responsable actualizado' });
+  const reassign = useAction(reassignOwnerAction, { success: 'Propiedad reasignada' });
+  const archive = useAction(archiveInitiativeAction, { success: 'Iniciativa archivada' });
+  const restore = useAction(restoreInitiativeAction, { success: 'Iniciativa restaurada' });
 
   const [title, setTitle] = React.useState(card.title);
   const [description, setDescription] = React.useState(card.description);
@@ -185,6 +185,7 @@ export function GeneralTab({
                 </Select>
                 <Textarea
                   rows={2}
+                  aria-label="Motivo de la reasignación"
                   value={reassignReason}
                   placeholder={`Motivo de la reasignación (mínimo ${MIN_REASSIGN_REASON} caracteres)`}
                   onChange={(event) => setReassignReason(event.target.value)}
@@ -305,6 +306,7 @@ export function GeneralTab({
             <div className="w-full space-y-2 rounded-md border border-border p-3 sm:w-80">
               <Textarea
                 rows={2}
+                aria-label="Motivo del archivado"
                 value={archiveReason}
                 placeholder={`Motivo del archivado (mínimo ${MIN_ARCHIVE_REASON} caracteres)`}
                 onChange={(event) => setArchiveReason(event.target.value)}

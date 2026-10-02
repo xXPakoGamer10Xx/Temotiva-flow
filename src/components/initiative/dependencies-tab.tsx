@@ -31,7 +31,7 @@ export function DependenciesTab({
   detail: InitiativeDetailView;
   session: SessionContext;
 }) {
-  const create = useAction(createDependencyAction);
+  const create = useAction(createDependencyAction, { success: 'Solicitud de ayuda enviada' });
   const [open, setOpen] = React.useState(detail.dependencies.length === 0);
   const [targetDepartment, setTargetDepartment] = React.useState<Department>('LEGAL');
   const [helpType, setHelpType] = React.useState<HelpType>('VALIDATION');
@@ -157,8 +157,8 @@ export function DependenciesTab({
 }
 
 function DependencyRow({ dependency, session }: { dependency: DependencyView; session: SessionContext }) {
-  const resolve = useAction(resolveDependencyAction);
-  const reject = useAction(rejectDependencyAction);
+  const resolve = useAction(resolveDependencyAction, { success: 'Dependencia resuelta' });
+  const reject = useAction(rejectDependencyAction, { success: 'Dependencia rechazada' });
   const [notes, setNotes] = React.useState('');
 
   const canClose =
@@ -198,6 +198,7 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
         <div className="space-y-2">
           <Textarea
             rows={2}
+            aria-label="Respuesta del departamento"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
             placeholder={`Respuesta del departamento (mínimo ${MIN_RESOLUTION_NOTES} caracteres)`}

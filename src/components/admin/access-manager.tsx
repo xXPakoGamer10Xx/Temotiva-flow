@@ -49,7 +49,7 @@ export interface AccessScope {
 export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: AccessScope }) {
   const [dialog, setDialog] = React.useState<{ mode: 'create' } | { mode: 'edit'; row: AccessRow } | null>(null);
   const [anonymizing, setAnonymizing] = React.useState<AccessRow | null>(null);
-  const toggle = useAction(setAccessActiveAction);
+  const toggle = useAction(setAccessActiveAction, { success: 'Acceso actualizado' });
 
   const available = scope.departments ?? [...DEPARTMENTS];
   const active = rows.filter((row) => row.isActive);
@@ -200,8 +200,8 @@ function PersonDialog({
   assignableRoles: UserRole[];
   onClose: () => void;
 }) {
-  const grant = useAction(grantAccessAction);
-  const update = useAction(updateAccessAction);
+  const grant = useAction(grantAccessAction, { success: 'Persona añadida a la lista de acceso' });
+  const update = useAction(updateAccessAction, { success: 'Cambios guardados' });
   const isEdit = row !== null;
 
   const [name, setName] = React.useState(row?.name ?? '');
@@ -315,7 +315,7 @@ function PersonDialog({
 
 /** Supresión RGPD: irreversible, y por eso pide motivo y avisa de lo que conserva. */
 function AnonymizeDialog({ row, onClose }: { row: AccessRow; onClose: () => void }) {
-  const anonymize = useAction(anonymizeUserAction);
+  const anonymize = useAction(anonymizeUserAction, { success: 'Persona anonimizada' });
   const [reason, setReason] = React.useState('');
 
   return (
@@ -336,6 +336,7 @@ function AnonymizeDialog({ row, onClose }: { row: AccessRow; onClose: () => void
             <SectionLabel>Motivo</SectionLabel>
             <Textarea
               rows={3}
+              aria-label="Motivo de la anonimización"
               value={reason}
               onChange={(event) => setReason(event.target.value)}
               placeholder="Ejercicio del derecho de supresión solicitado el…"

@@ -9,7 +9,7 @@ import { PRIORITY_LABELS, PRIORITY_REASON_HINTS, PRIORITY_REASON_LABELS } from '
 import { MIN_INITIATIVE_TITLE } from '@/domain/rules';
 import { createInitiativeAction } from '@/server/actions/initiatives';
 import { ActionError, useAction } from '@/lib/use-action';
-import { UI_EVENTS, useUiEvent } from '@/components/command/command-bus';
+import { UI_EVENTS, openNewInitiative, useUiEvent } from '@/components/command/command-bus';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input, Kbd, Label, Select, Textarea } from '@/components/ui/primitives';
@@ -18,11 +18,23 @@ import { Input, Kbd, Label, Select, Textarea } from '@/components/ui/primitives'
  * Alta de iniciativa. Toda iniciativa nace en Ideación, propiedad del
  * departamento por defecto de esa fase, y exige prioridad **con motivo**.
  *
- * Se abre con el botón o con la tecla `C` desde cualquier punto de la vista.
+ * El diálogo vive en el marco de la aplicación y escucha el evento de la
+ * paleta, así que se abre con la tecla `C` desde cualquier vista; el botón de
+ * la cabecera solo emite ese mismo evento.
  */
+export function NewInitiativeButton() {
+  return (
+    <Button size="sm" onClick={openNewInitiative}>
+      <Plus className="size-3.5" />
+      Nueva iniciativa
+      <Kbd className="ml-0.5 border-transparent bg-white/15 text-inherit">C</Kbd>
+    </Button>
+  );
+}
+
 export function NewInitiativeDialog() {
   const router = useRouter();
-  const create = useAction(createInitiativeAction);
+  const create = useAction(createInitiativeAction, { success: 'Iniciativa creada' });
   const [open, setOpen] = React.useState(false);
   const [title, setTitle] = React.useState('');
   const [description, setDescription] = React.useState('');
@@ -46,12 +58,6 @@ export function NewInitiativeDialog() {
 
   return (
     <>
-      <Button size="sm" onClick={() => setOpen(true)}>
-        <Plus className="size-3.5" />
-        Nueva iniciativa
-        <Kbd className="ml-0.5 border-transparent bg-white/15 text-inherit">C</Kbd>
-      </Button>
-
       {open ? (
         <Dialog open onOpenChange={setOpen}>
           <DialogContent className="w-[min(34rem,calc(100vw-2rem))]">
@@ -62,6 +68,13 @@ export function NewInitiativeDialog() {
               </p>
             </DialogHeader>
 
+            <form
+              className="contents"
+              onSubmit={(event) => {
+                event.preventDefault();
+                if (canSubmit) submit();
+              }}
+            >
             <DialogBody className="space-y-3.5">
               <div className="space-y-1.5">
                 <Label htmlFor="new-title">Título</Label>
@@ -132,13 +145,14 @@ export function NewInitiativeDialog() {
             </DialogBody>
 
             <DialogFooter>
-              <Button variant="ghost" onClick={() => setOpen(false)}>
+              <Button type="button" variant="ghost" onClick={() => setOpen(false)}>
                 Cancelar
               </Button>
-              <Button onClick={submit} disabled={!canSubmit}>
+              <Button type="submit" disabled={!canSubmit}>
                 {create.isPending ? 'Creando…' : 'Crear iniciativa'}
               </Button>
             </DialogFooter>
+            </form>
           </DialogContent>
         </Dialog>
       ) : null}

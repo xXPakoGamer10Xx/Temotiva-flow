@@ -35,7 +35,7 @@ export function GateTab({
   const { card, gate, nextStage } = detail;
   const toggle = useAction(toggleChecklistItemAction);
   const advance = useAction(advanceStageAction);
-  const request = useAction(createDependencyAction);
+  const request = useAction(createDependencyAction, { success: 'Solicitud enviada al departamento responsable' });
 
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [overrideOpen, setOverrideOpen] = React.useState(false);

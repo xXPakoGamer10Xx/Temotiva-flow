@@ -34,7 +34,7 @@ export function StageSettings({ stages }: { stages: WorkflowStage[] }) {
 }
 
 function StageRow({ stage }: { stage: WorkflowStage }) {
-  const update = useAction(updateStageSettingsAction);
+  const update = useAction(updateStageSettingsAction, { success: 'Parámetros de la fase guardados' });
   const [sleHours, setSleHours] = React.useState(String(stage.sleHours));
   const [wipLimit, setWipLimit] = React.useState(String(stage.wipLimit));
 

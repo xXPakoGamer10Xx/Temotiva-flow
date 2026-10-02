@@ -90,7 +90,6 @@ export function Sidebar({
         <button
           type="button"
           onClick={toggleSidebar}
-          data-sidebar-label
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
           aria-label="Plegar o desplegar la navegación"
           title="Plegar o desplegar la navegación"
@@ -128,7 +127,7 @@ export function Sidebar({
               aria-current={isActive ? 'page' : undefined}
               title={link.label}
               className={cn(
-                'flex h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors',
+                'group/nav flex h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors',
                 isActive
                   ? 'bg-surface-2 font-medium text-fg'
                   : 'text-fg-muted hover:bg-surface-2/70 hover:text-fg',
@@ -139,7 +138,7 @@ export function Sidebar({
                 {link.label}
               </span>
               {link.badge ? (
-                <Badge data-sidebar-label tone="danger" className="tabular-nums">
+                <Badge tone="danger" className="tabular-nums">
                   {link.badge}
                 </Badge>
               ) : link.shortcut ? (

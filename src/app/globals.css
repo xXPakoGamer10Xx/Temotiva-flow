@@ -22,8 +22,8 @@
 
   /* Texto */
   --fg: oklch(0.21 0.006 286);
-  --fg-muted: oklch(0.552 0.014 286);
-  --fg-subtle: oklch(0.705 0.015 286);
+  --fg-muted: oklch(0.5 0.014 286);
+  --fg-subtle: oklch(0.585 0.015 286);
 
   /* Líneas */
   --border: oklch(0.92 0.004 286);
@@ -56,8 +56,8 @@
   --surface-3: oklch(0.245 0.007 286);
 
   --fg: oklch(0.965 0.002 286);
-  --fg-muted: oklch(0.7 0.012 286);
-  --fg-subtle: oklch(0.56 0.012 286);
+  --fg-muted: oklch(0.75 0.012 286);
+  --fg-subtle: oklch(0.67 0.012 286);
 
   --border: oklch(0.285 0.008 286);
   --border-strong: oklch(0.36 0.01 286);
@@ -351,5 +351,29 @@
 
   .card-hover:hover {
     transform: none;
+  }
+}
+
+/*
+ * Pantallas táctiles: los controles llegan a 44 px (WCAG 2.2, 2.5.8) sin tocar
+ * la densidad del escritorio, donde el puntero es fino.
+ */
+@media (pointer: coarse) {
+  button,
+  [role='tab'],
+  [role='checkbox'],
+  [role='switch'],
+  select,
+  input:not([type='checkbox']):not([type='radio']) {
+    min-height: 2.75rem;
+  }
+
+  [role='checkbox'],
+  [role='switch'] {
+    min-width: 2.75rem;
+  }
+
+  kbd {
+    display: none;
   }
 }

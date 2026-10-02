@@ -156,6 +156,12 @@ export function StopBanner({
   );
 }
 
+const HELP_STATUS_TEXT: Record<HelpStatus, string> = {
+  PENDING: 'pendiente',
+  RESOLVED: 'resuelta',
+  REJECTED: 'rechazada',
+};
+
 const HELP_STATUS_GLYPH: Record<HelpStatus, string> = {
   PENDING: '⏳',
   RESOLVED: '✅',
@@ -181,6 +187,7 @@ export function DependencySatellites({ dependencies, max = 3 }: { dependencies: 
           <Glyph>🔗</Glyph>
           {DEPARTMENT_SHORT[dependency.department]}
           <Glyph>{HELP_STATUS_GLYPH[dependency.status]}</Glyph>
+          <span className="sr-only">{HELP_STATUS_TEXT[dependency.status]}</span>
         </Badge>
       ))}
       {rest > 0 ? <Badge tone="neutral">+{rest}</Badge> : null}

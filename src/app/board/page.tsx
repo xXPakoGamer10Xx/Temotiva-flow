@@ -7,7 +7,7 @@ import { AppShell, PageHeader } from '@/components/layout/app-shell';
 import { BoardColumn } from '@/components/board/board-column';
 import { BoardFilters } from '@/components/board/board-filters';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
-import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
+import { NewInitiativeButton } from '@/components/initiative/new-initiative-dialog';
 
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Tablero de flujo' };
@@ -75,7 +75,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
             {saturated > 0 ? ` · ${saturated} fase(s) por encima del WIP recomendado` : ''}
           </>
         }
-        actions={<NewInitiativeDialog />}
+        actions={<NewInitiativeButton />}
       >
         <BoardFilters counts={counts} />
       </PageHeader>

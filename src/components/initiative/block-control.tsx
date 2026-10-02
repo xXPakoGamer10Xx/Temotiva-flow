@@ -33,8 +33,8 @@ export function BlockControl({
   canBlock: boolean;
   ownerLabel: string;
 }) {
-  const block = useAction(setBlockedAction);
-  const clear = useAction(clearBlockedAction);
+  const block = useAction(setBlockedAction, { success: 'Iniciativa parada: el reloj SLE está en pausa' });
+  const clear = useAction(clearBlockedAction, { success: 'Parada levantada: el reloj SLE vuelve a correr' });
   const [open, setOpen] = React.useState(false);
   const [reason, setReason] = React.useState<StopReason>(stopReason ?? 'ESPERANDO_DECISION');
   const [description, setDescription] = React.useState('');
@@ -93,6 +93,7 @@ export function BlockControl({
 
       <Textarea
         rows={2}
+        aria-label="Qué impide continuar"
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         placeholder={`Qué impide continuar (mínimo ${MIN_BLOCK_DESCRIPTION} caracteres)`}

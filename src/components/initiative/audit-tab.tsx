@@ -32,7 +32,7 @@ export function AuditTab({ detail }: { detail: InitiativeDetailView }) {
         {detail.audit.map((entry) => (
           <li key={entry.id} className="relative">
             <span
-              className="absolute -left-[1.4rem] top-1.5 size-2 rounded-full bg-border ring-4 ring-card"
+              className="absolute -left-[1.4rem] top-1.5 size-2 rounded-full bg-border ring-4 ring-surface"
               aria-hidden="true"
             />
             <div className="flex flex-wrap items-center gap-2">

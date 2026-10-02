@@ -11,6 +11,7 @@ import {
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { getInitiativeDetail } from '@/server/services/views';
 import { InitiativeSheet } from './initiative-sheet';
+import { MissingInitiativeNotice } from './missing-initiative-notice';
 
 /**
  * Puente entre la URL y la ficha: cualquier vista que reciba
@@ -28,7 +29,7 @@ export async function InitiativeSheetHost({
 
   const store = getDataStore();
   const initiative = await store.initiativeById(initiativeId);
-  if (!initiative) return null;
+  if (!initiative) return <MissingInitiativeNotice initiativeId={initiativeId.slice(0, 24)} />;
 
   const detail = await getInitiativeDetail(store, initiativeId);
 

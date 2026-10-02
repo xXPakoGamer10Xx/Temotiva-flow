@@ -4,6 +4,7 @@ import { getDataStore } from '@/server/repositories';
 import { getNotifications } from '@/server/services/views';
 import { canManagePeople } from '@/server/services/rbac';
 import { CommandCenter, type PaletteInitiative } from '@/components/command/command-center';
+import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
 import { MobileNav } from './mobile-nav';
 import { Sidebar, type SidebarLink } from './sidebar';
 
@@ -54,14 +55,15 @@ export async function AppShell({
   };
 
   return (
-    <div className="flex min-h-dvh">
+    <div className="flex h-dvh overflow-hidden">
       <Sidebar links={links} user={user} />
 
-      <div className="flex min-w-0 flex-1 flex-col">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <MobileNav links={links} userName={session.name} />
-        <main className="flex min-h-0 flex-1 flex-col">{children}</main>
+        <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       </div>
 
+      <NewInitiativeDialog />
       <CommandCenter initiatives={paletteInitiatives} canManagePeople={canManagePeople(session)} />
     </div>
   );
