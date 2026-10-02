@@ -41,16 +41,16 @@ export function BoardCard({ card, basePath, query }: { card: InitiativeCardView;
 
       <div className="space-y-2 p-2.5">
         <div className="flex items-start justify-between gap-2">
-          <span className="shrink-0 font-mono text-[11px] text-fg-subtle">{card.id}</span>
+          <span className="shrink-0 font-mono text-xs text-fg-subtle">{card.id}</span>
           <PriorityBadge priority={card.priority} reason={card.priorityReason} />
         </div>
 
-        <h3 className="text-[13px] font-medium leading-snug text-fg transition-colors group-hover:text-accent">
+        <h3 className="text-sm font-medium leading-snug text-fg transition-colors group-hover:text-accent-text">
           {card.title}
         </h3>
 
         {card.currentTask ? (
-          <p className="line-clamp-2 text-[11px] leading-relaxed text-fg-muted">{card.currentTask}</p>
+          <p className="line-clamp-2 text-xs leading-relaxed text-fg-muted">{card.currentTask}</p>
         ) : null}
 
         {card.dependencies.length > 0 || card.lastOverride ? (
@@ -65,7 +65,7 @@ export function BoardCard({ card, basePath, query }: { card: InitiativeCardView;
         <div className="flex items-center justify-between gap-2 pt-0.5">
           <SleClock reading={card.sle} />
           <span className="flex items-center gap-1.5">
-            <DepartmentChip department={card.ownerDepartment} short className="text-[11px]" />
+            <DepartmentChip department={card.ownerDepartment} short className="text-xs" />
             {card.assignee ? <Avatar name={card.assignee.name} /> : null}
           </span>
         </div>

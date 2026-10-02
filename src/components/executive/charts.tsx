@@ -89,7 +89,7 @@ export function StageTimeChart({ stages }: { stages: FlowMetrics['stages'] }) {
                     </span>
                     <span className="text-fg-muted"> / {formatDuration(stage.targetMs)}</span>
                   </td>
-                  <td className="w-32 py-1.5 pl-3 text-right text-[11px] text-fg-muted">
+                  <td className="w-32 py-1.5 pl-3 text-right text-xs text-fg-muted">
                     {stage.samples} salida{stage.samples === 1 ? '' : 's'}
                     {stage.breaches > 0 ? ` · ${stage.breaches} fuera` : ''}
                     {stage.averageBlockedMs > 0 ? (
@@ -145,7 +145,7 @@ export function StopCausesChart({ causes }: { causes: FlowMetrics['stopCauses'] 
                   <td className="w-16 py-1.5 pl-3 text-right font-medium tabular-nums">
                     {formatPercent(cause.share)}
                   </td>
-                  <td className="w-28 py-1.5 pl-3 text-right text-[11px] text-fg-muted">
+                  <td className="w-28 py-1.5 pl-3 text-right text-xs text-fg-muted">
                     {formatDuration(cause.totalMs)} parada
                   </td>
                 </tr>
@@ -210,12 +210,12 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
 
         {overrides.recent.length > 0 ? (
           <div className="space-y-2 rounded-md border border-border p-3">
-            <p className="text-[11px] font-semibold uppercase tracking-wide text-fg-muted">
+            <p className="text-xs font-semibold uppercase tracking-wide text-fg-muted">
               Últimas excepciones firmadas
             </p>
             <ul className="space-y-1.5">
               {overrides.recent.map((override) => (
-                <li key={`${override.initiativeId}-${override.createdAt}`} className="text-[11px]">
+                <li key={`${override.initiativeId}-${override.createdAt}`} className="text-xs">
                   <span className="font-mono font-semibold">{override.initiativeId}</span> ·{' '}
                   <span className="text-fg-muted">{override.authorizedBy}</span>
                   <span className="block text-fg-muted">{override.reason}</span>
@@ -242,7 +242,7 @@ export function HeadlineTiles({ headline }: { headline: FlowMetrics['headline'] 
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {tiles.map((tile) => (
         <Card key={tile.label} className="p-4">
-          <p className="text-[11px] uppercase tracking-wide text-fg-muted">{tile.label}</p>
+          <p className="text-xs uppercase tracking-wide text-fg-muted">{tile.label}</p>
           <p className={cn('mt-1 text-2xl font-semibold tabular-nums', tile.tone)}>{tile.value}</p>
         </Card>
       ))}

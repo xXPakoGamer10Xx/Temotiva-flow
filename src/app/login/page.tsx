@@ -4,6 +4,7 @@ import { isDevAuthEnabled, isGoogleConfigured } from '@/lib/auth';
 import { getSessionContext } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
 import { USER_ROLE_LABELS, departmentsLabel } from '@/domain/labels';
+import { BrandMark } from '@/components/shared/brand-mark';
 import { LoginPanel } from './login-panel';
 
 export const dynamic = 'force-dynamic';
@@ -29,9 +30,7 @@ export default async function LoginPage() {
     <div className="grid min-h-dvh place-items-center px-4 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center gap-3">
-          <span className="grid size-10 place-items-center rounded-lg bg-accent text-[13px] font-bold text-accent-fg">
-            TF
-          </span>
+          <BrandMark className="size-12" />
           <div>
             <h1 className="text-[17px] font-semibold tracking-tight">Temotiva Flow</h1>
             <p className="text-xs text-fg-muted">Gestión y trazabilidad de iniciativas interdisciplinares</p>
@@ -44,7 +43,7 @@ export default async function LoginPage() {
           devProfiles={devProfiles}
         />
 
-        <p className="mt-6 flex items-start gap-2 text-[11px] leading-relaxed text-fg-muted">
+        <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-fg-muted">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0" />
           El acceso está restringido a las personas dadas de alta en el sistema. Si tu cuenta no aparece o fue dada de
           baja, la entrada se deniega por defecto. Contenido confidencial de Temotiva.

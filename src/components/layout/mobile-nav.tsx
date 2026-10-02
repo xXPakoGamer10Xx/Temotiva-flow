@@ -5,6 +5,7 @@ import type { Route } from 'next';
 import { Menu, Search } from 'lucide-react';
 import { openCommandPalette } from '@/components/command/command-bus';
 import { Badge } from '@/components/ui/primitives';
+import { BrandMark } from '@/components/shared/brand-mark';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -20,10 +21,8 @@ export function MobileNav({ links, userName }: { links: SidebarLink[]; userName:
   return (
     <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-surface px-3 md:hidden">
       <Link href="/board" className="flex items-center gap-2">
-        <span className="grid size-6 place-items-center rounded-md bg-accent text-[10px] font-bold text-accent-fg">
-          TF
-        </span>
-        <span className="text-[13px] font-medium tracking-tight">Temotiva Flow</span>
+        <BrandMark className="size-7" />
+        <span className="text-sm font-medium tracking-tight">Temotiva Flow</span>
       </Link>
 
       <button

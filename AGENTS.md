@@ -85,7 +85,7 @@ db/01-schema.sql          # DDL PostgreSQL con las extensiones V1 marcadas
 8. **Audit log:** todo evento se inserta (append-only) con `user_id` de la sesión criptográficamente validada. No reescribir ni borrar entradas del log.
 9. **Estilo:** Tailwind v4 + primitivas locales sobre Radix. Iconografía lucide-react a 14 px. Código modular, tipado fuerte, sin dependencias innecesarias.
 10. **Sistema visual:** los colores se usan **siempre** por token (`bg-surface`, `text-fg-muted`, `border-border`, `text-accent`, `--success/--warning/--danger/--info`). Prohibido escribir un color literal de Tailwind (`bg-zinc-100`, `text-red-500`) fuera de los puntos de departamento. El estado se pinta con las clases `.tone-*` de `globals.css`, nunca componiendo fondo, borde y texto a mano.
-11. **Tipografía:** base de 13 px (Geist). `text-[13px]` para contenido, `text-xs` para apoyo, `text-[11px]` para metadatos. Cifras comparables con `tabular-nums`.
+11. **Tipografía:** Roboto, base de 14 px. `text-sm` para contenido, `text-xs` (12 px) para apoyo y metadatos; `text-[11px]` solo para glifos y teclas. Cifras comparables con `tabular-nums`.
 12. **Pictogramas:** se conservan los emoji que la especificación fija literalmente (⛔ 🔗 ⏳ ✅ ⚠️ 🔒 🚨 🆘 🟢 🟡), siempre dentro de una etiqueta y con `aria-hidden`. Cualquier otro icono es lucide.
 13. **Teclado:** toda acción nueva que merezca atajo se registra en la paleta (`command-center.tsx`) y, si lleva tecla propia, también en la ayuda `?`. Los atajos de una tecla nunca deben dispararse escribiendo en un campo (`isTypingTarget`).
 

@@ -46,7 +46,7 @@ export function AccountForm({ name: initialName, email }: { name: string; email:
           {update.isPending ? 'Guardando…' : 'Guardar'}
         </Button>
         {saved && !isDirty ? (
-          <span className="inline-flex items-center gap-1 text-[11px] text-[var(--success)]">
+          <span className="inline-flex items-center gap-1 text-xs text-[var(--success)]">
             <Check className="size-3" />
             Guardado
           </span>

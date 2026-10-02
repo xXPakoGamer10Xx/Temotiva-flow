@@ -4,76 +4,79 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /*
- * Sistema visual de Temotiva Flow.
+ * Sistema visual de Temotiva Flow (Brandbook 2026 de Temotiva).
  *
- * Base neutra zinc, bordes de 1 px, superficies en capas y un único acento de
- * marca. El color saturado queda reservado a la señal operativa (prioridad,
- * reloj de SLE, parada, saturación de WIP) y siempre en forma translúcida:
- * fondo al 10-14 %, anillo interior al 20-25 % y texto del propio tono.
+ * Neutros lavanda teñidos del violeta de marca, bordes de 1 px, superficies en
+ * capas y un único acento. El color saturado queda reservado a la señal
+ * operativa (prioridad, reloj de SLE, parada, saturación de WIP) y siempre en
+ * forma translúcida: fondo al 10-14 %, anillo interior al 20-25 % y texto del
+ * propio tono, oscurecido para llegar a 4,5:1 (WCAG AA) sobre su fondo.
  *
- * La tipografía es Geist (variable), cargada desde `next/font` en el layout.
+ * La tipografía es Roboto, cargada desde `next/font` en el layout.
  */
 :root {
   /* Superficies, de fondo a primer plano */
-  --bg: oklch(0.985 0 0);
-  --surface: oklch(1 0 0);
-  --surface-2: oklch(0.972 0.001 286);
-  --surface-3: oklch(0.955 0.002 286);
+  --bg: #f7f6fb;
+  --surface: #ffffff;
+  --surface-2: #f1eef9;
+  --surface-3: #e9e4f4;
 
   /* Texto */
-  --fg: oklch(0.21 0.006 286);
-  --fg-muted: oklch(0.5 0.014 286);
-  --fg-subtle: oklch(0.585 0.015 286);
+  --fg: #2d2d2e;
+  --fg-muted: #5c5870;
+  --fg-subtle: #6b6683;
 
   /* Líneas */
-  --border: oklch(0.92 0.004 286);
-  --border-strong: oklch(0.87 0.006 286);
+  --border: #e4dff0;
+  --border-strong: #d0c8e4;
 
-  /* Acento de marca: un único color, usado con avaricia. */
-  --accent: oklch(0.545 0.164 281);
-  --accent-fg: oklch(0.99 0 0);
-  --accent-hover: oklch(0.5 0.17 281);
+  /* Acento de marca: un único violeta. `--accent-text` es su versión para texto pequeño. */
+  --accent: #7b5cff;
+  --accent-fg: #ffffff;
+  --accent-hover: #6848e0;
+  --accent-text: #5a3ed9;
 
-  /* Señal operativa */
-  --success: oklch(0.58 0.13 158);
-  --warning: oklch(0.62 0.14 68);
-  --danger: oklch(0.56 0.2 25);
-  --info: oklch(0.55 0.15 262);
+  /* Señal operativa (tonos de texto; los fondos se derivan en .tone-*) */
+  --success: #047857;
+  --warning: #b45309;
+  --danger: #c62828;
+  --info: #1d4ed8;
 
   --ring: var(--accent);
 
-  --radius: 0.5rem;
+  --radius: 0.625rem;
 
-  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.04);
-  --shadow-lift: 0 1px 2px oklch(0 0 0 / 0.05), 0 12px 28px -16px oklch(0 0 0 / 0.22);
-  --shadow-panel: 0 0 0 1px oklch(0 0 0 / 0.04), 0 24px 60px -24px oklch(0 0 0 / 0.3);
+  --shadow-card: 0 1px 2px rgb(123 92 255 / 0.06);
+  --shadow-lift: 0 1px 2px rgb(123 92 255 / 0.08), 0 14px 30px -16px rgb(90 62 217 / 0.35);
+  --shadow-panel: 0 0 0 1px rgb(123 92 255 / 0.06), 0 24px 60px -24px rgb(60 40 140 / 0.35);
 }
 
 .dark {
-  --bg: oklch(0.155 0.004 286);
-  --surface: oklch(0.185 0.005 286);
-  --surface-2: oklch(0.213 0.006 286);
-  --surface-3: oklch(0.245 0.007 286);
+  --bg: #110e1a;
+  --surface: #1a1525;
+  --surface-2: #221b33;
+  --surface-3: #2b2342;
 
-  --fg: oklch(0.965 0.002 286);
-  --fg-muted: oklch(0.75 0.012 286);
-  --fg-subtle: oklch(0.67 0.012 286);
+  --fg: #f7f6fb;
+  --fg-muted: #c9c1da;
+  --fg-subtle: #a69dc2;
 
-  --border: oklch(0.285 0.008 286);
-  --border-strong: oklch(0.36 0.01 286);
+  --border: #2f2748;
+  --border-strong: #433a62;
 
-  --accent: oklch(0.66 0.15 281);
-  --accent-fg: oklch(0.16 0.01 286);
-  --accent-hover: oklch(0.72 0.14 281);
+  --accent: #9b85ff;
+  --accent-fg: #110e1a;
+  --accent-hover: #b7a6ff;
+  --accent-text: #b7a6ff;
 
-  --success: oklch(0.75 0.15 158);
-  --warning: oklch(0.8 0.14 72);
-  --danger: oklch(0.7 0.17 25);
-  --info: oklch(0.7 0.13 262);
+  --success: #34d399;
+  --warning: #fbbf24;
+  --danger: #f87171;
+  --info: #7aa7ff;
 
-  --shadow-card: 0 1px 2px oklch(0 0 0 / 0.3);
-  --shadow-lift: 0 1px 2px oklch(0 0 0 / 0.35), 0 12px 28px -16px oklch(0 0 0 / 0.6);
-  --shadow-panel: 0 0 0 1px oklch(1 0 0 / 0.06), 0 24px 60px -24px oklch(0 0 0 / 0.75);
+  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.35);
+  --shadow-lift: 0 1px 2px rgb(0 0 0 / 0.4), 0 14px 30px -16px rgb(0 0 0 / 0.7);
+  --shadow-panel: 0 0 0 1px rgb(255 255 255 / 0.06), 0 24px 60px -24px rgb(0 0 0 / 0.8);
 }
 
 @theme inline {
@@ -88,6 +91,7 @@
   --color-border-strong: var(--border-strong);
   --color-accent: var(--accent);
   --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-danger: var(--danger);
@@ -97,11 +101,11 @@
   --radius-sm: calc(var(--radius) - 3px);
   --radius-md: calc(var(--radius) - 1px);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 4px);
+  --radius-xl: calc(var(--radius) + 6px);
 
-  /* Geist, con la pila del sistema como red de seguridad. */
-  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  /* Roboto, con la pila del sistema como red de seguridad. */
+  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: var(--font-roboto-mono), ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
   --shadow-card: var(--shadow-card);
   --shadow-lift: var(--shadow-lift);
@@ -125,14 +129,14 @@
     background-color: var(--bg);
     color: var(--fg);
     font-family: var(--font-sans);
-    /* Interfaz densa: 13 px de base, como las herramientas de trabajo diario. */
-    font-size: 13px;
+    /* Interfaz de trabajo diario: 14 px de base, con 12 px como mínimo legible. */
+    font-size: 14px;
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
   }
 
-  /* Geist trae cifras tabulares: se usan en todo lo que sea un número comparable. */
+  /* Cifras tabulares en todo lo que sea un número comparable. */
   .tabular-nums,
   time,
   [data-numeric] {
@@ -170,7 +174,7 @@
 
   .tone-accent {
     background-color: color-mix(in oklch, var(--accent) 12%, transparent);
-    color: var(--accent);
+    color: var(--accent-text);
     box-shadow: inset 0 0 0 1px color-mix(in oklch, var(--accent) 22%, transparent);
   }
 

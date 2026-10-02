@@ -1,8 +1,10 @@
 import type { Metadata, Viewport } from 'next';
-import { GeistMono } from 'geist/font/mono';
-import { GeistSans } from 'geist/font/sans';
+import { Roboto, Roboto_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/toaster';
 import './globals.css';
+
+const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], display: 'swap', variable: '--font-roboto' });
+const robotoMono = Roboto_Mono({ subsets: ['latin'], display: 'swap', variable: '--font-roboto-mono' });
 
 export const metadata: Metadata = {
   title: {
@@ -16,8 +18,8 @@ export const metadata: Metadata = {
 
 export const viewport: Viewport = {
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#fafafa' },
-    { media: '(prefers-color-scheme: dark)', color: '#111113' },
+    { media: '(prefers-color-scheme: light)', color: '#f7f6fb' },
+    { media: '(prefers-color-scheme: dark)', color: '#110e1a' },
   ],
 };
 
@@ -42,7 +44,7 @@ const THEME_SCRIPT = `
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="es" className={`${GeistSans.variable} ${GeistMono.variable}`} suppressHydrationWarning>
+    <html lang="es" className={`${roboto.variable} ${robotoMono.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>

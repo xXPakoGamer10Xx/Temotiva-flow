@@ -14,7 +14,7 @@ export function StageSettings({ stages }: { stages: WorkflowStage[] }) {
   return (
     <div className="overflow-hidden rounded-lg border border-border">
       <table className="w-full text-left text-xs">
-        <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-fg-muted">
+        <thead className="bg-surface-2 text-xs uppercase tracking-wide text-fg-muted">
           <tr>
             <th scope="col" className="px-3 py-2 font-medium">Fase</th>
             <th scope="col" className="px-3 py-2 font-medium">Propietario por defecto</th>

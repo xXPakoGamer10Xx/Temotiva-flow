@@ -25,13 +25,13 @@ export function BoardColumn({
     <section className="flex w-[17.5rem] shrink-0 flex-col" aria-label={`Fase ${column.stage.name}`}>
       <header className="sticky top-0 z-10 bg-bg pb-2 pt-1">
         <div className="flex items-baseline gap-2">
-          <h2 className="flex items-center gap-1.5 text-[13px] font-medium tracking-tight">
+          <h2 className="flex items-center gap-1.5 text-sm font-medium tracking-tight">
             <DepartmentDot department={column.stage.defaultOwnerDepartment} />
             {column.stage.name}
           </h2>
           <span
             className={cn(
-              'font-mono text-[11px] tabular-nums',
+              'font-mono text-xs tabular-nums',
               column.isSaturated ? 'text-[var(--warning)]' : 'text-fg-subtle',
             )}
             title={`${column.wipCount} iniciativas activas frente al cupo recomendado de ${column.wipLimit}`}
@@ -40,7 +40,7 @@ export function BoardColumn({
           </span>
           {column.isSaturated ? (
             <Badge tone="warning" className="ml-auto">
-              <span aria-hidden="true" className="text-[10px] leading-none">
+              <span aria-hidden="true" className="text-[11px] leading-none">
                 ⚠️
               </span>
               Saturado +{column.overBy}
@@ -48,7 +48,7 @@ export function BoardColumn({
           ) : null}
         </div>
 
-        <div className="mt-1 flex items-center gap-2 text-[11px] text-fg-subtle">
+        <div className="mt-1 flex items-center gap-2 text-xs text-fg-subtle">
           <span title="Departamento propietario por defecto de esta fase">
             {DEPARTMENT_LABELS[column.stage.defaultOwnerDepartment]}
           </span>
@@ -69,7 +69,7 @@ export function BoardColumn({
 
       <div className="flex flex-col gap-2">
         {column.cards.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-[11px] text-fg-subtle">
+          <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-fg-subtle">
             {hidden > 0 ? `${hidden} oculta(s) por el filtro` : 'Sin iniciativas'}
           </p>
         ) : (
@@ -78,7 +78,7 @@ export function BoardColumn({
               <BoardCard key={card.id} card={card} basePath={basePath} query={query} />
             ))}
             {hidden > 0 ? (
-              <p className="px-1 text-[11px] text-fg-subtle">{hidden} más oculta(s) por el filtro</p>
+              <p className="px-1 text-xs text-fg-subtle">{hidden} más oculta(s) por el filtro</p>
             ) : null}
           </>
         )}

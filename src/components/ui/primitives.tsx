@@ -22,7 +22,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 }
 
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
-  return <h3 className={cn('text-[13px] font-medium tracking-tight text-fg', className)} {...props} />;
+  return <h3 className={cn('text-sm font-medium tracking-tight text-fg', className)} {...props} />;
 }
 
 export function CardDescription({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
@@ -35,7 +35,7 @@ export function CardContent({ className, ...props }: React.HTMLAttributes<HTMLDi
 
 /** Etiqueta translúcida: la receta de color vive en `globals.css` (.tone-*). */
 const badgeVariants = cva(
-  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[11px] font-medium leading-[1.35] whitespace-nowrap',
+  'inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-medium leading-[1.35] whitespace-nowrap',
   {
     variants: {
       tone: {
@@ -61,7 +61,7 @@ export function Badge({ className, tone, ...props }: BadgeProps) {
 }
 
 const fieldStyles =
-  'w-full rounded-md border border-border bg-surface px-2.5 text-[13px] text-fg transition-[border-color,box-shadow] placeholder:text-fg-subtle hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] disabled:cursor-not-allowed disabled:opacity-55';
+  'w-full rounded-md border border-border bg-surface px-2.5 text-sm text-fg transition-[border-color,box-shadow] placeholder:text-fg-subtle hover:border-border-strong focus:border-accent focus:outline-none focus:ring-2 focus:ring-[color-mix(in_oklch,var(--accent)_22%,transparent)] disabled:cursor-not-allowed disabled:opacity-55';
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
   return <input className={cn(fieldStyles, 'h-8', className)} {...props} />;
@@ -154,7 +154,7 @@ export function Avatar({ name, className }: { name: string; className?: string }
 export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
-      <p className="text-[13px] font-medium">{title}</p>
+      <p className="text-sm font-medium">{title}</p>
       {description ? <p className="mt-1 text-xs text-fg-muted">{description}</p> : null}
     </div>
   );
@@ -165,7 +165,7 @@ export function Kbd({ className, children, ...props }: React.HTMLAttributes<HTML
   return (
     <kbd
       className={cn(
-        'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded border border-border bg-surface-2 px-1 font-mono text-[10px] font-medium text-fg-muted',
+        'inline-flex h-4.5 min-w-4.5 items-center justify-center rounded border border-border bg-surface-2 px-1 font-mono text-[11px] font-medium text-fg-muted',
         className,
       )}
       {...props}
@@ -179,7 +179,7 @@ export function Kbd({ className, children, ...props }: React.HTMLAttributes<HTML
 export function SectionLabel({ className, ...props }: React.HTMLAttributes<HTMLParagraphElement>) {
   return (
     <p
-      className={cn('text-[10px] font-medium uppercase tracking-[0.06em] text-fg-subtle', className)}
+      className={cn('text-[11px] font-medium uppercase tracking-[0.06em] text-fg-subtle', className)}
       {...props}
     />
   );

@@ -85,7 +85,7 @@ export function PageHeader({
     <header className="sticky top-0 z-20 border-b border-border bg-bg/85 backdrop-blur-sm">
       <div className="flex flex-wrap items-center gap-3 px-4 py-3 sm:px-6">
         <div className="min-w-0 flex-1">
-          <h1 className="text-[15px] font-medium tracking-tight">{title}</h1>
+          <h1 className="text-base font-medium tracking-tight">{title}</h1>
           {description ? <p className="mt-0.5 text-xs text-fg-muted">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}

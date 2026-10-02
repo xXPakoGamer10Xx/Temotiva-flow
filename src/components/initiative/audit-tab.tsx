@@ -24,7 +24,7 @@ const TONE_BY_ACTION: Partial<Record<ActionType, 'danger' | 'warning' | 'success
 export function AuditTab({ detail }: { detail: InitiativeDetailView }) {
   return (
     <div className="space-y-3">
-      <p className="text-[11px] text-fg-muted">
+      <p className="text-xs text-fg-muted">
         Registro inmutable de todo lo ocurrido en la vida de la iniciativa. No se edita ni se borra.
       </p>
 
@@ -40,14 +40,14 @@ export function AuditTab({ detail }: { detail: InitiativeDetailView }) {
                 {ACTION_TYPE_LABELS[entry.actionType]}
               </Badge>
               {entry.fromStageName && entry.toStageName ? (
-                <span className="text-[11px] text-fg-muted">
+                <span className="text-xs text-fg-muted">
                   {entry.fromStageName} ➔ {entry.toStageName}
                 </span>
               ) : null}
-              <span className="ml-auto text-[11px] text-fg-muted">{formatDateTime(entry.createdAt)}</span>
+              <span className="ml-auto text-xs text-fg-muted">{formatDateTime(entry.createdAt)}</span>
             </div>
 
-            <div className="mt-1 flex items-center gap-1.5 text-[11px] text-fg-muted">
+            <div className="mt-1 flex items-center gap-1.5 text-xs text-fg-muted">
               {entry.actor ? <Avatar name={entry.actor.name} className="size-4 text-[8px]" /> : null}
               <span>{entry.actor?.name ?? 'Sistema'}</span>
             </div>
@@ -55,7 +55,7 @@ export function AuditTab({ detail }: { detail: InitiativeDetailView }) {
             {entry.detail ? <p className="mt-1 text-xs leading-relaxed">{entry.detail}</p> : null}
 
             {entry.overrideMetadata ? (
-              <dl className="mt-2 space-y-1 rounded-md border border-border tone-warning px-3 py-2 text-[11px] text-[var(--warning)]">
+              <dl className="mt-2 space-y-1 rounded-md border border-border tone-warning px-3 py-2 text-xs text-[var(--warning)]">
                 <div>
                   <dt className="inline font-semibold">Pendiente: </dt>
                   <dd className="inline">

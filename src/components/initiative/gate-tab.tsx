@@ -93,16 +93,16 @@ export function GateTab({
               <label
                 htmlFor={`gate-${item.id}`}
                 className={cn(
-                  'block text-[13px] leading-snug',
+                  'block text-sm leading-snug',
                   item.isCompleted ? 'text-fg-muted line-through' : 'font-medium text-fg',
                 )}
               >
                 {item.label}
               </label>
               {item.description ? (
-                <p className="text-[11px] leading-relaxed text-fg-subtle">{item.description}</p>
+                <p className="text-xs leading-relaxed text-fg-subtle">{item.description}</p>
               ) : null}
-              <div className="flex flex-wrap items-center gap-1.5 text-[11px] text-fg-subtle">
+              <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-subtle">
                 <Badge tone={item.isCompleted ? 'success' : 'neutral'}>
                   {DEPARTMENT_LABELS[item.responsibleDepartment]}
                 </Badge>
@@ -146,7 +146,7 @@ export function GateTab({
               </>
             ) : (
               <>
-                <span aria-hidden="true" className="text-[11px] leading-none">
+                <span aria-hidden="true" className="text-xs leading-none">
                   🔒
                 </span>
                 Avanzar Fase ({gate.total - gate.completed} pendientes)
@@ -157,7 +157,7 @@ export function GateTab({
           <Badge tone="success">Última fase del ciclo</Badge>
         )}
         {nextStage ? (
-          <span className="text-[11px] text-fg-subtle">
+          <span className="text-xs text-fg-subtle">
             {capabilities.canAdvance
               ? `Al avanzar, la propiedad pasa a ${DEPARTMENT_LABELS[nextStage.defaultOwnerDepartment]}.`
               : `La avanza ${capabilities.ownerLabel}, que es quien tiene el trabajo en esta fase.`}
@@ -168,8 +168,8 @@ export function GateTab({
       {panelOpen && !gate.isComplete && nextStage ? (
         <div className="space-y-2.5 rounded-lg border border-border bg-surface-2/50 p-3">
           <div>
-            <p className="text-[13px] font-medium">Para pasar a {nextStage.name}, faltan estos requisitos:</p>
-            <p className="mt-0.5 text-[11px] text-fg-muted">
+            <p className="text-sm font-medium">Para pasar a {nextStage.name}, faltan estos requisitos:</p>
+            <p className="mt-0.5 text-xs text-fg-muted">
               Pídeselos al departamento responsable en un clic, o registra un avance excepcional.
             </p>
           </div>
@@ -210,13 +210,13 @@ export function GateTab({
 
           {capabilities.canOverride ? (
             <Button variant="danger" size="sm" onClick={() => setOverrideOpen(true)}>
-              <span aria-hidden="true" className="text-[11px] leading-none">
+              <span aria-hidden="true" className="text-xs leading-none">
                 🚨
               </span>
               Solicitar Avance Excepcional
             </Button>
           ) : (
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               El avance excepcional lo firma el responsable de {DEPARTMENT_LABELS[card.ownerDepartment]} o Dirección.
             </p>
           )}
@@ -321,7 +321,7 @@ function OverrideDialog({
               ))}
             </ul>
             {!allAcknowledged ? (
-              <p className="text-[11px] text-fg-subtle">
+              <p className="text-xs text-fg-subtle">
                 Debes reconocer todos los requisitos incumplidos antes de firmar.
               </p>
             ) : null}
@@ -336,7 +336,7 @@ function OverrideDialog({
               onChange={(event) => setReason(event.target.value)}
               placeholder="Por qué el negocio necesita avanzar sin cerrar la compuerta"
             />
-            <p className="text-[11px] tabular-nums text-fg-subtle">
+            <p className="text-xs tabular-nums text-fg-subtle">
               {reason.trim().length}/{MIN_OVERRIDE_REASON} caracteres mínimos
             </p>
           </div>
@@ -350,7 +350,7 @@ function OverrideDialog({
               onChange={(event) => setRisk(event.target.value)}
               placeholder="Impacto técnico, clínico o legal que se acepta explícitamente"
             />
-            <p className="text-[11px] tabular-nums text-fg-subtle">
+            <p className="text-xs tabular-nums text-fg-subtle">
               {risk.trim().length}/{MIN_OVERRIDE_RISK} caracteres mínimos
             </p>
           </div>

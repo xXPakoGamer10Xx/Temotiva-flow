@@ -68,7 +68,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
       ) : (
         <div className="overflow-hidden rounded-lg border border-border">
           <table className="w-full border-collapse text-left text-xs">
-            <thead className="bg-surface-2 text-[11px] uppercase tracking-wide text-fg-muted">
+            <thead className="bg-surface-2 text-xs uppercase tracking-wide text-fg-muted">
               <tr>
                 <th scope="col" className="px-3 py-2 font-medium">Iniciativa</th>
                 <th scope="col" className="px-3 py-2 font-medium">Fase</th>
@@ -87,10 +87,10 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                       scroll={false}
                       className="block space-y-1"
                     >
-                      <span className="font-mono text-[11px] font-semibold text-fg-muted">
+                      <span className="font-mono text-xs font-semibold text-fg-muted">
                         {row.initiativeId}
                       </span>
-                      <span className="block max-w-56 font-medium leading-snug text-fg hover:text-accent">
+                      <span className="block max-w-56 font-medium leading-snug text-fg hover:text-accent-text">
                         {row.title}
                       </span>
                       <PriorityBadge priority={row.priority} reason={row.priorityReason} compact />
@@ -103,7 +103,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                   <td className="px-3 py-3">
                     <DepartmentChip department={row.ownerDepartment} />
                     {row.assignee ? (
-                      <span className="mt-1 block text-[11px] text-fg-muted">{row.assignee.name}</span>
+                      <span className="mt-1 block text-xs text-fg-muted">{row.assignee.name}</span>
                     ) : null}
                   </td>
                   <td className="hidden max-w-48 px-3 py-3 text-fg-muted lg:table-cell">
@@ -122,7 +122,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                               ({HELP_TYPE_LABELS[dependency.helpType]})
                             </span>
                             {dependency.isBlocking ? <Badge tone="danger">bloqueante</Badge> : null}
-                            <span className="text-[11px] text-fg-muted">
+                            <span className="text-xs text-fg-muted">
                               {formatRelative(dependency.createdAt)}
                             </span>
                           </li>
@@ -133,7 +133,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
                   <td className="px-3 py-3">
                     <FlowStateBadge state={row.flowState} />
                     {row.flowState === 'BLOCKED' ? (
-                      <span className="mt-1 block text-[11px] text-fg-muted">
+                      <span className="mt-1 block text-xs text-fg-muted">
                         {row.stopReason ? STOP_REASON_LABELS[row.stopReason] : ''}
                         {row.blockedDescription ? ` · ${row.blockedDescription}` : ''}
                       </span>
@@ -164,7 +164,7 @@ function FilterChip({
       variant={active ? 'default' : 'outline'}
       onClick={onClick}
       aria-pressed={active}
-      className="h-7 rounded-full px-3 text-[11px]"
+      className="h-7 rounded-full px-3 text-xs"
     >
       {children}
     </Button>

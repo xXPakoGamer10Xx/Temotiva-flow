@@ -56,7 +56,7 @@ export function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDi
 export function SheetTitle({ className, ...props }: React.ComponentProps<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn('text-[15px] font-medium leading-snug tracking-tight text-fg', className)}
+      className={cn('text-base font-medium leading-snug tracking-tight text-fg', className)}
       {...props}
     />
   );

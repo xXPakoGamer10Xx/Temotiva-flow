@@ -59,7 +59,7 @@ El MVP es un **prototipo funcional** de front-end completo con una **capa de dat
 | D15 | Persistencia de trabajo | El store en memoria vuelca un snapshot JSON en `.data/` (desactivable con `DATA_SNAPSHOT=false`) para que las demos sobrevivan a reinicios y al hot-reload. No es la base de datos del sistema. |
 | D16 | Unidad del SLE | V1 mide horas naturales **netas** (descontando la parada). El calendario laborable real queda para V2: "48 h laborables" se modela como 48 h de reloj neto. |
 | D17 | Administración | Vista `/team` (solo EXECUTIVE) para la lista de acceso y para los parámetros de WIP y SLE por fase. |
-| D18 | Sistema visual | Estética de herramienta densa (referencia Linear/Vercel): Geist, base zinc, bordes de 1 px, etiquetas translúcidas `.tone-*` y elevación solo al pasar por encima. Los emoji que fija la especificación se conservan. |
+| D18 | Sistema visual | **Revisado el 01/10/2026:** identidad de marca Temotiva (Brandbook 2026 de la web): Roboto, neutros lavanda teñidos del violeta `#7B5CFF`, bordes de 1 px, etiquetas translúcidas `.tone-*`, esquinas de 10 px y elevación solo al pasar por encima. Base de 14 px y mínimo de 12 px por accesibilidad (WCAG 2.2 AA). Los emoji que fija la especificación se conservan. Ver §10. |
 | D19 | Navegación | Barra lateral plegable en lugar de barra superior, paleta de comandos `⌘K` y atajos de una tecla. La ficha de iniciativa es un **panel lateral** (Sheet), no un modal centrado: no tapa el tablero. |
 | D25 | Ámbito del trabajo | Avanzar fase, asignar persona y declarar parada quedan abiertos a los tres roles (matriz §2.1) pero **acotados al área propietaria** o a Dirección: la capacidad es de oficio, no de jerarquía, y nadie mueve el trabajo de otro departamento. La prioridad, que ordena el trabajo ajeno, exige responsable del área o Dirección. |
 | D26 | Orígenes de la parada | El estado de parada se **recalcula** a partir de dos orígenes que pueden coexistir (manual y dependencias bloqueantes pendientes) en un único sitio, `recomputeBlockState`. Solo se registra evento cuando el estado cambia de verdad. |
@@ -448,3 +448,17 @@ Los tests ejercitan **servicios puros** con `InMemoryDataStore`; no requieren re
 | WIP | Work In Progress (límite informativo por fase). |
 | Soft-delete | Archivado lógico; la entidad permanece en datos y logs. |
 | No-ping-pong | Una dependencia no transfiere la propiedad de la iniciativa. |
+
+---
+
+## 10. Sistema visual (marca Temotiva)
+
+**Modo:** Operate. La marca fija el mundo; la interfaz sigue siendo una herramienta de trabajo diario, así que la expresión nunca tapa la tarea.
+
+- **Tipografía:** Roboto (400/500/700) y Roboto Mono para los ID `TEMO-XXX`. Base de 14 px (`text-sm`), apoyo de 12 px (`text-xs`), metadatos de 11 px solo para glifos y teclas. Cifras comparables con `tabular-nums`.
+- **Color:** acento único `--accent` (`#7B5CFF` claro, `#9B85FF` oscuro). El texto pequeño de acento usa `--accent-text` (`#5A3ED9` / `#B7A6FF`) para llegar a 4,5:1. Fondos `#F7F6FB` y blanco; oscuro `#110E1A` / `#1A1525`. Los tonos de señal (`--success`, `--warning`, `--danger`, `--info`) son tonos de texto ya oscurecidos; los fondos se derivan en `.tone-*`.
+- **Forma:** `--radius` 10 px; sombras teñidas de violeta, solo al elevar.
+- **Logo:** cerebro de línea (`public/brand/temotiva-brain.png`, `BrandMark`), invertido en tema oscuro. Mascota «Cerebrín» (`public/brand/cerebrin-saludando.png`) reservada a estados vacíos y a la guía de bienvenida.
+- **Objetivos táctiles:** 44 px con puntero grueso (`@media (pointer: coarse)` en `globals.css`).
+- **Responsive:** prioridad portátil y tablet (≥768 px); en móvil, consulta.
+- **Movimiento:** 150-260 ms, sin rebotes, y alternativa para `prefers-reduced-motion`.

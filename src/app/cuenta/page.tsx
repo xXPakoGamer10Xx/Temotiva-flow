@@ -67,7 +67,7 @@ export default async function AccountPage() {
                 ))}
               </div>
 
-              <p className="text-[11px] text-fg-subtle">
+              <p className="text-xs text-fg-subtle">
                 {session.role === 'MEMBER'
                   ? 'Marcas los requisitos de compuerta de tus áreas, abres y resuelves solicitudes de ayuda y avanzas fases con la compuerta completa.'
                   : session.role === 'LEAD'
@@ -76,7 +76,7 @@ export default async function AccountPage() {
               </p>
 
               {profile ? (
-                <p className="text-[11px] text-fg-subtle">Con acceso desde {formatDate(profile.createdAt)}.</p>
+                <p className="text-xs text-fg-subtle">Con acceso desde {formatDate(profile.createdAt)}.</p>
               ) : null}
             </CardContent>
           </Card>
@@ -96,7 +96,7 @@ export default async function AccountPage() {
                     href="https://myaccount.google.com/security"
                     target="_blank"
                     rel="noreferrer noopener"
-                    className="text-accent hover:underline"
+                    className="text-accent-text hover:underline"
                   >
                     la seguridad de tu cuenta de Google
                   </a>

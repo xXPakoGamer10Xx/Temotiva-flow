@@ -127,7 +127,7 @@ export function NewInitiativeDialog() {
                       </option>
                     ))}
                   </Select>
-                  <p className="text-[11px] text-fg-subtle">{PRIORITY_REASON_HINTS[priorityReason]}</p>
+                  <p className="text-xs text-fg-subtle">{PRIORITY_REASON_HINTS[priorityReason]}</p>
                 </div>
               </div>
 

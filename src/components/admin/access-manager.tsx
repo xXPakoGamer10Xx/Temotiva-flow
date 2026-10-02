@@ -71,7 +71,7 @@ export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: Acces
 
       <div className="overflow-hidden rounded-lg border border-border">
         <table className="w-full text-left text-xs">
-          <thead className="bg-surface-2/70 text-[11px] text-fg-muted">
+          <thead className="bg-surface-2/70 text-xs text-fg-muted">
             <tr>
               <th scope="col" className="px-3 py-2 font-medium">Persona</th>
               <th scope="col" className="px-3 py-2 font-medium">Áreas</th>
@@ -88,7 +88,7 @@ export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: Acces
                     <Avatar name={row.name} className="size-6" />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-fg">{row.name}</p>
-                      <p className="truncate text-[11px] text-fg-subtle">{row.email}</p>
+                      <p className="truncate text-xs text-fg-subtle">{row.email}</p>
                     </div>
                   </div>
                 </td>
@@ -114,7 +114,7 @@ export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: Acces
                     <Badge tone={row.isActive ? 'success' : 'neutral'}>{row.isActive ? 'Activo' : 'De baja'}</Badge>
                   )}
                   {row.id === scope.currentUserId ? (
-                    <span className="ml-1.5 text-[11px] text-fg-subtle">(tú)</span>
+                    <span className="ml-1.5 text-xs text-fg-subtle">(tú)</span>
                   ) : null}
                 </td>
                 <td className="px-3 py-2 text-right">
@@ -162,7 +162,7 @@ export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: Acces
                       </DropdownMenuContent>
                     </DropdownMenu>
                   ) : (
-                    <span className="text-[11px] text-fg-subtle">Fuera de tu alcance</span>
+                    <span className="text-xs text-fg-subtle">Fuera de tu alcance</span>
                   )}
                 </td>
               </tr>
@@ -274,7 +274,7 @@ function PersonDialog({
                 );
               })}
             </div>
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               Una persona puede llevar varias áreas a la vez; verá y podrá responder por todas ellas.
             </p>
           </div>
@@ -288,7 +288,7 @@ function PersonDialog({
                 </option>
               ))}
             </Select>
-            <p className="text-[11px] text-fg-subtle">
+            <p className="text-xs text-fg-subtle">
               {role === 'MEMBER'
                 ? 'Trabaja en las iniciativas de sus áreas; no da de alta a nadie.'
                 : role === 'LEAD'

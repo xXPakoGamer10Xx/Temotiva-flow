@@ -25,7 +25,7 @@ import { cn } from '@/lib/utils';
 /** Emoji de la especificación, alineado y a tamaño fijo. */
 function Glyph({ children }: { children: string }) {
   return (
-    <span aria-hidden="true" className="text-[10px] leading-none">
+    <span aria-hidden="true" className="text-[11px] leading-none">
       {children}
     </span>
   );
@@ -144,7 +144,7 @@ export function StopBanner({
   className?: string;
 }) {
   return (
-    <div className={cn('tone-danger flex items-start gap-1.5 px-3 py-1.5 text-[11px] leading-snug', className)}>
+    <div className={cn('tone-danger flex items-start gap-1.5 px-3 py-1.5 text-xs leading-snug', className)}>
       <Glyph>⛔</Glyph>
       <span>
         <span className="font-medium">
@@ -209,7 +209,7 @@ export function GateProgress({ completed, total }: { completed: number; total: n
   const isComplete = total > 0 && completed === total;
   return (
     <div className="space-y-1">
-      <div className="flex items-center justify-between text-[11px] text-fg-subtle">
+      <div className="flex items-center justify-between text-xs text-fg-subtle">
         <span>Compuerta</span>
         <span className={cn('tabular-nums', isComplete ? 'text-[var(--success)]' : 'text-fg-muted')}>
           {completed}/{total}

@@ -64,7 +64,7 @@ export function InitiativeSheet({
       <SheetContent aria-describedby={undefined}>
         <SheetHeader className="space-y-2.5">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[11px] text-fg-subtle">{card.id}</span>
+            <span className="font-mono text-xs text-fg-subtle">{card.id}</span>
             <PriorityBadge priority={card.priority} reason={card.priorityReason} />
             <Badge tone="accent">{detail.stage.name}</Badge>
             <Badge tone="neutral">{DEPARTMENT_LABELS[card.ownerDepartment]}</Badge>
@@ -77,7 +77,7 @@ export function InitiativeSheet({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <SleClock reading={card.sle} />
-              <span className="text-[11px] text-fg-subtle">
+              <span className="text-xs text-fg-subtle">
                 {card.isBlocked && card.blockedStartedAt
                   ? `En parada desde ${formatDateTime(card.blockedStartedAt)}`
                   : `En ${detail.stage.name} desde ${formatDateTime(detail.stageEnteredAt)}`}
@@ -103,7 +103,7 @@ export function InitiativeSheet({
         ) : null}
 
         {card.lastOverride ? (
-          <div className="tone-warning border-b border-border px-5 py-2.5 text-[11px] leading-relaxed">
+          <div className="tone-warning border-b border-border px-5 py-2.5 text-xs leading-relaxed">
             <p className="font-medium">
               <span aria-hidden="true">⚠️</span> AVANCE EXCEPCIONAL REGISTRADO
             </p>
@@ -126,7 +126,7 @@ export function InitiativeSheet({
               </TabsTrigger>
               <TabsTrigger value="dependencies">
                 Dependencias
-                <span aria-hidden="true" className="text-[10px] leading-none">
+                <span aria-hidden="true" className="text-[11px] leading-none">
                   🆘
                 </span>
                 {card.pendingCount > 0 ? (

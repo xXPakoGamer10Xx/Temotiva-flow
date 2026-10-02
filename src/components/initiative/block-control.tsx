@@ -41,7 +41,7 @@ export function BlockControl({
 
   if (!canBlock) {
     return (
-      <span className="text-[11px] text-fg-subtle">
+      <span className="text-xs text-fg-subtle">
         La parada la gestiona {ownerLabel}, propietaria de la fase.
       </span>
     );
@@ -119,7 +119,7 @@ export function BlockControl({
           Cancelar
         </Button>
       </div>
-      <p className="text-[11px] text-fg-muted">
+      <p className="text-xs text-fg-muted">
         Mientras la iniciativa esté en parada, su reloj de SLE se detiene.
       </p>
     </div>

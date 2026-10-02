@@ -83,10 +83,10 @@ function NotificationRow({ item, showStatus = false }: { item: NotificationView;
           className="block space-y-1.5 p-3"
         >
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-mono text-[11px] text-fg-subtle">{item.initiativeId}</span>
-            <span className="text-[13px] font-medium">{item.initiativeTitle}</span>
+            <span className="font-mono text-xs text-fg-subtle">{item.initiativeId}</span>
+            <span className="text-sm font-medium">{item.initiativeTitle}</span>
             <Badge tone="neutral">{item.stageName}</Badge>
-            <span className="ml-auto text-[11px] text-fg-subtle">{formatRelative(dependency.createdAt)}</span>
+            <span className="ml-auto text-xs text-fg-subtle">{formatRelative(dependency.createdAt)}</span>
           </div>
 
           <div className="flex flex-wrap items-center gap-1.5">

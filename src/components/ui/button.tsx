@@ -8,7 +8,7 @@ import { cn } from '@/lib/utils';
  * sólido (el de acción principal); el resto son superficies con borde fino.
  */
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-[13px] font-medium transition-[background-color,border-color,box-shadow,color] duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md text-sm font-medium transition-[background-color,border-color,box-shadow,color] duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-3.5 [&_svg]:shrink-0',
   {
     variants: {
       variant: {
@@ -17,7 +17,7 @@ const buttonVariants = cva(
         ghost: 'text-fg-muted hover:bg-surface-2 hover:text-fg',
         subtle: 'bg-surface-2 text-fg hover:bg-surface-3',
         danger: 'tone-danger hover:brightness-[0.97] dark:hover:brightness-110',
-        link: 'text-accent underline-offset-4 hover:underline',
+        link: 'text-accent-text underline-offset-4 hover:underline',
       },
       size: {
         default: 'h-8 px-3',

@@ -317,7 +317,7 @@ export function CommandCenter({
               aria-controls="command-results"
               aria-autocomplete="list"
               aria-activedescendant={results[safeIndex] ? `command-${results[safeIndex].id}` : undefined}
-              className="h-11 flex-1 bg-transparent text-[13px] text-fg outline-none placeholder:text-fg-subtle"
+              className="h-11 flex-1 bg-transparent text-sm text-fg outline-none placeholder:text-fg-subtle"
             />
             <Kbd>Esc</Kbd>
           </div>
@@ -348,7 +348,7 @@ export function CommandCenter({
                       onClick={command.run}
                       onMouseEnter={() => setActiveIndex(index)}
                       className={cn(
-                        'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-[13px] transition-colors',
+                        'flex w-full items-center gap-2.5 rounded-md px-2 py-1.5 text-left text-sm transition-colors',
                         index === safeIndex ? 'bg-surface-2 text-fg' : 'text-fg-muted hover:bg-surface-2/60',
                       )}
                     >
@@ -357,7 +357,7 @@ export function CommandCenter({
                       </span>
                       <span className="min-w-0 flex-1 truncate">{command.label}</span>
                       {command.hint ? (
-                        <span className="shrink-0 font-mono text-[11px] text-fg-subtle">{command.hint}</span>
+                        <span className="shrink-0 font-mono text-xs text-fg-subtle">{command.hint}</span>
                       ) : null}
                     </button>
                   </React.Fragment>
@@ -366,7 +366,7 @@ export function CommandCenter({
             )}
           </div>
 
-          <div className="flex items-center gap-3 border-t border-border px-3.5 py-2 text-[11px] text-fg-subtle">
+          <div className="flex items-center gap-3 border-t border-border px-3.5 py-2 text-xs text-fg-subtle">
             <span className="flex items-center gap-1">
               <Kbd>↑</Kbd>
               <Kbd>↓</Kbd> moverse
@@ -410,7 +410,7 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
           {SHORTCUTS.map((shortcut) => (
             <div
               key={shortcut.label}
-              className="flex items-center justify-between gap-4 rounded-md px-3 py-1.5 text-[13px]"
+              className="flex items-center justify-between gap-4 rounded-md px-3 py-1.5 text-sm"
             >
               <span className="text-fg-muted">{shortcut.label}</span>
               <span className="flex shrink-0 items-center gap-1">

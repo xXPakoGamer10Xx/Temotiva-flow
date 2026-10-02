@@ -151,9 +151,9 @@ export function GeneralTab({
             <Save className="size-4" />
             {update.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
-          {isDirty ? <span className="text-[11px] text-fg-muted">Hay cambios sin guardar</span> : null}
+          {isDirty ? <span className="text-xs text-fg-muted">Hay cambios sin guardar</span> : null}
           {!capabilities.canChangePriority ? (
-            <span className="text-[11px] text-fg-subtle">
+            <span className="text-xs text-fg-subtle">
               La prioridad la decide el responsable de {capabilities.ownerLabel} o Dirección.
             </span>
           ) : null}
@@ -165,8 +165,8 @@ export function GeneralTab({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="space-y-2">
           <Label>Propiedad</Label>
-          <p className="text-[13px]">{DEPARTMENT_LABELS[card.ownerDepartment]}</p>
-          <p className="text-[11px] text-fg-muted">
+          <p className="text-sm">{DEPARTMENT_LABELS[card.ownerDepartment]}</p>
+          <p className="text-xs text-fg-muted">
             La propiedad viaja con la fase. Abrir una dependencia a otro departamento no la transfiere.
           </p>
           {capabilities.canReassign && !card.isArchived ? (
@@ -239,7 +239,7 @@ export function GeneralTab({
             ))}
           </Select>
           <ActionError message={assign.error} />
-          <p className="text-[11px] text-fg-muted">
+          <p className="text-xs text-fg-muted">
             {capabilities.canAssign
               ? 'Solo personas del departamento propietario de la fase actual.'
               : `La asignación la hace ${capabilities.ownerLabel}, propietaria de la fase.`}
@@ -261,7 +261,7 @@ export function GeneralTab({
                   href={link.url}
                   target="_blank"
                   rel="noreferrer noopener"
-                  className="inline-flex items-center gap-1.5 text-xs text-accent hover:underline"
+                  className="inline-flex items-center gap-1.5 text-xs text-accent-text hover:underline"
                 >
                   <ExternalLink className="size-3.5" />
                   <span className="font-medium">{LINK_KIND_LABELS[link.kind]}</span> · {link.label}
@@ -275,7 +275,7 @@ export function GeneralTab({
       <Separator />
 
       <div className="flex flex-wrap items-end justify-between gap-3">
-        <dl className="grid gap-x-6 gap-y-1 text-[11px] text-fg-muted sm:grid-cols-2">
+        <dl className="grid gap-x-6 gap-y-1 text-xs text-fg-muted sm:grid-cols-2">
           <div className="flex gap-1">
             <dt>Creada por:</dt>
             <dd className="text-fg">{detail.creator?.name ?? '—'}</dd>
@@ -325,7 +325,7 @@ export function GeneralTab({
                   Cancelar
                 </Button>
               </div>
-              <p className="text-[11px] text-fg-muted">
+              <p className="text-xs text-fg-muted">
                 El archivado es lógico: la iniciativa sale del tablero pero su trazabilidad permanece intacta.
               </p>
             </div>

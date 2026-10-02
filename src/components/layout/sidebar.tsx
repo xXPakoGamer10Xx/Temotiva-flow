@@ -28,6 +28,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/controls';
+import { BrandMark } from '@/components/shared/brand-mark';
 import { cn } from '@/lib/utils';
 
 export interface SidebarLink {
@@ -80,10 +81,8 @@ export function Sidebar({
           data-sidebar-item
           className="flex min-w-0 flex-1 items-center gap-2 rounded-md px-1.5 py-1 transition-colors hover:bg-surface-2"
         >
-          <span className="grid size-6 shrink-0 place-items-center rounded-md bg-accent text-[10px] font-bold text-accent-fg">
-            TF
-          </span>
-          <span data-sidebar-label className="truncate text-[13px] font-medium tracking-tight">
+          <BrandMark className="size-7" />
+          <span data-sidebar-label className="truncate text-sm font-medium tracking-tight">
             Temotiva Flow
           </span>
         </Link>
@@ -127,7 +126,7 @@ export function Sidebar({
               aria-current={isActive ? 'page' : undefined}
               title={link.label}
               className={cn(
-                'group/nav flex h-7 items-center gap-2 rounded-md px-2 text-[13px] transition-colors',
+                'group/nav flex h-7 items-center gap-2 rounded-md px-2 text-sm transition-colors',
                 isActive
                   ? 'bg-surface-2 font-medium text-fg'
                   : 'text-fg-muted hover:bg-surface-2/70 hover:text-fg',
@@ -162,7 +161,7 @@ export function Sidebar({
             <Avatar name={user.name} className="size-6" />
             <span data-sidebar-label className="min-w-0 flex-1">
               <span className="block truncate text-xs font-medium text-fg">{user.name}</span>
-              <span className="block truncate text-[11px] text-fg-subtle">{user.department}</span>
+              <span className="block truncate text-xs text-fg-subtle">{user.department}</span>
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top">
@@ -219,7 +218,7 @@ function ThemeToggleRow() {
       type="button"
       onClick={toggle}
       data-sidebar-item
-      className="flex h-7 w-full items-center gap-2 rounded-md px-2 text-[13px] text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
+      className="flex h-7 w-full items-center gap-2 rounded-md px-2 text-sm text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
       aria-label={isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
       title={isDark ? 'Tema claro' : 'Tema oscuro'}
     >

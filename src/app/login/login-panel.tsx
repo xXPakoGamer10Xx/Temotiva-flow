@@ -41,7 +41,7 @@ export function LoginPanel({
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-[15px]">Iniciar sesión</CardTitle>
+        <CardTitle className="text-base">Iniciar sesión</CardTitle>
         <CardDescription>Acceso por cuenta de Google verificada contra la lista de acceso.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -67,7 +67,7 @@ export function LoginPanel({
           <>
             <div className="flex items-center gap-3">
               <Separator className="flex-1" />
-              <span className="text-[11px] uppercase tracking-wide text-fg-muted">Solo desarrollo</span>
+              <span className="text-xs uppercase tracking-wide text-fg-muted">Solo desarrollo</span>
               <Separator className="flex-1" />
             </div>
 
@@ -86,7 +86,7 @@ export function LoginPanel({
               <Button variant="outline" className="w-full" onClick={enterAsDev} disabled={isPending || !email}>
                 {isPending ? 'Entrando…' : 'Entrar con este perfil'}
               </Button>
-              <p className="text-[11px] text-fg-muted">
+              <p className="text-xs text-fg-muted">
                 Este atajo existe porque <code className="font-mono">ALLOW_DEV_AUTH=true</code> en un entorno de
                 desarrollo. En producción no se registra nunca, y aun aquí solo entran perfiles activos de la lista de
                 acceso.
