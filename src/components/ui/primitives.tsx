@@ -68,7 +68,7 @@ export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInp
 }
 
 export function Textarea({ className, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(fieldStyles, 'min-h-18 resize-y py-2 leading-relaxed', className)} {...props} />;
+  return <textarea className={cn(fieldStyles, 'min-h-18 resize-none py-2 leading-relaxed', className)} {...props} />;
 }
 
 export function Select({ className, children, ...props }: React.SelectHTMLAttributes<HTMLSelectElement>) {
