@@ -19,9 +19,10 @@ export function InfoHint({ term, className }: { term: GlossaryKey; className?: s
     <PopoverPrimitive.Root>
       <PopoverPrimitive.Trigger
         type="button"
+        data-info-hint
         aria-label={`Qué es: ${entry.title}`}
         className={cn(
-          'inline-flex size-5 shrink-0 items-center justify-center rounded-full text-fg-subtle transition-colors hover:bg-surface-2 hover:text-accent-text',
+          'inline-flex size-6 shrink-0 items-center justify-center rounded-full text-fg-subtle transition-colors hover:bg-surface-2 hover:text-accent-text',
           className,
         )}
       >

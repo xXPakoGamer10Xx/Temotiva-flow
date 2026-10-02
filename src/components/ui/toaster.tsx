@@ -26,6 +26,7 @@ export function Toaster() {
         return (
           <div
             key={item.id}
+            data-motion="toast"
             className="pointer-events-auto flex max-w-sm items-center gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-sm text-fg shadow-[var(--shadow-lift)]"
           >
             <span className={`${TONE_CLASS[item.tone]} grid size-6 shrink-0 place-items-center rounded-md`}>

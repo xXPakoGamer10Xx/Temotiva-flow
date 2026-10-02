@@ -37,9 +37,9 @@
   --accent-text: #5a3ed9;
 
   /* Señal operativa (tonos de texto; los fondos se derivan en .tone-*) */
-  --success: #047857;
+  --success: #036a4a;
   --warning: #9a4a07;
-  --danger: #c62828;
+  --danger: #b42323;
   --info: #1d4ed8;
 
   --ring: var(--accent);
@@ -386,13 +386,44 @@
   animation: dialog-out 130ms ease-in;
 }
 
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+[data-motion='toast'] {
+  animation: toast-in 200ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/*
+ * Movimiento reducido: el cambio de estado se conserva, pero sin
+ * desplazamientos. Paneles y diálogos aparecen con un fundido corto (así se ve
+ * que algo se abrió) y el resto de la animación decorativa se apaga.
+ */
 @media (prefers-reduced-motion: reduce) {
-  [data-motion] {
-    animation-duration: 1ms !important;
+  [data-motion='sheet'][data-state='open'],
+  [data-motion='dialog'][data-state='open'],
+  [data-motion='toast'] {
+    animation: overlay-in 120ms linear;
+  }
+
+  [data-motion='sheet'][data-state='closed'],
+  [data-motion='dialog'][data-state='closed'] {
+    animation: overlay-out 90ms linear;
   }
 
   .card-hover:hover {
     transform: none;
+  }
+
+  .animate-pulse {
+    animation: none;
   }
 }
 
@@ -412,6 +443,10 @@
 
   [role='checkbox'],
   [role='switch'] {
+    min-width: 2.75rem;
+  }
+
+  [data-info-hint] {
     min-width: 2.75rem;
   }
 
