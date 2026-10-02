@@ -31,14 +31,14 @@
   --border-strong: #d0c8e4;
 
   /* Acento de marca: un único violeta. `--accent-text` es su versión para texto pequeño. */
-  --accent: #7b5cff;
+  --accent: #7656f5; /* #7B5CFF de marca, afinado para que el texto blanco llegue a 4,5:1 */
   --accent-fg: #ffffff;
   --accent-hover: #6848e0;
   --accent-text: #5a3ed9;
 
   /* Señal operativa (tonos de texto; los fondos se derivan en .tone-*) */
   --success: #047857;
-  --warning: #b45309;
+  --warning: #9a4a07;
   --danger: #c62828;
   --info: #1d4ed8;
 

@@ -19,6 +19,7 @@ import { Switch } from '@/components/ui/controls';
 import { Badge, Label, Select, Separator, Textarea } from '@/components/ui/primitives';
 import { HelpTypeBadge } from '@/components/shared/signals';
 import { formatDateTime } from '@/lib/utils';
+import { InfoHint } from '@/components/help/info-hint';
 
 /**
  * Pestaña Dependencias (🆘). Abrir una solicitud no cambia el propietario;
@@ -57,6 +58,13 @@ export function DependenciesTab({
 
   return (
     <div className="space-y-5">
+      <p className="flex items-start gap-1 text-xs leading-relaxed text-fg-muted">
+        <span className="flex-1">
+          Pide ayuda a otro departamento sin cambiar quién es el dueño de la iniciativa. Si no puedes seguir sin ella,
+          márcala como bloqueante.
+        </span>
+        <InfoHint term="dependency" />
+      </p>
       {open ? (
         <div className="space-y-3 rounded-lg border border-border p-4">
           <div className="grid gap-3 sm:grid-cols-2">

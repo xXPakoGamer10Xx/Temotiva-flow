@@ -10,6 +10,7 @@ import { Sheet, SheetBody, SheetCloseButton, SheetContent, SheetHeader, SheetTit
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/primitives';
 import { PriorityBadge, SleClock, StopBanner } from '@/components/shared/signals';
+import { InfoHint } from '@/components/help/info-hint';
 import { formatDateTime } from '@/lib/utils';
 import { GeneralTab } from './general-tab';
 import { GateTab } from './gate-tab';
@@ -77,6 +78,7 @@ export function InitiativeSheet({
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <SleClock reading={card.sle} />
+              <InfoHint term="sle" className="-ml-2" />
               <span className="text-xs text-fg-subtle">
                 {card.isBlocked && card.blockedStartedAt
                   ? `En parada desde ${formatDateTime(card.blockedStartedAt)}`

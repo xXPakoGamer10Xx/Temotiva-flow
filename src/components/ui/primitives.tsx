@@ -151,11 +151,28 @@ export function Avatar({ name, className }: { name: string; className?: string }
   );
 }
 
-export function EmptyState({ title, description }: { title: string; description?: string }) {
+export function EmptyState({
+  title,
+  description,
+  action,
+  mascot = false,
+}: {
+  title: string;
+  description?: string;
+  /** Siguiente paso a mano: un estado vacío enseña qué hacer, no solo que no hay nada. */
+  action?: React.ReactNode;
+  /** Muestra a Cerebrín; reservado a los vacíos grandes, no a cada columna. */
+  mascot?: boolean;
+}) {
   return (
     <div className="rounded-lg border border-dashed border-border px-6 py-10 text-center">
+      {mascot ? (
+        // eslint-disable-next-line @next/next/no-img-element -- PNG estático de marca, decorativo
+        <img src="/brand/cerebrin-saludando.png" alt="" width={64} height={64} className="mx-auto mb-3 size-16 object-contain" />
+      ) : null}
       <p className="text-sm font-medium">{title}</p>
-      {description ? <p className="mt-1 text-xs text-fg-muted">{description}</p> : null}
+      {description ? <p className="mx-auto mt-1 max-w-md text-xs leading-relaxed text-fg-muted">{description}</p> : null}
+      {action ? <div className="mt-4 flex justify-center">{action}</div> : null}
     </div>
   );
 }

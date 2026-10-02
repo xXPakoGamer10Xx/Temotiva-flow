@@ -456,7 +456,7 @@ Los tests ejercitan **servicios puros** con `InMemoryDataStore`; no requieren re
 **Modo:** Operate. La marca fija el mundo; la interfaz sigue siendo una herramienta de trabajo diario, así que la expresión nunca tapa la tarea.
 
 - **Tipografía:** Roboto (400/500/700) y Roboto Mono para los ID `TEMO-XXX`. Base de 14 px (`text-sm`), apoyo de 12 px (`text-xs`), metadatos de 11 px solo para glifos y teclas. Cifras comparables con `tabular-nums`.
-- **Color:** acento único `--accent` (`#7B5CFF` claro, `#9B85FF` oscuro). El texto pequeño de acento usa `--accent-text` (`#5A3ED9` / `#B7A6FF`) para llegar a 4,5:1. Fondos `#F7F6FB` y blanco; oscuro `#110E1A` / `#1A1525`. Los tonos de señal (`--success`, `--warning`, `--danger`, `--info`) son tonos de texto ya oscurecidos; los fondos se derivan en `.tone-*`.
+- **Color:** acento único `--accent` (`#7656F5` claro, afinado desde el `#7B5CFF` de marca para que el texto blanco llegue a 4,5:1; `#9B85FF` oscuro). El texto pequeño de acento usa `--accent-text` (`#5A3ED9` / `#B7A6FF`) para llegar a 4,5:1. Fondos `#F7F6FB` y blanco; oscuro `#110E1A` / `#1A1525`. Los tonos de señal (`--success`, `--warning`, `--danger`, `--info`) son tonos de texto ya oscurecidos; los fondos se derivan en `.tone-*`.
 - **Forma:** `--radius` 10 px; sombras teñidas de violeta, solo al elevar.
 - **Logo:** cerebro de línea (`public/brand/temotiva-brain.png`, `BrandMark`), invertido en tema oscuro. Mascota «Cerebrín» (`public/brand/cerebrin-saludando.png`) reservada a estados vacíos y a la guía de bienvenida.
 - **Objetivos táctiles:** 44 px con puntero grueso (`@media (pointer: coarse)` en `globals.css`).

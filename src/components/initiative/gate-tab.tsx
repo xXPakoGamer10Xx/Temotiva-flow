@@ -15,6 +15,7 @@ import { Badge, Input, Label, SectionLabel, Textarea } from '@/components/ui/pri
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { cn, formatDateTime } from '@/lib/utils';
 import type { InitiativeCapabilities } from './initiative-sheet';
+import { InfoHint } from '@/components/help/info-hint';
 
 /**
  * Pestaña Compuerta de Salida (TemoFlow.md §1.3).
@@ -68,7 +69,10 @@ export function GateTab({
 
   return (
     <div className="space-y-4">
-      <p className="text-xs leading-relaxed text-fg-muted">{detail.stage.purpose}</p>
+      <div className="flex items-start gap-1">
+        <p className="flex-1 text-xs leading-relaxed text-fg-muted">{detail.stage.purpose}</p>
+        <InfoHint term="gate" />
+      </div>
 
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
         {gate.items.map((item) => (
@@ -171,6 +175,7 @@ export function GateTab({
             <p className="text-sm font-medium">Para pasar a {nextStage.name}, faltan estos requisitos:</p>
             <p className="mt-0.5 text-xs text-fg-muted">
               Pídeselos al departamento responsable en un clic, o registra un avance excepcional.
+              <InfoHint term="override" className="ml-1 align-middle" />
             </p>
           </div>
 

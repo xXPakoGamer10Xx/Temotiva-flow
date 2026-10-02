@@ -4,6 +4,7 @@ import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
 import { getBoardView, type BoardFilter } from '@/server/services/views';
 import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { EmptyState } from '@/components/ui/primitives';
 import { BoardColumn } from '@/components/board/board-column';
 import { BoardFilters } from '@/components/board/board-filters';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
@@ -79,6 +80,17 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
       >
         <BoardFilters counts={counts} />
       </PageHeader>
+
+      {counts.total === 0 ? (
+        <div className="px-4 py-8 sm:px-6">
+          <EmptyState
+            mascot
+            title="Todavía no hay iniciativas"
+            description="Una iniciativa es una unidad de valor que recorre 7 fases, de Ideación a Producción. Crea la primera y aparecerá aquí, en la columna de Ideación."
+            action={<NewInitiativeButton />}
+          />
+        </div>
+      ) : null}
 
       <div className="scrollbar-slim flex-1 snap-x snap-proximity overflow-x-auto scroll-px-4 px-4 pb-6 pt-3 sm:px-6">
         <div className="flex h-full min-w-max gap-3">

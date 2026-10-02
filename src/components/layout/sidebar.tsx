@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import type { Route } from 'next';
 import {
   Bell,
+  CircleHelp,
   KanbanSquare,
   LogOut,
   Moon,
@@ -34,7 +35,7 @@ import { cn } from '@/lib/utils';
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'board' | 'radar' | 'executive' | 'notifications' | 'team';
+  icon: 'board' | 'radar' | 'executive' | 'notifications' | 'team' | 'help';
   badge?: number;
   shortcut?: string;
 }
@@ -45,6 +46,7 @@ const ICONS = {
   executive: TrendingUp,
   notifications: Bell,
   team: ShieldCheck,
+  help: CircleHelp,
 } as const;
 
 /**

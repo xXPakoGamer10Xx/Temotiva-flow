@@ -17,6 +17,7 @@ export const UI_EVENTS = {
   newInitiative: 'temotiva:new-initiative',
   focusFilter: 'temotiva:focus-filter',
   openShortcuts: 'temotiva:open-shortcuts',
+  openWelcome: 'temotiva:open-welcome',
 } as const;
 
 type UiEvent = (typeof UI_EVENTS)[keyof typeof UI_EVENTS];
@@ -30,6 +31,7 @@ export const openCommandPalette = (): void => emit(UI_EVENTS.openPalette);
 export const openNewInitiative = (): void => emit(UI_EVENTS.newInitiative);
 export const focusBoardFilter = (): void => emit(UI_EVENTS.focusFilter);
 export const openShortcutsHelp = (): void => emit(UI_EVENTS.openShortcuts);
+export const openWelcomeGuide = (): void => emit(UI_EVENTS.openWelcome);
 
 /**
  * Suscribe un manejador a un evento de interfaz mientras el componente viva.

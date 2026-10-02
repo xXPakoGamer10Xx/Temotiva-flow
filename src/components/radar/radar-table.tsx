@@ -10,6 +10,7 @@ import type { FlowState, RadarRow } from '@/server/services/views';
 import { Badge, EmptyState } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { DepartmentChip, FlowStateBadge, PriorityBadge, SleClock } from '@/components/shared/signals';
+import { InfoHint } from '@/components/help/info-hint';
 import { formatRelative } from '@/lib/utils';
 
 /**
@@ -47,6 +48,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
         <FilterChip active={state === 'PARALLEL'} onClick={() => setState('PARALLEL')}>
           🟡 En paralelo ({parallel})
         </FilterChip>
+        <InfoHint term="flowState" />
 
         <span className="mx-1 hidden h-5 w-px bg-border sm:block" />
 

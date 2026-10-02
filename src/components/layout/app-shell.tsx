@@ -5,6 +5,7 @@ import { getNotifications } from '@/server/services/views';
 import { canManagePeople } from '@/server/services/rbac';
 import { CommandCenter, type PaletteInitiative } from '@/components/command/command-center';
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
+import { WelcomeGuide } from '@/components/help/welcome-guide';
 import { MobileNav } from './mobile-nav';
 import { Sidebar, type SidebarLink } from './sidebar';
 
@@ -41,6 +42,7 @@ export async function AppShell({
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
     { href: '/notifications', label: 'Notificaciones', icon: 'notifications', badge: received.length },
+    { href: '/ayuda', label: 'Ayuda', icon: 'help', shortcut: 'G H' },
     // Los responsables también gestionan personas, solo que de sus áreas.
     ...(canManagePeople(session)
       ? [{ href: '/team', label: 'Equipo', icon: 'team' as const, shortcut: 'G A' }]
@@ -64,6 +66,7 @@ export async function AppShell({
       </div>
 
       <NewInitiativeDialog />
+      <WelcomeGuide userId={session.userId} role={session.role} />
       <CommandCenter initiatives={paletteInitiatives} canManagePeople={canManagePeople(session)} />
     </div>
   );

@@ -4,6 +4,7 @@ import { formatDuration } from '@/server/services/sle';
 import { Badge } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
 import { BoardCard } from './board-card';
+import { InfoHint } from '@/components/help/info-hint';
 import { cn } from '@/lib/utils';
 
 /**
@@ -38,6 +39,7 @@ export function BoardColumn({
           >
             {column.wipCount}/{column.wipLimit}
           </span>
+          <InfoHint term="wip" className="-ml-1" />
           {column.isSaturated ? (
             <Badge tone="warning" className="ml-auto">
               <span aria-hidden="true" className="text-[11px] leading-none">
@@ -56,6 +58,7 @@ export function BoardColumn({
           <span title="Objetivo de permanencia de la fase">
             SLE {formatDuration(column.stage.sleHours * 3600000)}
           </span>
+          <InfoHint term="sle" className="-mx-1" />
           {column.totalInStage > 0 ? (
             <>
               <span aria-hidden="true">·</span>

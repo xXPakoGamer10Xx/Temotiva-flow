@@ -39,8 +39,9 @@ export default async function NotificationsPage({
             <SectionLabel>Recibidas · {received.length} pendientes</SectionLabel>
             {received.length === 0 ? (
               <EmptyState
+                mascot
                 title="Nada pendiente"
-                description="Aquí solo aparece lo que sigue abierto: ningún departamento está esperando por vosotros."
+                description="Cuando otro departamento te pida ayuda desde una iniciativa, la verás aquí con un contador en el menú. Hoy nadie está esperando por vosotros."
               />
             ) : (
               <ul className="space-y-2">
@@ -54,7 +55,10 @@ export default async function NotificationsPage({
           <section className="space-y-2">
             <SectionLabel>Enviadas · {sent.length} en total</SectionLabel>
             {sent.length === 0 ? (
-              <EmptyState title="No has pedido ayuda todavía" />
+              <EmptyState
+                title="No has pedido ayuda todavía"
+                description="Abre una iniciativa y, en la pestaña Dependencias 🆘, pide información, una validación, una decisión o recursos a otro departamento."
+              />
             ) : (
               <ul className="space-y-2">
                 {sent.map((item) => (

@@ -4,6 +4,8 @@ import { formatDuration } from '@/server/services/sle';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/primitives';
 import { formatPercent } from '@/lib/utils';
 import { cn } from '@/lib/utils';
+import { InfoHint } from '@/components/help/info-hint';
+import type { GlossaryKey } from '@/domain/glossary';
 
 /**
  * Panel de Dirección (TemoFlow.md §3.4). Métricas del proceso, nunca de las
@@ -231,18 +233,21 @@ export function OverrideChart({ overrides }: { overrides: FlowMetrics['overrides
 
 /** Cifras de cabecera del panel. */
 export function HeadlineTiles({ headline }: { headline: FlowMetrics['headline'] }) {
-  const tiles = [
+  const tiles: { label: string; value: number; tone: string; hint?: GlossaryKey }[] = [
     { label: 'Iniciativas activas', value: headline.activeInitiatives, tone: 'text-fg' },
-    { label: 'En parada', value: headline.blockedInitiatives, tone: 'text-[var(--danger)]' },
+    { label: 'En parada', value: headline.blockedInitiatives, tone: 'text-[var(--danger)]', hint: 'stop' },
     { label: 'Solicitudes pendientes', value: headline.pendingDependencies, tone: 'text-info' },
-    { label: 'En riesgo o fuera de SLE', value: headline.atRiskOrExceeded, tone: 'text-[var(--warning)]' },
+    { label: 'En riesgo o fuera de SLE', value: headline.atRiskOrExceeded, tone: 'text-[var(--warning)]', hint: 'sle' },
   ];
 
   return (
     <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
       {tiles.map((tile) => (
         <Card key={tile.label} className="p-4">
-          <p className="text-xs uppercase tracking-wide text-fg-muted">{tile.label}</p>
+          <p className="flex items-center gap-1 text-xs uppercase tracking-wide text-fg-muted">
+            {tile.label}
+            {tile.hint ? <InfoHint term={tile.hint} /> : null}
+          </p>
           <p className={cn('mt-1 text-2xl font-semibold tabular-nums', tile.tone)}>{tile.value}</p>
         </Card>
       ))}

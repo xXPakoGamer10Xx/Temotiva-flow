@@ -2,9 +2,11 @@
 
 import * as React from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import type { Route } from 'next';
 import {
   Bell,
+  CircleHelp,
   CornerDownLeft,
   KanbanSquare,
   Moon,
@@ -20,6 +22,7 @@ import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Badge, Kbd, SectionLabel } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
+import { SHORTCUTS } from './shortcuts';
 import { cn } from '@/lib/utils';
 import {
   UI_EVENTS,
@@ -122,6 +125,15 @@ export function CommandCenter({
         group: 'Ir a',
         icon: <Bell className="size-3.5" />,
         run: () => go('/notifications'),
+      },
+      {
+        id: 'go-help',
+        label: 'Ayuda y glosario',
+        hint: 'G H',
+        group: 'Ir a',
+        icon: <CircleHelp className="size-3.5" />,
+        keywords: 'ayuda glosario sle wip compuerta guía tutorial',
+        run: () => go('/ayuda'),
       },
     ];
 
@@ -238,7 +250,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team' }[key];
+        const destination = { b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();
@@ -386,19 +398,6 @@ export function CommandCenter({
   );
 }
 
-const SHORTCUTS: { keys: string[]; label: string }[] = [
-  { keys: ['⌘', 'K'], label: 'Abrir la paleta de comandos' },
-  { keys: ['C'], label: 'Nueva iniciativa' },
-  { keys: ['/'], label: 'Filtrar el tablero' },
-  { keys: ['G', 'B'], label: 'Ir al tablero' },
-  { keys: ['G', 'R'], label: 'Ir al radar de esperas' },
-  { keys: ['G', 'D'], label: 'Ir al panel de dirección' },
-  { keys: ['G', 'N'], label: 'Ir a notificaciones' },
-  { keys: ['G', 'A'], label: 'Ir al equipo (responsables y dirección)' },
-  { keys: ['Esc'], label: 'Cerrar el panel o el diálogo abierto' },
-  { keys: ['?'], label: 'Ver esta ayuda' },
-];
-
 function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -421,8 +420,11 @@ function ShortcutsDialog({ open, onOpenChange }: { open: boolean; onOpenChange: 
             </div>
           ))}
         </div>
-        <div className="border-t border-border px-5 py-2.5">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-5 py-2.5">
           <Badge tone="neutral">Los atajos de una tecla se desactivan mientras escribes en un campo</Badge>
+          <Link href="/ayuda" onClick={() => onOpenChange(false)} className="text-xs font-medium text-accent-text hover:underline">
+            Abrir la ayuda
+          </Link>
         </div>
       </DialogContent>
     </Dialog>
