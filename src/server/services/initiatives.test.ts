@@ -31,6 +31,81 @@ describe('ciclo de vida de la iniciativa', () => {
     expect(log[0]?.actionType).toBe('INITIATIVE_CREATED');
   });
 
+  it('permite crear la iniciativa en un área propia distinta de la de la fase', async () => {
+    const { store } = makeTestStore([]);
+    const session = makeSession('PSYCHOLOGY', 'MEMBER');
+
+    const initiative = await createInitiative(store, session, {
+      title: 'Protocolo de escucha activa',
+      description: '',
+      priority: 'NORMAL',
+      priorityReason: 'ROADMAP',
+      ownerDepartment: 'PSYCHOLOGY',
+      now: TEST_NOW,
+    });
+
+    expect(initiative.ownerDepartment).toBe('PSYCHOLOGY');
+    const log = await store.listActivityLog(initiative.id);
+    expect(log[0]?.newValue).toMatchObject({ ownerDepartment: 'PSYCHOLOGY', ownerChosen: true });
+  });
+
+  it('no deja crear para un área ajena, salvo a Dirección', async () => {
+    const { store } = makeTestStore([]);
+    const base = {
+      title: 'Iniciativa para otra área',
+      description: '',
+      priority: 'NORMAL' as const,
+      priorityReason: 'ROADMAP' as const,
+      ownerDepartment: 'LEGAL' as const,
+      now: TEST_NOW,
+    };
+
+    await expect(createInitiative(store, makeSession('TECH', 'MEMBER'), base)).rejects.toThrow(/propias áreas/);
+    await expect(createInitiative(store, makeSession('TECH', 'LEAD'), base)).rejects.toThrow(/propias áreas/);
+    const byExecutive = await createInitiative(store, makeSession('TECH', 'EXECUTIVE'), base);
+    expect(byExecutive.ownerDepartment).toBe('LEGAL');
+  });
+
+  it('abre solicitudes de ayuda no bloqueantes al crear, sin cambiar de dueño', async () => {
+    const { store } = makeTestStore([]);
+    const session = makeSession('PSYCHOLOGY', 'MEMBER');
+
+    const initiative = await createInitiative(store, session, {
+      title: 'Evaluación de riesgo clínico',
+      description: '',
+      priority: 'HIGH',
+      priorityReason: 'REGULATORY_RISK',
+      ownerDepartment: 'PSYCHOLOGY',
+      helpDepartments: ['LEGAL', 'QA', 'LEGAL'],
+      helpType: 'VALIDATION',
+      now: TEST_NOW,
+    });
+
+    const dependencies = await store.listDependencies(initiative.id);
+    expect(dependencies.map((dependency) => dependency.targetDepartment).sort()).toEqual(['LEGAL', 'QA']);
+    expect(dependencies.every((dependency) => !dependency.isBlocking && dependency.helpType === 'VALIDATION')).toBe(true);
+    expect((await store.initiativeById(initiative.id))?.ownerDepartment).toBe('PSYCHOLOGY');
+    expect((await store.initiativeById(initiative.id))?.isBlocked).toBe(false);
+  });
+
+  it('rechaza pedir ayuda al propio área responsable', async () => {
+    const { store } = makeTestStore([]);
+    const session = makeSession('PSYCHOLOGY', 'MEMBER');
+
+    await expect(
+      createInitiative(store, session, {
+        title: 'Ayuda a uno mismo',
+        description: '',
+        priority: 'NORMAL',
+        priorityReason: 'ROADMAP',
+        ownerDepartment: 'PSYCHOLOGY',
+        helpDepartments: ['PSYCHOLOGY'],
+        now: TEST_NOW,
+      }),
+    ).rejects.toThrow(/ya es el área responsable/);
+    expect(await store.listInitiatives()).toHaveLength(0);
+  });
+
   it('exige prioridad y motivo de prioridad', async () => {
     const { store } = makeTestStore([]);
     const session = makeSession('PRODUCT', 'MEMBER');

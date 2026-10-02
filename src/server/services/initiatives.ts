@@ -1,4 +1,5 @@
-import type { Department, PriorityLevel, PriorityReason } from '@/domain/enums';
+import type { Department, HelpType, PriorityLevel, PriorityReason } from '@/domain/enums';
+import { DEPARTMENTS } from '@/domain/enums';
 import type { JsonValue } from '@/domain/types';
 import type {
   Initiative,
@@ -10,6 +11,7 @@ import type {
 } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
+import { createDependency } from './dependencies';
 import { consolidateBlockedTime, loadInitiative } from './blocking';
 import { forbidden, invalid, invalidState, notFound } from './errors';
 import { evaluateGate, type GateEvaluation } from './gate';
@@ -48,6 +50,14 @@ export interface CreateInitiativeInput {
   priorityReason: PriorityReason;
   currentTask?: string | null;
   links?: InitiativeLink[];
+  /**
+   * Área propietaria elegida al crear. Sin ella, la de la fase inicial. Solo se
+   * puede elegir una de las áreas propias (Dirección, cualquiera).
+   */
+  ownerDepartment?: Department;
+  /** Departamentos a los que se pide ayuda desde el primer momento (dependencias no bloqueantes). */
+  helpDepartments?: Department[];
+  helpType?: HelpType;
   now?: Date;
 }
 
@@ -70,6 +80,23 @@ export async function createInitiative(
   const firstStage = stages.find((stage) => stage.orderIndex === 1);
   if (!firstStage) throw notFound('No hay fase inicial configurada.');
 
+  const ownerDepartment = input.ownerDepartment ?? firstStage.defaultOwnerDepartment;
+  if (!DEPARTMENTS.includes(ownerDepartment)) throw invalid('El área responsable no es válida.');
+  // Mismo criterio de ámbito que el resto del trabajo: solo se crea para un área propia.
+  if (input.ownerDepartment && session.role !== 'EXECUTIVE' && !session.departments.includes(ownerDepartment)) {
+    throw forbidden('Solo puedes crear iniciativas para tus propias áreas (Dirección, para cualquiera).');
+  }
+
+  const helpDepartments = [...new Set(input.helpDepartments ?? [])];
+  for (const department of helpDepartments) {
+    if (!DEPARTMENTS.includes(department)) throw invalid('Uno de los departamentos de ayuda no es válido.');
+    if (department === ownerDepartment) {
+      throw invalid(
+        `${DEPARTMENT_LABELS[department]} ya es el área responsable: la ayuda se pide a otros departamentos.`,
+      );
+    }
+  }
+
   const initiative: Initiative = {
     id: await store.nextInitiativeId(),
     title,
@@ -77,7 +104,7 @@ export async function createInitiative(
     priority: input.priority,
     priorityReason: input.priorityReason,
     currentStageId: firstStage.id,
-    ownerDepartment: firstStage.defaultOwnerDepartment,
+    ownerDepartment,
     currentAssigneeId: null,
     createdBy: session.userId,
     isBlocked: false,
@@ -107,9 +134,22 @@ export async function createInitiative(
       priority: initiative.priority,
       priorityReason: initiative.priorityReason,
       ownerDepartment: initiative.ownerDepartment,
+      // Distingue «nació en el área por defecto» de «se eligió otra al crearla».
+      ownerChosen: input.ownerDepartment !== undefined && ownerDepartment !== firstStage.defaultOwnerDepartment,
     },
     at: now,
   });
+
+  for (const department of helpDepartments) {
+    await createDependency(store, session, {
+      initiativeId: initiative.id,
+      targetDepartment: department,
+      helpType: input.helpType ?? 'INFORMATION',
+      description: `Petición inicial al crear la iniciativa «${initiative.title}».`,
+      isBlocking: false,
+      now,
+    });
+  }
 
   return initiative;
 }

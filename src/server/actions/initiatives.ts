@@ -1,7 +1,7 @@
 'use server';
 
 import { z } from 'zod';
-import { DEPARTMENTS, LINK_KINDS, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
+import { DEPARTMENTS, HELP_TYPES_V1, LINK_KINDS, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
 import { getRequestContext } from '@/lib/session';
 import { MIN_ARCHIVE_REASON, MIN_OVERRIDE_REASON, MIN_OVERRIDE_RISK, MIN_REASSIGN_REASON } from '@/domain/rules';
 import {
@@ -29,6 +29,9 @@ const createSchema = z.object({
   priorityReason: z.enum(PRIORITY_REASONS),
   currentTask: z.string().trim().max(255).optional(),
   links: z.array(linkSchema).max(10).optional(),
+  ownerDepartment: z.enum(DEPARTMENTS).optional(),
+  helpDepartments: z.array(z.enum(DEPARTMENTS)).max(DEPARTMENTS.length).optional(),
+  helpType: z.enum(HELP_TYPES_V1).optional(),
 });
 
 export async function createInitiativeAction(input: unknown): Promise<ActionResult<{ id: string }>> {

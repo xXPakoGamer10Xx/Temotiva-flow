@@ -3,9 +3,17 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
-import type { PriorityLevel, PriorityReason } from '@/domain/enums';
-import { PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
-import { PRIORITY_LABELS, PRIORITY_REASON_HINTS, PRIORITY_REASON_LABELS } from '@/domain/labels';
+import type { Department, HelpType, PriorityLevel, PriorityReason, UserRole } from '@/domain/enums';
+import { DEPARTMENTS, HELP_TYPES_V1, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
+import {
+  DEPARTMENT_LABELS,
+  DEPARTMENT_SHORT,
+  HELP_TYPE_HINTS,
+  HELP_TYPE_LABELS,
+  PRIORITY_LABELS,
+  PRIORITY_REASON_HINTS,
+  PRIORITY_REASON_LABELS,
+} from '@/domain/labels';
 import { MIN_INITIATIVE_TITLE } from '@/domain/rules';
 import { createInitiativeAction } from '@/server/actions/initiatives';
 import { ActionError, useAction } from '@/lib/use-action';
@@ -13,6 +21,8 @@ import { UI_EVENTS, openNewInitiative, useUiEvent } from '@/components/command/c
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input, Kbd, Label, Select, Textarea } from '@/components/ui/primitives';
+import { DepartmentDot } from '@/components/shared/signals';
+import { cn } from '@/lib/utils';
 
 /**
  * Alta de iniciativa. Toda iniciativa nace en Ideación, propiedad del
@@ -32,7 +42,9 @@ export function NewInitiativeButton() {
   );
 }
 
-export function NewInitiativeDialog() {
+export function NewInitiativeDialog({ departments, role }: { departments: Department[]; role: UserRole }) {
+  // Dirección crea para cualquier área; el resto, solo para las suyas.
+  const ownerOptions = role === 'EXECUTIVE' ? [...DEPARTMENTS] : departments;
   const router = useRouter();
   const create = useAction(createInitiativeAction, { success: 'Iniciativa creada' });
   const [open, setOpen] = React.useState(false);
@@ -41,19 +53,40 @@ export function NewInitiativeDialog() {
   const [currentTask, setCurrentTask] = React.useState('');
   const [priority, setPriority] = React.useState<PriorityLevel>('NORMAL');
   const [priorityReason, setPriorityReason] = React.useState<PriorityReason>('ROADMAP');
+  const [ownerDepartment, setOwnerDepartment] = React.useState<Department>(ownerOptions[0] ?? 'PRODUCT');
+  const [helpDepartments, setHelpDepartments] = React.useState<Department[]>([]);
+  const [helpType, setHelpType] = React.useState<HelpType>('INFORMATION');
+
+  const toggleHelp = (department: Department): void =>
+    setHelpDepartments((current) =>
+      current.includes(department) ? current.filter((value) => value !== department) : [...current, department],
+    );
 
   useUiEvent(UI_EVENTS.newInitiative, () => setOpen(true));
 
   const canSubmit = title.trim().length >= MIN_INITIATIVE_TITLE && !create.isPending;
 
   const submit = (): void => {
-    create.run({ title, description, currentTask, priority, priorityReason }, (data) => {
+    create.run(
+      {
+        title,
+        description,
+        currentTask,
+        priority,
+        priorityReason,
+        ownerDepartment,
+        helpDepartments,
+        helpType,
+      },
+      (data) => {
       setOpen(false);
+      setHelpDepartments([]);
       setTitle('');
       setDescription('');
       setCurrentTask('');
       router.push(`/board?iniciativa=${data.id}`);
-    });
+      },
+    );
   };
 
   return (
@@ -64,7 +97,7 @@ export function NewInitiativeDialog() {
             <DialogHeader>
               <DialogTitle>Nueva iniciativa</DialogTitle>
               <p className="mt-1 text-xs text-fg-muted">
-                Entra en Ideación como unidad de valor transversal, no como tarea técnica.
+                Entra en Ideación como unidad de valor transversal, no como tarea técnica. Elige qué área la lleva y, si hace falta, a quién pedir ayuda.
               </p>
             </DialogHeader>
 
@@ -130,6 +163,81 @@ export function NewInitiativeDialog() {
                   <p className="text-xs text-fg-subtle">{PRIORITY_REASON_HINTS[priorityReason]}</p>
                 </div>
               </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="new-owner">Área responsable</Label>
+                <Select
+                  id="new-owner"
+                  value={ownerDepartment}
+                  onChange={(event) => {
+                    const next = event.target.value as Department;
+                    setOwnerDepartment(next);
+                    setHelpDepartments((current) => current.filter((value) => value !== next));
+                  }}
+                >
+                  {ownerOptions.map((department) => (
+                    <option key={department} value={department}>
+                      {DEPARTMENT_LABELS[department]}
+                    </option>
+                  ))}
+                </Select>
+                <p className="text-xs text-fg-subtle">
+                  {role === 'EXECUTIVE'
+                    ? 'El área que lleva el trabajo. Como Dirección puedes elegir cualquiera.'
+                    : 'El área que lleva el trabajo. Solo puedes elegir entre las tuyas.'}
+                </p>
+              </div>
+
+              <fieldset className="space-y-1.5">
+                <legend className="text-xs font-medium text-fg">¿Necesitas ayuda de otros departamentos? (opcional)</legend>
+                <div className="flex flex-wrap gap-1.5">
+                  {DEPARTMENTS.filter((department) => department !== ownerDepartment).map((department) => {
+                    const active = helpDepartments.includes(department);
+                    return (
+                      <button
+                        key={department}
+                        type="button"
+                        aria-pressed={active}
+                        title={DEPARTMENT_LABELS[department]}
+                        onClick={() => toggleHelp(department)}
+                        className={cn(
+                          'inline-flex h-7 items-center gap-1.5 rounded-md px-2 text-xs font-medium transition-colors',
+                          active
+                            ? 'tone-accent'
+                            : 'border border-border text-fg-muted hover:border-border-strong hover:bg-surface-2 hover:text-fg',
+                        )}
+                      >
+                        <DepartmentDot department={department} />
+                        {DEPARTMENT_SHORT[department]}
+                      </button>
+                    );
+                  })}
+                </div>
+                {helpDepartments.length > 0 ? (
+                  <div className="space-y-1.5 pt-1">
+                    <Label htmlFor="new-help-type">Qué necesitas de ellos</Label>
+                    <Select
+                      id="new-help-type"
+                      value={helpType}
+                      onChange={(event) => setHelpType(event.target.value as HelpType)}
+                    >
+                      {HELP_TYPES_V1.map((type) => (
+                        <option key={type} value={type}>
+                          {HELP_TYPE_LABELS[type]}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-xs text-fg-subtle">
+                      {HELP_TYPE_HINTS[helpType]} Se abre una solicitud 🆘 a cada uno; no paran la iniciativa ni cambian
+                      quién es el dueño.
+                    </p>
+                  </div>
+                ) : (
+                  <p className="text-xs text-fg-subtle">
+                    Se les avisa en Notificaciones. Puedes pedir ayuda más tarde desde la ficha.
+                  </p>
+                )}
+              </fieldset>
 
               <div className="space-y-1.5">
                 <Label htmlFor="new-task">Tarea en curso (opcional)</Label>
