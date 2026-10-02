@@ -340,25 +340,31 @@
   }
 }
 
+/*
+ * Los diálogos se centran con las utilidades `translate-*` de Tailwind v4, que usan
+ * la propiedad `translate`, no `transform`. La animación solo puede tocar `transform`
+ * (escala y opacidad): si también trasladara, se sumaría al centrado y el diálogo
+ * entraría desplazado medio tamaño antes de acomodarse.
+ */
 @keyframes dialog-in {
   from {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.98);
+    transform: scale(0.98);
   }
   to {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
   }
 }
 
 @keyframes dialog-out {
   from {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1);
+    transform: scale(1);
   }
   to {
     opacity: 0;
-    transform: translate(-50%, -48%) scale(0.98);
+    transform: scale(0.98);
   }
 }
 
