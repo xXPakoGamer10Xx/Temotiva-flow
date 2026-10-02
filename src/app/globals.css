@@ -239,9 +239,9 @@
   }
 
   html.sidebar-collapsed [data-sidebar-header] {
-    height: auto;
-    flex-direction: column;
-    padding-block: 0.5rem;
+    height: auto !important;
+    flex-direction: column !important;
+    padding-block: 0.5rem !important;
   }
 
   /*
@@ -266,9 +266,9 @@
     }
 
     [data-sidebar-header] {
-      height: auto;
-      flex-direction: column;
-      padding-block: 0.5rem;
+      height: auto !important;
+      flex-direction: column !important;
+      padding-block: 0.5rem !important;
     }
 
     [data-sidebar-toggle] {
