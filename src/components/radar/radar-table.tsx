@@ -37,7 +37,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="scrollbar-slim -mx-1 flex items-center gap-2 overflow-x-auto px-1 pb-1 md:flex-wrap md:overflow-visible [&>*]:shrink-0">
         <FilterChip active={state === 'ALL'} onClick={() => setState('ALL')}>
           Todas ({rows.length})
         </FilterChip>
@@ -66,7 +66,44 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
           description="Prueba con otro departamento o quita el filtro de estado."
         />
       ) : (
-        <div className="overflow-hidden rounded-lg border border-border">
+        <>
+        <ul className="space-y-2 md:hidden" aria-label="Iniciativas y sus esperas">
+          {filtered.map((row) => (
+            <li key={row.initiativeId} className="space-y-2 rounded-lg border border-border bg-surface p-3">
+              <Link href={`/radar?iniciativa=${row.initiativeId}` as Route} scroll={false} className="block space-y-1">
+                <span className="font-mono text-xs font-semibold text-fg-muted">{row.initiativeId}</span>
+                <span className="block font-medium leading-snug text-fg">{row.title}</span>
+              </Link>
+              <div className="flex flex-wrap items-center gap-2">
+                <FlowStateBadge state={row.flowState} />
+                <PriorityBadge priority={row.priority} reason={row.priorityReason} compact />
+                <DepartmentChip department={row.ownerDepartment} />
+              </div>
+              <p className="text-xs text-fg-muted">
+                {row.stageName} · <SleClock reading={row.sle} className="inline-flex" />
+              </p>
+              {row.dependencies.length > 0 ? (
+                <ul className="space-y-1 border-t border-border pt-2 text-xs">
+                  {row.dependencies.map((dependency) => (
+                    <li key={dependency.id} className="flex flex-wrap items-center gap-1.5">
+                      <span aria-hidden="true">⏳</span>
+                      <span className="font-medium">{DEPARTMENT_LABELS[dependency.department]}</span>
+                      <span className="text-fg-muted">({HELP_TYPE_LABELS[dependency.helpType]})</span>
+                      {dependency.isBlocking ? <Badge tone="danger">bloqueante</Badge> : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {row.flowState === 'BLOCKED' && (row.stopReason || row.blockedDescription) ? (
+                <p className="text-xs text-fg-muted">
+                  {row.stopReason ? STOP_REASON_LABELS[row.stopReason] : ''}
+                  {row.blockedDescription ? ` · ${row.blockedDescription}` : ''}
+                </p>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+        <div className="scrollbar-slim hidden overflow-x-auto rounded-lg border border-border md:block">
           <table className="w-full border-collapse text-left text-xs">
             <thead className="bg-surface-2 text-xs uppercase tracking-wide text-fg-muted">
               <tr>
@@ -144,6 +181,7 @@ export function RadarTable({ rows }: { rows: RadarRow[] }) {
             </tbody>
           </table>
         </div>
+        </>
       )}
     </div>
   );

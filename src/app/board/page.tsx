@@ -80,7 +80,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
         <BoardFilters counts={counts} />
       </PageHeader>
 
-      <div className="scrollbar-slim flex-1 overflow-x-auto px-4 pb-6 pt-3 sm:px-6">
+      <div className="scrollbar-slim flex-1 snap-x snap-proximity overflow-x-auto scroll-px-4 px-4 pb-6 pt-3 sm:px-6">
         <div className="flex h-full min-w-max gap-3">
           {columns.map((column) => (
             <BoardColumn key={column.stage.id} column={column} basePath="/board" query={queryString} />

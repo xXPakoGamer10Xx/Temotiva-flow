@@ -225,17 +225,55 @@
    * pueda desincronizarse con el servidor al hidratar.
    */
   html.sidebar-collapsed [data-sidebar] {
-    width: 3.25rem;
+    width: 3.25rem !important;
   }
 
   html.sidebar-collapsed [data-sidebar-label] {
-    display: none;
+    display: none !important;
   }
 
   html.sidebar-collapsed [data-sidebar-item] {
     justify-content: center;
     padding-left: 0;
     padding-right: 0;
+  }
+
+  html.sidebar-collapsed [data-sidebar-header] {
+    height: auto;
+    flex-direction: column;
+    padding-block: 0.5rem;
+  }
+
+  /*
+   * (`!important` porque las utilidades de Tailwind, como `w-*` o `inline-flex`, ganan a esta capa.)
+   *
+   * Entre 768 y 1023 px la navegación arranca plegada para dejar sitio al
+   * tablero; el botón de plegar se oculta ahí porque no hay sitio para abrirla.
+   */
+  @media (min-width: 768px) and (max-width: 1023px) {
+    [data-sidebar] {
+      width: 3.25rem !important;
+    }
+
+    [data-sidebar-label] {
+      display: none !important;
+    }
+
+    [data-sidebar-item] {
+      justify-content: center;
+      padding-left: 0;
+      padding-right: 0;
+    }
+
+    [data-sidebar-header] {
+      height: auto;
+      flex-direction: column;
+      padding-block: 0.5rem;
+    }
+
+    [data-sidebar-toggle] {
+      display: none !important;
+    }
   }
 }
 

@@ -38,7 +38,7 @@ export function SheetContent({
           (event.currentTarget as HTMLElement | null)?.focus();
         }}
         className={cn(
-          'fixed inset-y-0 right-0 z-50 flex w-[min(44rem,100vw)] flex-col border-l border-border bg-surface shadow-[var(--shadow-panel)] outline-none',
+          'fixed inset-y-0 right-0 z-50 flex w-[min(44rem,100vw)] max-sm:w-screen flex-col border-l border-border bg-surface shadow-[var(--shadow-panel)] outline-none',
           className,
         )}
         {...props}

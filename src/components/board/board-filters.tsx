@@ -61,7 +61,7 @@ export function BoardFilters({
   const hasFilters = Boolean(department || flow || query || archived);
 
   return (
-    <div className="flex flex-wrap items-center gap-1.5 border-t border-border px-4 py-2 sm:px-6">
+    <div className="scrollbar-slim flex items-center gap-1.5 overflow-x-auto border-t border-border px-4 py-2 sm:px-6 xl:flex-wrap xl:overflow-visible [&>*]:shrink-0">
       <div className="relative">
         <Search className="pointer-events-none absolute left-2 top-1/2 size-3.5 -translate-y-1/2 text-fg-subtle" />
         <input
@@ -117,7 +117,7 @@ export function BoardFilters({
 
       <span className="mx-1 hidden h-4 w-px bg-border sm:block" />
 
-      <div className="flex flex-wrap items-center gap-1">
+      <div className="flex items-center gap-1 xl:flex-wrap">
         {DEPARTMENTS.map((value) => (
           <FilterChip
             key={value}

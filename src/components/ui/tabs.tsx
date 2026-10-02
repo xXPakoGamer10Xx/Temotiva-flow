@@ -11,7 +11,7 @@ export const Tabs = TabsPrimitive.Root;
 export function TabsList({ className, ...props }: React.ComponentProps<typeof TabsPrimitive.List>) {
   return (
     <TabsPrimitive.List
-      className={cn('flex items-center gap-4 border-b border-border', className)}
+      className={cn('scrollbar-slim flex items-center gap-4 overflow-x-auto border-b border-border [&>*]:shrink-0', className)}
       {...props}
     />
   );

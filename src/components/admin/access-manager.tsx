@@ -69,7 +69,7 @@ export function AccessManager({ rows, scope }: { rows: AccessRow[]; scope: Acces
 
       <ActionError message={toggle.error} />
 
-      <div className="overflow-hidden rounded-lg border border-border">
+      <div className="scrollbar-slim overflow-x-auto rounded-lg border border-border">
         <table className="w-full text-left text-xs">
           <thead className="bg-surface-2/70 text-xs text-fg-muted">
             <tr>

@@ -63,7 +63,7 @@ export function InitiativeSheet({
     <Sheet open onOpenChange={close}>
       <SheetContent aria-describedby={undefined}>
         <SheetHeader className="space-y-2.5">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="font-mono text-xs text-fg-subtle">{card.id}</span>
             <PriorityBadge priority={card.priority} reason={card.priorityReason} />
             <Badge tone="accent">{detail.stage.name}</Badge>

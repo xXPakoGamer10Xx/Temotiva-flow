@@ -75,7 +75,7 @@ export function Sidebar({
       data-sidebar
       className="sticky top-0 z-30 hidden h-dvh w-[13.5rem] shrink-0 flex-col border-r border-border bg-surface transition-[width] duration-200 md:flex"
     >
-      <div className="flex h-12 items-center gap-2 px-2.5">
+      <div data-sidebar-header className="flex h-12 items-center gap-2 px-2.5">
         <Link
           href="/board"
           data-sidebar-item
@@ -89,6 +89,7 @@ export function Sidebar({
         <button
           type="button"
           onClick={toggleSidebar}
+          data-sidebar-toggle
           className="inline-flex size-7 shrink-0 items-center justify-center rounded-md text-fg-subtle transition-colors hover:bg-surface-2 hover:text-fg"
           aria-label="Plegar o desplegar la navegación"
           title="Plegar o desplegar la navegación"

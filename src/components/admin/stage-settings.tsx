@@ -12,7 +12,7 @@ import { Input } from '@/components/ui/primitives';
 /** Ajuste de objetivos de SLE y límites de WIP. Capacidad exclusiva de Dirección. */
 export function StageSettings({ stages }: { stages: WorkflowStage[] }) {
   return (
-    <div className="overflow-hidden rounded-lg border border-border">
+    <div className="scrollbar-slim overflow-x-auto rounded-lg border border-border">
       <table className="w-full text-left text-xs">
         <thead className="bg-surface-2 text-xs uppercase tracking-wide text-fg-muted">
           <tr>

@@ -22,7 +22,7 @@ export function BoardColumn({
   const hidden = column.totalInStage - column.cards.length;
 
   return (
-    <section className="flex w-[17.5rem] shrink-0 flex-col" aria-label={`Fase ${column.stage.name}`}>
+    <section className="flex w-[min(17.5rem,85vw)] shrink-0 snap-start flex-col" aria-label={`Fase ${column.stage.name}`}>
       <header className="sticky top-0 z-10 bg-bg pb-2 pt-1">
         <div className="flex items-baseline gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-medium tracking-tight">
