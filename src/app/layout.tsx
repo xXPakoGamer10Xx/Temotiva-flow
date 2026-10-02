@@ -48,7 +48,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_SCRIPT }} />
       </head>
-      <body className="min-h-dvh bg-bg text-fg antialiased">{children}
+      <body className="min-h-dvh bg-bg text-fg antialiased" suppressHydrationWarning>{children}
         <Toaster />
       </body>
     </html>
