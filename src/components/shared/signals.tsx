@@ -80,6 +80,20 @@ const DEPARTMENT_DOT: Record<Department, string> = {
   MARKETING: 'bg-fuchsia-500',
 };
 
+/** Color del departamento como `currentColor`, para teñir paneles (fondo y franja superior) del mismo tono que su punto. */
+export const DEPARTMENT_ACCENT: Record<Department, string> = {
+  PRODUCT: 'text-sky-500',
+  PSYCHOLOGY: 'text-violet-500',
+  LEGAL: 'text-amber-500',
+  DESIGN: 'text-pink-500',
+  TECH: 'text-emerald-500',
+  QA: 'text-cyan-500',
+  CYBER: 'text-rose-500',
+  HR: 'text-orange-500',
+  FINANCE: 'text-lime-500',
+  MARKETING: 'text-fuchsia-500',
+};
+
 export function DepartmentChip({
   department,
   short = false,

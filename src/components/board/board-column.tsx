@@ -2,7 +2,7 @@ import type { BoardColumnView } from '@/server/services/views';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { formatDuration } from '@/server/services/sle';
 import { Badge } from '@/components/ui/primitives';
-import { DepartmentDot } from '@/components/shared/signals';
+import { DEPARTMENT_ACCENT, DepartmentDot } from '@/components/shared/signals';
 import { BoardCard } from './board-card';
 import { InfoHint } from '@/components/help/info-hint';
 import { cn } from '@/lib/utils';
@@ -23,8 +23,17 @@ export function BoardColumn({
   const hidden = column.totalInStage - column.cards.length;
 
   return (
-    <section className="flex w-[min(17.5rem,85vw)] shrink-0 snap-start flex-col" aria-label={`Fase ${column.stage.name}`}>
-      <header className="sticky top-0 z-10 bg-bg pb-2 pt-1">
+    <section
+      className="relative flex h-full min-h-0 w-[min(18rem,85vw)] shrink-0 snap-start flex-col overflow-hidden rounded-xl border border-border"
+      aria-label={`Fase ${column.stage.name}`}
+    >
+      {/* Panel teñido con el color del departamento propietario de la fase. */}
+      <div aria-hidden="true" className={cn('pointer-events-none absolute inset-0', DEPARTMENT_ACCENT[column.stage.defaultOwnerDepartment])}>
+        <div className="absolute inset-0 bg-current opacity-[0.07]" />
+        <div className="h-1 bg-current" />
+      </div>
+
+      <header className="relative px-2.5 pb-2 pt-3.5">
         <div className="flex items-baseline gap-2">
           <h2 className="flex items-center gap-1.5 text-sm font-medium tracking-tight">
             <DepartmentDot department={column.stage.defaultOwnerDepartment} />
@@ -70,9 +79,9 @@ export function BoardColumn({
         </div>
       </header>
 
-      <div className="flex flex-col gap-2">
+      <div className="scrollbar-slim relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
         {column.cards.length === 0 ? (
-          <p className="rounded-lg border border-dashed border-border px-3 py-5 text-center text-xs text-fg-subtle">
+          <p className="rounded-lg border border-dashed border-border-strong px-3 py-5 text-center text-xs text-fg-muted">
             {hidden > 0 ? `${hidden} oculta(s) por el filtro` : 'Sin iniciativas'}
           </p>
         ) : (

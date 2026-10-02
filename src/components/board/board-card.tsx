@@ -40,7 +40,7 @@ export function BoardCard({ card, basePath, query }: { card: InitiativeCardView;
       {card.isBlocked ? <StopBanner stopReason={card.stopReason} description={card.blockedDescription} /> : null}
 
       <div className="space-y-2 p-2.5">
-        <div className="flex items-start justify-between gap-2">
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
           <span className="shrink-0 font-mono text-xs text-fg-subtle">{card.id}</span>
           <PriorityBadge priority={card.priority} reason={card.priorityReason} />
         </div>
