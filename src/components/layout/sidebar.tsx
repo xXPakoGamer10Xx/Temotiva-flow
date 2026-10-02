@@ -18,6 +18,7 @@ import {
   TrendingUp,
   UserRound,
 } from 'lucide-react';
+import type { Department } from '@/domain/enums';
 import { signOutAction } from '@/server/actions/auth';
 import { openCommandPalette } from '@/components/command/command-bus';
 import { Avatar, Badge, Kbd } from '@/components/ui/primitives';
@@ -30,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/controls';
 import { BrandMark } from '@/components/shared/brand-mark';
+import { IdentityCard } from '@/components/shared/identity';
 import { cn } from '@/lib/utils';
 
 export interface SidebarLink {
@@ -59,7 +61,7 @@ export function Sidebar({
   user,
 }: {
   links: SidebarLink[];
-  user: { name: string; email: string; department: string; role: string };
+  user: { name: string; email: string; department: string; departments: Department[]; role: string };
 }) {
   const pathname = usePathname();
 
@@ -159,22 +161,18 @@ export function Sidebar({
           <DropdownMenuTrigger
             data-sidebar-item
             className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left transition-colors hover:bg-surface-2"
-            aria-label="Menú de la sesión"
+            aria-label={`Menú de la sesión: ${user.name}, ${user.role}, ${user.department}`}
+            title={`${user.name} · ${user.role} · ${user.department}`}
           >
             <Avatar name={user.name} className="size-6" />
             <span data-sidebar-label className="min-w-0 flex-1">
               <span className="block truncate text-xs font-medium text-fg">{user.name}</span>
-              <span className="block truncate text-xs text-fg-subtle">{user.department}</span>
+              <span className="block truncate text-xs text-fg-muted">{user.department}</span>
             </span>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="start" side="top">
-            <DropdownMenuLabel>
-              <span className="block text-xs font-medium text-fg">{user.name}</span>
-              <span className="block font-normal text-fg-subtle">{user.email}</span>
-            </DropdownMenuLabel>
-            <DropdownMenuSeparator />
-            <DropdownMenuLabel className="font-normal">
-              {user.department} · {user.role}
+            <DropdownMenuLabel className="min-w-64 font-normal">
+              <IdentityCard user={user} showEmail />
             </DropdownMenuLabel>
             <DropdownMenuSeparator />
             <DropdownMenuItem asChild>

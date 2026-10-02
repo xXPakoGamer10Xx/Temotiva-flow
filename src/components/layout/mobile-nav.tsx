@@ -14,10 +14,11 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/controls';
 import { signOutAction } from '@/server/actions/auth';
+import { IdentityCard, type IdentityUser } from '@/components/shared/identity';
 import type { SidebarLink } from './sidebar';
 
 /** Barra superior para pantallas estrechas, donde la navegación lateral se pliega del todo. */
-export function MobileNav({ links, userName }: { links: SidebarLink[]; userName: string }) {
+export function MobileNav({ links, user }: { links: SidebarLink[]; user: IdentityUser }) {
   return (
     <header className="sticky top-0 z-30 flex h-12 items-center gap-2 border-b border-border bg-surface px-3 md:hidden">
       <Link href="/board" className="flex items-center gap-2">
@@ -42,6 +43,10 @@ export function MobileNav({ links, userName }: { links: SidebarLink[]; userName:
           <Menu className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent>
+          <div className="px-2 py-2">
+            <IdentityCard user={user} />
+          </div>
+          <DropdownMenuSeparator />
           {links.map((link) => (
             <DropdownMenuItem key={link.href} asChild>
               <Link href={link.href as Route} className="flex w-full items-center gap-2">
@@ -63,7 +68,7 @@ export function MobileNav({ links, userName }: { links: SidebarLink[]; userName:
           <DropdownMenuItem asChild>
             <form action={signOutAction}>
               <button type="submit" className="w-full text-left">
-                Cerrar sesión · {userName}
+                Cerrar sesión
               </button>
             </form>
           </DropdownMenuItem>

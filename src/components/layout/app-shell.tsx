@@ -53,6 +53,7 @@ export async function AppShell({
     name: session.name,
     email: session.email,
     department: departmentsLabel(session.departments),
+    departments: session.departments,
     role: USER_ROLE_LABELS[session.role],
   };
 
@@ -61,7 +62,7 @@ export async function AppShell({
       <Sidebar links={links} user={user} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-        <MobileNav links={links} userName={session.name} />
+        <MobileNav links={links} user={user} />
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       </div>
 
