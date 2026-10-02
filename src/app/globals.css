@@ -362,6 +362,48 @@
   }
 }
 
+/*
+ * Menús desplegables. No pueden usar la animación de los diálogos: esa lleva un
+ * `translate(-50%, -50%)` pensado para centrar, y aplicada a un menú anclado lo
+ * desplazaba medio tamaño fuera de su sitio antes de colocarse.
+ */
+@keyframes menu-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes menu-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+/* Radix mide el menú fuera de pantalla antes de colocarlo: ese primer fotograma no debe verse. */
+[data-radix-popper-content-wrapper][style*='-200%'] {
+  visibility: hidden;
+}
+
+[data-motion='menu'] {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+}
+
+[data-motion='menu'][data-state='open'] {
+  animation: menu-in 120ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+[data-motion='menu'][data-state='closed'] {
+  animation: menu-out 90ms ease-in;
+}
+
 [data-motion='overlay'][data-state='open'] {
   animation: overlay-in 180ms ease-out;
 }
@@ -409,6 +451,7 @@
 @media (prefers-reduced-motion: reduce) {
   [data-motion='sheet'][data-state='open'],
   [data-motion='dialog'][data-state='open'],
+  [data-motion='menu'][data-state='open'],
   [data-motion='toast'] {
     animation: overlay-in 120ms linear;
   }

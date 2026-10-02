@@ -53,7 +53,7 @@ export function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         align={align}
         sideOffset={sideOffset}
-        data-motion="dialog"
+        data-motion="menu"
         className={cn(
           'z-50 min-w-52 overflow-hidden rounded-lg border border-border bg-surface p-1 shadow-[var(--shadow-panel)]',
           className,
