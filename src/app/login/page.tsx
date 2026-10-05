@@ -11,9 +11,23 @@ export const dynamic = 'force-dynamic';
 
 export const metadata = { title: 'Acceso' };
 
-export default async function LoginPage() {
+export default async function LoginPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ error?: string }>;
+}) {
   const session = await getSessionContext();
   if (session) redirect('/board');
+
+  const resolvedParams = searchParams ? await searchParams : undefined;
+  const rawError = resolvedParams?.error;
+  let authError: string | null = null;
+  if (rawError === 'AccessDenied') {
+    authError =
+      'Acceso denegado: tu cuenta de Google no figura en la lista de acceso de Temotiva Flow o ha sido desactivada. Solicita el alta a Dirección.';
+  } else if (rawError) {
+    authError = 'No se ha podido iniciar sesión con Google. Por favor, inténtalo de nuevo.';
+  }
 
   // El listado de desarrollo solo se calcula si el acceso de desarrollo existe.
   const devProfiles = isDevAuthEnabled
@@ -41,6 +55,7 @@ export default async function LoginPage() {
           googleConfigured={isGoogleConfigured}
           devAuthEnabled={isDevAuthEnabled}
           devProfiles={devProfiles}
+          authError={authError}
         />
 
         <p className="mt-6 flex items-start gap-2 text-xs leading-relaxed text-fg-muted">

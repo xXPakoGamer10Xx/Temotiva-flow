@@ -161,8 +161,11 @@ paradas, un avance excepcional ya firmado y su historial completo. Con `DATA_SNA
 activo, el estado se vuelca a `.data/store.json` para que las sesiones de trabajo
 sobrevivan a los reinicios; borra esa carpeta para volver a la semilla.
 
-Migrar a PostgreSQL/Supabase es aplicar `db/01-schema.sql` e implementar `PostgresDataStore`
-con la misma interfaz. Ni los servicios ni las Server Actions cambian.
+Para producción en Vercel o con base de datos real (Supabase, Neon, etc.), define `DATABASE_URL` y ejecuta:
+```bash
+npm run db:setup -- --admin=tu-correo@gmail.com
+```
+Esto aplica el esquema relacional (`db/01-schema.sql`), siembra el flujo de trabajo y registra tu correo como `EXECUTIVE` para que puedas entrar con Google y dar de alta al equipo. Si falta `DATABASE_URL`, el sistema conmuta automáticamente a `InMemoryDataStore` para desarrollo y tests.
 
 ---
 

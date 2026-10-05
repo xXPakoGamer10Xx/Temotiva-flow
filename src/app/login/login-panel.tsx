@@ -21,13 +21,15 @@ export function LoginPanel({
   googleConfigured,
   devAuthEnabled,
   devProfiles,
+  authError,
 }: {
   googleConfigured: boolean;
   devAuthEnabled: boolean;
   devProfiles: DevProfile[];
+  authError?: string | null;
 }) {
   const [email, setEmail] = React.useState(devProfiles[0]?.email ?? '');
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<string | null>(authError ?? null);
   const [isPending, startTransition] = React.useTransition();
 
   const enterAsDev = (): void => {
