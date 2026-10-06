@@ -1,7 +1,7 @@
 import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
 import { getFlowMetrics } from '@/server/services/metrics';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { HeadlineTiles, OverrideChart, StageTimeChart, StopCausesChart } from '@/components/executive/charts';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 
@@ -19,7 +19,7 @@ export default async function ExecutivePage({
   const metrics = await getFlowMetrics(getDataStore());
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Panel de dirección"
         description="Salud del proceso, no de las personas: dónde se atasca el flujo, por qué se para y cuánto se fuerza la compuerta."
@@ -37,6 +37,6 @@ export default async function ExecutivePage({
       </div>
 
       <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
-    </AppShell>
+    </>
   );
 }

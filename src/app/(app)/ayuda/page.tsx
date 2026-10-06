@@ -3,7 +3,7 @@ import { getDataStore } from '@/server/repositories';
 import { GLOSSARY, GLOSSARY_KEYS, ROLE_GUIDE, STAGE_GUIDE } from '@/domain/glossary';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { USER_ROLES } from '@/domain/enums';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle, Kbd, SectionLabel } from '@/components/ui/primitives';
 import { SHORTCUTS } from '@/components/command/shortcuts';
 import { ReplayGuideButton } from '@/components/help/replay-guide-button';
@@ -47,7 +47,7 @@ export default async function HelpPage() {
   const stages = (await getDataStore().listStages()).filter((stage) => stage.isActive);
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Ayuda"
         description="Cómo funciona Temotiva Flow, qué significa cada término y qué puedes hacer según tu rol."
@@ -154,6 +154,6 @@ export default async function HelpPage() {
           </section>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

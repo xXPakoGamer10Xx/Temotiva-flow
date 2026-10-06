@@ -2,7 +2,7 @@ import { KeyRound, ShieldCheck } from 'lucide-react';
 import { requireSession } from '@/lib/session';
 import { DEPARTMENT_LABELS, USER_ROLE_LABELS } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { AccountForm } from '@/components/admin/account-form';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
@@ -24,7 +24,7 @@ export default async function AccountPage() {
   const profile = await getDataStore().userById(session.userId);
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader title="Mi cuenta" description="Tus datos de perfil y cómo entras al sistema." />
 
       <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">
@@ -114,6 +114,6 @@ export default async function AccountPage() {
           </Card>
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

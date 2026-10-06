@@ -503,3 +503,18 @@
     display: none;
   }
 }
+
+/* Los esqueletos de carga esperan un instante antes de mostrarse: si la vista
+   llega rápido, la persona nunca ve el destello gris. */
+@keyframes skeleton-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.skeleton-delay {
+  animation: skeleton-in 150ms ease-out 200ms both;
+}

@@ -9,7 +9,7 @@ import {
   canConfigureSystem,
   managementScope,
 } from '@/server/services/rbac';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { AccessManager, type AccessRow } from '@/components/admin/access-manager';
 import { StageSettings } from '@/components/admin/stage-settings';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/primitives';
@@ -47,7 +47,7 @@ export default async function TeamPage() {
   }));
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Equipo y accesos"
         description={
@@ -96,6 +96,6 @@ export default async function TeamPage() {
           ) : null}
         </div>
       </div>
-    </AppShell>
+    </>
   );
 }

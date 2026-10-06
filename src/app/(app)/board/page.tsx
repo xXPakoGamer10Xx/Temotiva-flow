@@ -3,7 +3,7 @@ import { DEPARTMENTS } from '@/domain/enums';
 import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
 import { getBoardView, type BoardFilter } from '@/server/services/views';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { EmptyState } from '@/components/ui/primitives';
 import { BoardColumn } from '@/components/board/board-column';
 import { BoardFilters } from '@/components/board/board-filters';
@@ -65,7 +65,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
   ).toString();
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Tablero de flujo"
         description={
@@ -101,6 +101,6 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
       </div>
 
       <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
-    </AppShell>
+    </>
   );
 }

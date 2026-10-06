@@ -4,7 +4,7 @@ import { requireSession } from '@/lib/session';
 import { HELP_STATUS_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getNotifications, type NotificationView } from '@/server/services/views';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { Badge, Card, EmptyState, SectionLabel } from '@/components/ui/primitives';
 import { HelpTypeBadge } from '@/components/shared/signals';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
@@ -27,7 +27,7 @@ export default async function NotificationsPage({
   const { received, sent } = await getNotifications(getDataStore(), session);
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Notificaciones"
         description={`Solicitudes de ayuda dirigidas a ${departmentsLabel(session.departments)} y las que has abierto tú.`}
@@ -71,7 +71,7 @@ export default async function NotificationsPage({
       </div>
 
       <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
-    </AppShell>
+    </>
   );
 }
 

@@ -1,4 +1,5 @@
 import 'server-only';
+import { cache } from 'react';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { RequestContext, SessionContext } from '@/domain/types';
@@ -12,7 +13,7 @@ import { getDataStore } from '@/server/repositories';
  * con `auth()` (nunca `getSession()`, DESIGN.md §4) y se revalida contra la
  * allowlist antes de devolverla. Ningún dato de identidad llega del cliente.
  */
-export async function getSessionContext(): Promise<SessionContext | null> {
+export const getSessionContext = cache(async function getSessionContext(): Promise<SessionContext | null> {
   const session = await auth();
   const email = session?.user?.email;
   if (!email) return null;
@@ -29,7 +30,7 @@ export async function getSessionContext(): Promise<SessionContext | null> {
     departments: profile.departments,
     role: profile.role,
   };
-}
+});
 
 /** Igual que `getSessionContext`, pero redirige al login si no hay sesión válida. */
 export async function requireSession(): Promise<SessionContext> {

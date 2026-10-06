@@ -1,7 +1,7 @@
 import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
 import { getRadarRows } from '@/server/services/views';
-import { AppShell, PageHeader } from '@/components/layout/app-shell';
+import { PageHeader } from '@/components/layout/app-shell';
 import { RadarTable } from '@/components/radar/radar-table';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 
@@ -19,7 +19,7 @@ export default async function RadarPage({
   const rows = await getRadarRows(getDataStore());
 
   return (
-    <AppShell session={session}>
+    <>
       <PageHeader
         title="Radar de esperas"
         description="Qué está esperando cada iniciativa hoy, y a quién. Primero las paradas."
@@ -30,6 +30,6 @@ export default async function RadarPage({
       </div>
 
       <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
-    </AppShell>
+    </>
   );
 }
