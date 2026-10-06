@@ -219,6 +219,33 @@ function seedUsers(): User[] {
       createdAt: ORG_CREATED_AT,
     },
   ];
+
+  const initialAdmin = process.env.INITIAL_ADMIN_EMAIL?.trim().toLowerCase();
+  if (initialAdmin && !users.some((u) => u.email.toLowerCase() === initialAdmin)) {
+    users.unshift({
+      id: '00000000-0000-0000-0000-000000000001',
+      name: 'Administración',
+      email: initialAdmin,
+      departments: [
+        'PRODUCT',
+        'PSYCHOLOGY',
+        'LEGAL',
+        'DESIGN',
+        'TECH',
+        'QA',
+        'CYBER',
+        'HR',
+        'FINANCE',
+        'MARKETING',
+      ],
+      role: 'EXECUTIVE',
+      isActive: true,
+      isAnonymized: false,
+      createdAt: ORG_CREATED_AT,
+    });
+  }
+
+  return users;
 }
 
 const HOUR_MS = 60 * 60 * 1000;
