@@ -18,9 +18,13 @@ type GlobalWithPool = typeof globalThis & { [POOL_KEY]?: Pool };
 function getPool(): Pool {
   const globalScope = globalThis as GlobalWithPool;
   if (!globalScope[POOL_KEY]) {
-    const connectionString = process.env.DATABASE_URL;
+    const connectionString =
+      process.env.DATABASE_URL ||
+      process.env.POSTGRES_URL ||
+      process.env.STORAGE_URL ||
+      process.env.STORAGE_DATABASE_URL;
     if (!connectionString) {
-      throw new Error('DATABASE_URL no está definida en las variables de entorno.');
+      throw new Error('DATABASE_URL o POSTGRES_URL no está definida en las variables de entorno.');
     }
     const isLocal = connectionString.includes('localhost') || connectionString.includes('127.0.0.1');
     const config: PoolConfig = {

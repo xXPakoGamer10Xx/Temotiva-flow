@@ -20,8 +20,17 @@ const STORE_KEY = Symbol.for('temotiva-flow.datastore');
 
 type GlobalWithStore = typeof globalThis & { [STORE_KEY]?: DataStore };
 
+function getDbUrl(): string | undefined {
+  return (
+    process.env.DATABASE_URL ||
+    process.env.POSTGRES_URL ||
+    process.env.STORAGE_URL ||
+    process.env.STORAGE_DATABASE_URL
+  );
+}
+
 function createStore(): DataStore {
-  if (process.env.DATABASE_URL) {
+  if (getDbUrl()) {
     return new PostgresDataStore();
   }
   const persisted = readSnapshot();

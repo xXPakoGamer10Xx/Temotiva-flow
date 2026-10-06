@@ -32,10 +32,14 @@ if (existsSync(envLocalPath)) {
   }
 }
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString =
+  process.env.DATABASE_URL ||
+  process.env.POSTGRES_URL ||
+  process.env.STORAGE_URL ||
+  process.env.STORAGE_DATABASE_URL;
 
 if (!connectionString) {
-  console.error('\n❌ ERROR: DATABASE_URL no está definida.');
+  console.error('\n❌ ERROR: DATABASE_URL o POSTGRES_URL no está definida.');
   console.error('Defínela en .env.local o pásala al comando:\n');
   console.error('DATABASE_URL="postgres://..." npm run db:setup -- --admin=tu-correo@gmail.com\n');
   process.exit(1);
