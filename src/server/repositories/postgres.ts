@@ -73,8 +73,8 @@ export class PostgresDataStore implements DataStore {
         u.is_anonymized, 
         u.created_at,
         COALESCE(
-          (SELECT array_agg(ud.department) FROM user_departments ud WHERE ud.user_id = u.id),
-          '{}'
+          (SELECT array_agg(ud.department::text) FROM user_departments ud WHERE ud.user_id = u.id),
+          ARRAY[]::text[]
         ) AS departments
       FROM users u
       ORDER BY u.name ASC
@@ -94,8 +94,8 @@ export class PostgresDataStore implements DataStore {
         u.is_anonymized, 
         u.created_at,
         COALESCE(
-          (SELECT array_agg(ud.department) FROM user_departments ud WHERE ud.user_id = u.id),
-          '{}'
+          (SELECT array_agg(ud.department::text) FROM user_departments ud WHERE ud.user_id = u.id),
+          ARRAY[]::text[]
         ) AS departments
       FROM users u
       WHERE u.id = $1
@@ -117,8 +117,8 @@ export class PostgresDataStore implements DataStore {
         u.is_anonymized, 
         u.created_at,
         COALESCE(
-          (SELECT array_agg(ud.department) FROM user_departments ud WHERE ud.user_id = u.id),
-          '{}'
+          (SELECT array_agg(ud.department::text) FROM user_departments ud WHERE ud.user_id = u.id),
+          ARRAY[]::text[]
         ) AS departments
       FROM users u
       WHERE LOWER(u.email) = $1
@@ -677,7 +677,17 @@ export class PostgresDataStore implements DataStore {
   // --- Mappers internos ------------------------------------------------------
 
   private mapUser(r: Record<string, unknown>): User {
-    const rawDepts = (r.departments as string[]) ?? [];
+    // pg no parsea arrays de ENUM: puede llegar como literal "{A,B}" en vez de array.
+    const rawValue = r.departments;
+    const rawDepts: string[] = Array.isArray(rawValue)
+      ? (rawValue as string[])
+      : typeof rawValue === 'string'
+        ? rawValue
+            .replace(/^\{|\}$/g, '')
+            .split(',')
+            .map((d) => d.trim().replace(/^"|"$/g, ''))
+            .filter(Boolean)
+        : [];
     return {
       id: String(r.id),
       name: String(r.name),
