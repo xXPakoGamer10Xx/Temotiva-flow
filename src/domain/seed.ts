@@ -55,7 +55,7 @@ export const SEED_USER_IDS = {
 const ORG_CREATED_AT = '2026-01-05T09:00:00.000Z';
 
 function seedUsers(): User[] {
-  return [
+  const users: User[] = [
     {
       id: SEED_USER_IDS.marta,
       name: 'Marta Coll',
