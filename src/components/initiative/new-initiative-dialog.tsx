@@ -2,7 +2,9 @@
 
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
-import { Plus } from 'lucide-react';
+import { Paperclip, Plus, X } from 'lucide-react';
+import { checkUpload, uploadAttachment } from '@/lib/upload-attachment';
+import { toast } from '@/lib/toast';
 import type { Department, HelpType, PriorityLevel, PriorityReason, UserRole } from '@/domain/enums';
 import { DEPARTMENTS, HELP_TYPES_V1, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
 import {
@@ -71,6 +73,8 @@ export function NewInitiativeDialog({
   const [ownerDepartment, setOwnerDepartment] = React.useState<Department>(ownerOptions[0] ?? 'PRODUCT');
   const [helpDepartments, setHelpDepartments] = React.useState<Department[]>([]);
   const [helpType, setHelpType] = React.useState<HelpType>('INFORMATION');
+  const [files, setFiles] = React.useState<File[]>([]);
+  const [fileError, setFileError] = React.useState<string | null>(null);
   const [skipped, setSkipped] = React.useState<number[]>([]);
   const [routeReason, setRouteReason] = React.useState('');
 
@@ -95,6 +99,13 @@ export function NewInitiativeDialog({
     (skipped.length === 0 || routeReason.trim().length >= MIN_STAGE_SKIP_REASON) &&
     !create.isPending;
 
+  const addFiles = (list: FileList | null): void => {
+    const picked = [...(list ?? [])];
+    const problem = picked.map(checkUpload).find(Boolean) ?? null;
+    setFileError(problem);
+    if (!problem) setFiles((current) => [...current, ...picked].slice(0, 5));
+  };
+
   const submit = (): void => {
     create.run(
       {
@@ -110,6 +121,17 @@ export function NewInitiativeDialog({
         routeReason: skipped.length > 0 ? routeReason : undefined,
       },
       (data) => {
+      // La iniciativa ya existe: ahora se suben sus documentos, uno a uno.
+      const pending = files;
+      void (async () => {
+        for (const file of pending) {
+          const problem = await uploadAttachment(data.id, file);
+          if (problem) toast(`${file.name}: ${problem}`, 'danger');
+        }
+        if (pending.length > 0) router.refresh();
+      })();
+      setFiles([]);
+      setFileError(null);
       setOpen(false);
       setHelpDepartments([]);
       setSkipped([]);
@@ -219,6 +241,43 @@ export function NewInitiativeDialog({
                     ? 'El área que lleva el trabajo. Como Dirección puedes elegir cualquiera.'
                     : 'El área que lleva el trabajo. Solo puedes elegir entre las tuyas.'}
                 </p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="new-documents">Documentos (opcional)</Label>
+                <p className="text-xs text-fg-subtle">
+                  PDF o Word (.docx), máx. 4 MB cada uno, hasta 5. Describen la iniciativa o ayudan al equipo. Sin datos de pacientes.
+                </p>
+                {files.length > 0 ? (
+                  <ul className="space-y-1">
+                    {files.map((file, index) => (
+                      <li key={`${file.name}-${index}`} className="flex items-center gap-2 rounded-md border border-border px-2 py-1 text-xs">
+                        <Paperclip className="size-3.5 shrink-0 text-fg-subtle" aria-hidden />
+                        <span className="min-w-0 flex-1 [overflow-wrap:anywhere]">{file.name}</span>
+                        <button
+                          type="button"
+                          onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}
+                          className="text-fg-subtle hover:text-fg"
+                          aria-label={`Quitar ${file.name}`}
+                        >
+                          <X className="size-3.5" />
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                <input
+                  id="new-documents"
+                  type="file"
+                  multiple
+                  accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                  onChange={(event) => {
+                    addFiles(event.target.files);
+                    event.target.value = '';
+                  }}
+                  className="block w-full text-xs text-fg-muted file:mr-2 file:h-7 file:cursor-pointer file:rounded-md file:border file:border-border file:bg-surface file:px-2.5 file:text-xs file:font-medium file:text-fg hover:file:bg-surface-2"
+                />
+                {fileError ? <p role="alert" className="text-xs text-[var(--danger)]">{fileError}</p> : null}
               </div>
 
               <fieldset className="space-y-1.5">
