@@ -20,7 +20,18 @@ import { cn } from '@/lib/utils';
  * `?iniciativa=TEMO-XXX` a la ruta actual, así que funciona igual desde el
  * tablero, el radar o el centro de notificaciones.
  */
-export function BoardCard({ card, basePath, query }: { card: InitiativeCardView; basePath: string; query?: string }) {
+export function BoardCard({
+  card,
+  basePath,
+  query,
+  footer,
+}: {
+  card: InitiativeCardView;
+  basePath: string;
+  query?: string;
+  /** Contenido dentro de la tarjeta, bajo una línea (p. ej. por qué espera de mí). */
+  footer?: React.ReactNode;
+}) {
   const href = `${basePath}?${query ? `${query}&` : ''}iniciativa=${card.id}`;
 
   // El `relative` de la tarjeta no es decorativo: el texto `sr-only` del final
@@ -87,6 +98,8 @@ export function BoardCard({ card, basePath, query }: { card: InitiativeCardView;
           </span>
         </div>
       </div>
+
+      {footer ? <div className="border-t border-border bg-surface-2/50 px-2.5 py-2">{footer}</div> : null}
 
       <span className="sr-only">
         Abrir la ficha de {card.id}, propiedad de {DEPARTMENT_LABELS[card.ownerDepartment]}

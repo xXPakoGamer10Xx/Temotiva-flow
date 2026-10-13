@@ -110,22 +110,27 @@ function Section({
       ) : (
         <ul className="gap-2 [column-fill:balance] sm:columns-2 lg:columns-3">
           {items.map((item) => (
-            <li key={item.card.id} className="mb-2 flex break-inside-avoid flex-col gap-1.5">
-              <BoardCard card={item.card} basePath="/mi-trabajo" />
-              {showReasons && item.waitingReasons.length > 0 ? (
-                <ul className="space-y-0.5 px-1">
-                  {item.waitingReasons.slice(0, MAX_REASONS).map((reason) => (
-                    <li key={reason} className="line-clamp-2 text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">
-                      {reason}
-                    </li>
-                  ))}
-                  {item.waitingReasons.length > MAX_REASONS ? (
-                    <li className="text-xs text-fg-subtle">
-                      +{item.waitingReasons.length - MAX_REASONS} más en la ficha
-                    </li>
-                  ) : null}
-                </ul>
-              ) : null}
+            <li key={item.card.id} className="mb-2 break-inside-avoid">
+              <BoardCard
+                card={item.card}
+                basePath="/mi-trabajo"
+                footer={
+                  showReasons && item.waitingReasons.length > 0 ? (
+                    <ul className="space-y-1">
+                      {item.waitingReasons.slice(0, MAX_REASONS).map((reason) => (
+                        <li key={reason} className="line-clamp-2 text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">
+                          {reason}
+                        </li>
+                      ))}
+                      {item.waitingReasons.length > MAX_REASONS ? (
+                        <li className="text-xs text-fg-subtle">
+                          +{item.waitingReasons.length - MAX_REASONS} más en la ficha
+                        </li>
+                      ) : null}
+                    </ul>
+                  ) : undefined
+                }
+              />
             </li>
           ))}
         </ul>
