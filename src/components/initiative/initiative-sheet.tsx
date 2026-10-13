@@ -141,7 +141,7 @@ export function InitiativeSheet({
             </TabsList>
 
             <TabsContent value="general">
-              <GeneralTab detail={detail} capabilities={capabilities} />
+              <GeneralTab detail={detail} capabilities={capabilities} currentUserId={session.userId} />
             </TabsContent>
 
             <TabsContent value="gate">

@@ -12,6 +12,7 @@ import {
 import { PageHeader } from '@/components/layout/app-shell';
 import { AccessManager, type AccessRow } from '@/components/admin/access-manager';
 import { StageSettings } from '@/components/admin/stage-settings';
+import { BulkArchiveButton } from '@/components/initiative/bulk-archive-dialog';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/primitives';
 
 export const dynamic = 'force-dynamic';
@@ -55,6 +56,7 @@ export default async function TeamPage() {
             ? 'Quién puede entrar, con qué rol y en qué áreas, y los objetivos de tiempo y carga de cada fase.'
             : 'Las personas de las áreas que llevas. Puedes sumar miembros y darlos de baja.'
         }
+        actions={session.role === 'EXECUTIVE' ? <BulkArchiveButton /> : undefined}
       />
 
       <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">

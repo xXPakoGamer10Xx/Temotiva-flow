@@ -5,9 +5,11 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
+  Archive,
   Bell,
   CircleHelp,
   CornerDownLeft,
+  Inbox,
   KanbanSquare,
   Moon,
   Plus,
@@ -28,6 +30,7 @@ import {
   UI_EVENTS,
   focusBoardFilter,
   isTypingTarget,
+  openBulkArchive,
   openNewInitiative,
   openShortcutsHelp,
   useUiEvent,
@@ -68,9 +71,11 @@ function normalize(value: string): string {
 export function CommandCenter({
   initiatives,
   canManagePeople,
+  canBulkArchive = false,
 }: {
   initiatives: PaletteInitiative[];
   canManagePeople: boolean;
+  canBulkArchive?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -94,6 +99,39 @@ export function CommandCenter({
 
   const commands = React.useMemo<Command[]>(() => {
     const views: Command[] = [
+      {
+        id: 'go-my-work',
+        label: 'Mi trabajo',
+        hint: 'G M',
+        group: 'Ir a',
+        icon: <Inbox className="size-3.5" />,
+        keywords: 'lo que me toca mias pendientes inicio',
+        run: () => go('/mi-trabajo'),
+      },
+      {
+        id: 'view-mine',
+        label: 'Tablero: mías',
+        group: 'Ir a',
+        icon: <KanbanSquare className="size-3.5" />,
+        keywords: 'filtro asignadas a mi',
+        run: () => go('/board?vista=mias'),
+      },
+      {
+        id: 'view-waiting',
+        label: 'Tablero: esperando de mí',
+        group: 'Ir a',
+        icon: <KanbanSquare className="size-3.5" />,
+        keywords: 'filtro solicitudes compuerta pendientes',
+        run: () => go('/board?vista=esperando'),
+      },
+      {
+        id: 'view-blocked',
+        label: 'Tablero: mis bloqueadas',
+        group: 'Ir a',
+        icon: <KanbanSquare className="size-3.5" />,
+        keywords: 'filtro paradas bloqueadas',
+        run: () => go('/board?vista=bloqueadas'),
+      },
       {
         id: 'go-board',
         label: 'Tablero de flujo',
@@ -173,6 +211,21 @@ export function CommandCenter({
           window.setTimeout(openNewInitiative, pathname === '/board' ? 0 : 350);
         },
       },
+      ...(canBulkArchive
+        ? [
+            {
+              id: 'bulk-archive',
+              label: 'Archivar iniciativas en bloque',
+              group: 'Acciones' as const,
+              icon: <Archive className="size-3.5" />,
+              keywords: 'limpiar pruebas borrar archivar varias',
+              run: () => {
+                setOpen(false);
+                openBulkArchive();
+              },
+            },
+          ]
+        : []),
       {
         id: 'toggle-theme',
         label: 'Cambiar el tema claro u oscuro',
@@ -221,7 +274,7 @@ export function CommandCenter({
     }));
 
     return [...initiativeCommands, ...views, ...actions];
-  }, [canManagePeople, go, initiatives, pathname, router, searchParams]);
+  }, [canBulkArchive, canManagePeople, go, initiatives, pathname, router, searchParams]);
 
   const results = React.useMemo(() => {
     const needle = normalize(query.trim());
@@ -250,7 +303,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();

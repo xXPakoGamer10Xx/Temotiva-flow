@@ -2,7 +2,7 @@ import type { Department } from '@/domain/enums';
 import { DEPARTMENTS } from '@/domain/enums';
 import { requireSession } from '@/lib/session';
 import { getDataStore } from '@/server/repositories';
-import { getBoardView, type BoardFilter } from '@/server/services/views';
+import { MY_WORK_VIEWS, getBoardView, getMyWork, type BoardFilter, type MyWorkViewKey } from '@/server/services/views';
 import { PageHeader } from '@/components/layout/app-shell';
 import { EmptyState } from '@/components/ui/primitives';
 import { BoardColumn } from '@/components/board/board-column';
@@ -19,6 +19,7 @@ interface BoardSearchParams {
   dep?: string;
   estado?: string;
   q?: string;
+  vista?: string;
 }
 
 /** Vista 1 — Tablero de flujo (Kanban de iniciativas). */
@@ -28,18 +29,23 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   const department = DEPARTMENTS.includes(params.dep as Department) ? (params.dep as Department) : undefined;
   const flow = params.estado === 'parada' || params.estado === 'riesgo' ? params.estado : undefined;
-  const filter: BoardFilter = { department, flow, query: params.q };
+  const view = MY_WORK_VIEWS.includes(params.vista as MyWorkViewKey) ? (params.vista as MyWorkViewKey) : undefined;
+  const filter: BoardFilter = { department, flow, query: params.q, view };
   const includeArchived = params.archivadas === '1';
 
   const store = getDataStore();
-  const [columns, unfiltered] = await Promise.all([
-    getBoardView(store, { includeArchived, filter }),
+  const [columns, unfiltered, myWork] = await Promise.all([
+    getBoardView(store, { includeArchived, filter, session }),
     getBoardView(store, { includeArchived }),
+    getMyWork(store, session),
   ]);
 
   const allCards = unfiltered.flatMap((column) => column.cards);
   const counts = {
     total: allCards.length,
+    mine: myWork.mine.length,
+    waiting: myWork.waiting.length,
+    myBlocked: myWork.blocked.length,
     blocked: allCards.filter((card) => card.isBlocked).length,
     atRisk: allCards.filter((card) => card.sle.state !== 'ON_TIME').length,
     byDepartment: Object.fromEntries(
@@ -59,7 +65,7 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
 
   // Se conserva el filtro al abrir una ficha, para poder volver a lo mismo.
   const queryString = new URLSearchParams(
-    Object.entries({ dep: params.dep, estado: params.estado, q: params.q, archivadas: params.archivadas })
+    Object.entries({ vista: params.vista, dep: params.dep, estado: params.estado, q: params.q, archivadas: params.archivadas })
       .filter((entry): entry is [string, string] => Boolean(entry[1]))
       .map(([key, value]) => [key, value]),
   ).toString();

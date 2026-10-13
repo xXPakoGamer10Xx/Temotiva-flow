@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type {
   ActivityLogEntry,
+  Attachment,
   ChecklistValue,
   Dependency,
   Initiative,
@@ -32,6 +33,7 @@ export class InMemoryDataStore implements DataStore {
   private initiatives = new Map<string, Initiative>();
   private checklistValues = new Map<string, ChecklistValue>();
   private dependencies = new Map<string, Dependency>();
+  private attachments = new Map<string, Attachment>();
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -44,11 +46,15 @@ export class InMemoryDataStore implements DataStore {
     this.users = new Map(data.users.map((user) => [user.id, clone(user)]));
     this.stages = new Map(data.stages.map((stage) => [stage.id, clone(stage)]));
     this.checklistItems = new Map(data.checklistItems.map((item) => [item.id, clone(item)]));
-    this.initiatives = new Map(data.initiatives.map((initiative) => [initiative.id, clone(initiative)]));
+    // Snapshots anteriores a la ruta de fases no traen `skippedStageIds`.
+    this.initiatives = new Map(
+      data.initiatives.map((initiative) => [initiative.id, clone({ ...initiative, skippedStageIds: initiative.skippedStageIds ?? [] })]),
+    );
     this.checklistValues = new Map(
       data.checklistValues.map((value) => [checklistValueKey(value.initiativeId, value.checklistId), clone(value)]),
     );
     this.dependencies = new Map(data.dependencies.map((dependency) => [dependency.id, clone(dependency)]));
+    this.attachments = new Map((data.attachments ?? []).map((attachment) => [attachment.id, clone(attachment)]));
     this.activityLog = data.activityLog.map((entry) => clone(entry));
   }
 
@@ -61,6 +67,7 @@ export class InMemoryDataStore implements DataStore {
       initiatives: [...this.initiatives.values()].map(clone),
       checklistValues: [...this.checklistValues.values()].map(clone),
       dependencies: [...this.dependencies.values()].map(clone),
+      attachments: [...this.attachments.values()].map(clone),
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -245,6 +252,33 @@ export class InMemoryDataStore implements DataStore {
   async dependencyById(id: string): Promise<Dependency | null> {
     const dependency = this.dependencies.get(id);
     return dependency ? clone(dependency) : null;
+  }
+
+  async listAttachments(initiativeId?: string): Promise<Attachment[]> {
+    return [...this.attachments.values()]
+      .filter((attachment) => !initiativeId || attachment.initiativeId === initiativeId)
+      .sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt))
+      .map(clone);
+  }
+
+  async attachmentById(id: string): Promise<Attachment | null> {
+    const attachment = this.attachments.get(id);
+    return attachment ? clone(attachment) : null;
+  }
+
+  async insertAttachment(attachment: Attachment): Promise<Attachment> {
+    this.attachments.set(attachment.id, clone(attachment));
+    this.touched();
+    return clone(attachment);
+  }
+
+  async markAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<Attachment> {
+    const current = this.attachments.get(id);
+    if (!current) throw new Error(`Documento no encontrado: ${id}`);
+    const updated: Attachment = { ...current, isRemoved: true, removedBy, removedAt };
+    this.attachments.set(id, updated);
+    this.touched();
+    return clone(updated);
   }
 
   async insertDependency(dependency: Dependency): Promise<Dependency> {

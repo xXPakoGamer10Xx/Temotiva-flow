@@ -1,5 +1,6 @@
 import type {
   ActivityLogEntry,
+  Attachment,
   ChecklistValue,
   Dependency,
   Initiative,
@@ -62,6 +63,14 @@ export interface DataStore {
     id: string,
     patch: Partial<Pick<Dependency, 'status' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt'>>,
   ): Promise<Dependency>;
+
+  // --- Documentos adjuntos (PDF/DOCX) ----------------------------------------
+  /** Incluye los retirados: quien pinta decide si los muestra. */
+  listAttachments(initiativeId?: string): Promise<Attachment[]>;
+  attachmentById(id: string): Promise<Attachment | null>;
+  insertAttachment(attachment: Attachment): Promise<Attachment>;
+  /** Solo la baja lógica: el resto de la fila es inmutable. */
+  markAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<Attachment>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

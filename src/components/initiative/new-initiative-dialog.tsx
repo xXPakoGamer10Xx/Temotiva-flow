@@ -14,7 +14,7 @@ import {
   PRIORITY_REASON_HINTS,
   PRIORITY_REASON_LABELS,
 } from '@/domain/labels';
-import { MIN_INITIATIVE_TITLE } from '@/domain/rules';
+import { MIN_INITIATIVE_TITLE, MIN_STAGE_SKIP_REASON } from '@/domain/rules';
 import { createInitiativeAction } from '@/server/actions/initiatives';
 import { ActionError, useAction } from '@/lib/use-action';
 import { UI_EVENTS, openNewInitiative, useUiEvent } from '@/components/command/command-bus';
@@ -42,7 +42,22 @@ export function NewInitiativeButton() {
   );
 }
 
-export function NewInitiativeDialog({ departments, role }: { departments: Department[]; role: UserRole }) {
+export interface RouteStage {
+  id: number;
+  name: string;
+  orderIndex: number;
+  defaultOwnerDepartment: Department;
+}
+
+export function NewInitiativeDialog({
+  departments,
+  role,
+  stages,
+}: {
+  departments: Department[];
+  role: UserRole;
+  stages: RouteStage[];
+}) {
   // Dirección crea para cualquier área; el resto, solo para las suyas.
   const ownerOptions = role === 'EXECUTIVE' ? [...DEPARTMENTS] : departments;
   const router = useRouter();
@@ -56,6 +71,17 @@ export function NewInitiativeDialog({ departments, role }: { departments: Depart
   const [ownerDepartment, setOwnerDepartment] = React.useState<Department>(ownerOptions[0] ?? 'PRODUCT');
   const [helpDepartments, setHelpDepartments] = React.useState<Department[]>([]);
   const [helpType, setHelpType] = React.useState<HelpType>('INFORMATION');
+  const [skipped, setSkipped] = React.useState<number[]>([]);
+  const [routeReason, setRouteReason] = React.useState('');
+
+  const orderedStages = [...stages].sort((a, b) => a.orderIndex - b.orderIndex);
+  // Inicio y hito final son de toda ruta; omitir otra exige ser LEAD de su área o Dirección.
+  const canSkip = (stage: RouteStage, index: number): boolean =>
+    index !== 0 &&
+    index !== orderedStages.length - 1 &&
+    (role === 'EXECUTIVE' || (role === 'LEAD' && departments.includes(stage.defaultOwnerDepartment)));
+  const toggleSkipped = (id: number): void =>
+    setSkipped((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
 
   const toggleHelp = (department: Department): void =>
     setHelpDepartments((current) =>
@@ -64,7 +90,10 @@ export function NewInitiativeDialog({ departments, role }: { departments: Depart
 
   useUiEvent(UI_EVENTS.newInitiative, () => setOpen(true));
 
-  const canSubmit = title.trim().length >= MIN_INITIATIVE_TITLE && !create.isPending;
+  const canSubmit =
+    title.trim().length >= MIN_INITIATIVE_TITLE &&
+    (skipped.length === 0 || routeReason.trim().length >= MIN_STAGE_SKIP_REASON) &&
+    !create.isPending;
 
   const submit = (): void => {
     create.run(
@@ -77,10 +106,14 @@ export function NewInitiativeDialog({ departments, role }: { departments: Depart
         ownerDepartment,
         helpDepartments,
         helpType,
+        skippedStageIds: skipped,
+        routeReason: skipped.length > 0 ? routeReason : undefined,
       },
       (data) => {
       setOpen(false);
       setHelpDepartments([]);
+      setSkipped([]);
+      setRouteReason('');
       setTitle('');
       setDescription('');
       setCurrentTask('');
@@ -187,6 +220,45 @@ export function NewInitiativeDialog({ departments, role }: { departments: Depart
                     : 'El área que lleva el trabajo. Solo puedes elegir entre las tuyas.'}
                 </p>
               </div>
+
+              <fieldset className="space-y-1.5">
+                <legend className="text-xs font-medium text-fg">Ruta de fases</legend>
+                <p className="text-xs text-fg-subtle">
+                  Por defecto recorre las {orderedStages.length} fases. Desmarca una si no aplica: solo la puede omitir el
+                  responsable de su área o Dirección.
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {orderedStages.map((stage, index) => {
+                    const included = !skipped.includes(stage.id);
+                    const editable = canSkip(stage, index);
+                    return (
+                      <button
+                        key={stage.id}
+                        type="button"
+                        aria-pressed={included}
+                        disabled={!editable}
+                        title={editable ? undefined : `Solo ${DEPARTMENT_LABELS[stage.defaultOwnerDepartment]} (responsable) o Dirección`}
+                        onClick={() => toggleSkipped(stage.id)}
+                        className={cn(
+                          'h-7 rounded-md px-2 text-xs font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60',
+                          included ? 'tone-accent' : 'border border-border text-fg-subtle line-through',
+                        )}
+                      >
+                        {stage.name}
+                      </button>
+                    );
+                  })}
+                </div>
+                {skipped.length > 0 ? (
+                  <Textarea
+                    rows={2}
+                    value={routeReason}
+                    onChange={(event) => setRouteReason(event.target.value)}
+                    placeholder={`Por qué no aplica (mínimo ${MIN_STAGE_SKIP_REASON} caracteres)`}
+                    aria-label="Motivo de la ruta reducida"
+                  />
+                ) : null}
+              </fieldset>
 
               <fieldset className="space-y-1.5">
                 <legend className="text-xs font-medium text-fg">¿Necesitas ayuda de otros departamentos? (opcional)</legend>

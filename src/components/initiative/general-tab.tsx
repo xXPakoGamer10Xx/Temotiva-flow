@@ -24,6 +24,7 @@ import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Separator, Textarea } from '@/components/ui/primitives';
 import { formatDateTime } from '@/lib/utils';
 import type { InitiativeCapabilities } from './initiative-sheet';
+import { DocumentsSection } from './documents-section';
 
 /**
  * Pestaña General: campos descriptivos, enlaces, propiedad y asignación.
@@ -32,9 +33,11 @@ import type { InitiativeCapabilities } from './initiative-sheet';
 export function GeneralTab({
   detail,
   capabilities,
+  currentUserId,
 }: {
   detail: InitiativeDetailView;
   capabilities: InitiativeCapabilities;
+  currentUserId: string;
 }) {
   const { card } = detail;
   const update = useAction(updateInitiativeAction, { success: 'Cambios guardados' });
@@ -271,6 +274,16 @@ export function GeneralTab({
           </ul>
         )}
       </div>
+
+      <Separator />
+
+      <DocumentsSection
+        initiativeId={card.id}
+        attachments={detail.attachments}
+        currentUserId={currentUserId}
+        canManageAll={capabilities.canArchive}
+        disabled={card.isArchived}
+      />
 
       <Separator />
 

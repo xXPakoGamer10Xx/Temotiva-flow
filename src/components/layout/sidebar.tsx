@@ -7,6 +7,7 @@ import type { Route } from 'next';
 import {
   Bell,
   CircleHelp,
+  Inbox,
   KanbanSquare,
   LogOut,
   Moon,
@@ -37,12 +38,13 @@ import { cn } from '@/lib/utils';
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'board' | 'radar' | 'executive' | 'notifications' | 'team' | 'help';
+  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'team' | 'help';
   badge?: number;
   shortcut?: string;
 }
 
 const ICONS = {
+  mywork: Inbox,
   board: KanbanSquare,
   radar: Radar,
   executive: TrendingUp,

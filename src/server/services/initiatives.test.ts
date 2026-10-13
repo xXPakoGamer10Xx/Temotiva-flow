@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { CreateInitiativeInput } from './initiatives';
-import { archiveInitiative, assignInitiative, createInitiative, reassignOwner, restoreInitiative } from './initiatives';
+import { archiveInitiative, archiveInitiatives, assignInitiative, createInitiative, reassignOwner, restoreInitiative } from './initiatives';
 import { setChecklistItemState } from './checklist';
 import { STAGE_ID_BY_KEY, checklistItemId } from '@/domain/workflow';
 import { TEST_NOW, makeInitiative, makeSession, makeTestStore, makeUser, sessionOf } from './test-utils';
@@ -237,5 +237,40 @@ describe('ciclo de vida de la iniciativa', () => {
         now: TEST_NOW,
       }),
     ).rejects.toThrow(/responsable|Dirección/i);
+  });
+
+  it('Dirección archiva en bloque: un evento por iniciativa y las ya archivadas se informan', async () => {
+    const { store } = makeTestStore([
+      makeInitiative({ id: 'TEMO-501' }),
+      makeInitiative({ id: 'TEMO-502', ownerDepartment: 'TECH' }),
+      makeInitiative({ id: 'TEMO-503', isArchived: true }),
+    ]);
+
+    const result = await archiveInitiatives(store, makeSession('PRODUCT', 'EXECUTIVE'), {
+      initiativeIds: ['TEMO-501', 'TEMO-502', 'TEMO-503'],
+      reason: 'Limpieza de iniciativas de prueba.',
+      now: TEST_NOW,
+    });
+
+    expect(result.archived).toEqual(['TEMO-501', 'TEMO-502']);
+    expect(result.skipped.map((entry) => entry.id)).toEqual(['TEMO-503']);
+    expect(await store.listInitiatives()).toHaveLength(0);
+    const events = (await store.listActivityLog()).filter((entry) => entry.actionType === 'INITIATIVE_ARCHIVED');
+    expect(events.map((entry) => entry.initiativeId).sort()).toEqual(['TEMO-501', 'TEMO-502']);
+  });
+
+  it('el archivado en bloque está reservado a Dirección', async () => {
+    const { store } = makeTestStore([makeInitiative({ ownerDepartment: 'LEGAL' })]);
+
+    for (const role of ['LEAD', 'MEMBER'] as const) {
+      await expect(
+        archiveInitiatives(store, makeSession('LEGAL', role), {
+          initiativeIds: ['TEMO-500'],
+          reason: 'Limpieza de iniciativas de prueba.',
+          now: TEST_NOW,
+        }),
+      ).rejects.toThrow(/Dirección/);
+    }
+    expect(await store.listInitiatives()).toHaveLength(1);
   });
 });

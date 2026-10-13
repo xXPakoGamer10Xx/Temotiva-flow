@@ -2,6 +2,7 @@ import 'server-only';
 import { Pool, type PoolConfig } from 'pg';
 import type {
   ActivityLogEntry,
+  Attachment,
   ChecklistValue,
   Dependency,
   Initiative,
@@ -354,7 +355,7 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
        FROM initiatives
        ${where}
        ORDER BY updated_at DESC`,
@@ -368,7 +369,7 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
        FROM initiatives
        WHERE id = $1`,
       [id],
@@ -383,12 +384,12 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12,
         $13, $14, $15, $16,
-        $17, $18, $19, $20, $21, $22, $23
+        $17, $18, $19, $20, $21, $22, $23, $24
       )`,
       [
         initiative.id,
@@ -411,6 +412,7 @@ export class PostgresDataStore implements DataStore {
         initiative.currentTask,
         JSON.stringify(initiative.links ?? []),
         initiative.isArchived,
+        initiative.skippedStageIds ?? [],
         initiative.stageEnteredAt,
         initiative.createdAt,
         initiative.updatedAt,
@@ -445,6 +447,7 @@ export class PostgresDataStore implements DataStore {
       blockedMsInStage: 'blocked_ms_in_stage',
       currentTask: 'current_task',
       isArchived: 'is_archived',
+      skippedStageIds: 'skipped_stage_ids',
       stageEnteredAt: 'stage_entered_at',
       updatedAt: 'updated_at',
     };
@@ -546,6 +549,57 @@ export class PostgresDataStore implements DataStore {
     );
     if (res.rows.length === 0) return null;
     return this.mapDependency(res.rows[0]);
+  }
+
+  async listAttachments(initiativeId?: string): Promise<Attachment[]> {
+    const res = await this.pool.query(
+      `SELECT id, initiative_id, file_name, content_type, size_bytes, storage_key, uploaded_by,
+              uploaded_at, is_removed, removed_by, removed_at
+       FROM initiative_attachments
+       ${initiativeId ? 'WHERE initiative_id = $1' : ''}
+       ORDER BY uploaded_at DESC`,
+      initiativeId ? [initiativeId] : [],
+    );
+    return res.rows.map((r) => this.mapAttachment(r));
+  }
+
+  async attachmentById(id: string): Promise<Attachment | null> {
+    const res = await this.pool.query(
+      `SELECT id, initiative_id, file_name, content_type, size_bytes, storage_key, uploaded_by,
+              uploaded_at, is_removed, removed_by, removed_at
+       FROM initiative_attachments WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapAttachment(res.rows[0]);
+  }
+
+  async insertAttachment(attachment: Attachment): Promise<Attachment> {
+    await this.pool.query(
+      `INSERT INTO initiative_attachments (
+        id, initiative_id, file_name, content_type, size_bytes, storage_key, uploaded_by, uploaded_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        attachment.id,
+        attachment.initiativeId,
+        attachment.fileName,
+        attachment.contentType,
+        attachment.sizeBytes,
+        attachment.storageKey,
+        attachment.uploadedBy,
+        attachment.uploadedAt,
+      ],
+    );
+    return attachment;
+  }
+
+  async markAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<Attachment> {
+    await this.pool.query(
+      `UPDATE initiative_attachments SET is_removed = TRUE, removed_by = $2, removed_at = $3 WHERE id = $1`,
+      [id, removedBy, removedAt],
+    );
+    const updated = await this.attachmentById(id);
+    if (!updated) throw new Error(`Documento no encontrado: ${id}`);
+    return updated;
   }
 
   async insertDependency(dependency: Dependency): Promise<Dependency> {
@@ -758,9 +812,26 @@ export class PostgresDataStore implements DataStore {
       currentTask: r.current_task ? String(r.current_task) : null,
       links: Array.isArray(parsedLinks) ? (parsedLinks as Initiative['links']) : [],
       isArchived: Boolean(r.is_archived),
+      skippedStageIds: Array.isArray(r.skipped_stage_ids) ? r.skipped_stage_ids.map(Number) : [],
       stageEnteredAt: toIso(r.stage_entered_at),
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
+    };
+  }
+
+  private mapAttachment(r: Record<string, unknown>): Attachment {
+    return {
+      id: String(r.id),
+      initiativeId: String(r.initiative_id),
+      fileName: String(r.file_name),
+      contentType: String(r.content_type),
+      sizeBytes: Number(r.size_bytes),
+      storageKey: String(r.storage_key),
+      uploadedBy: String(r.uploaded_by),
+      uploadedAt: toIso(r.uploaded_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
     };
   }
 

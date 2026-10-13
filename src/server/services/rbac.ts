@@ -1,5 +1,5 @@
 import type { Department, UserRole } from '@/domain/enums';
-import type { Initiative, SessionContext, StageChecklistItem, User } from '@/domain/types';
+import type { Attachment, Initiative, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -55,6 +55,22 @@ export function canBlockInitiative(session: SessionContext, initiative: Initiati
  */
 export function canChangePriority(session: SessionContext, initiative: Initiative): boolean {
   return isExecutive(session) || isLeadOf(session, initiative.ownerDepartment);
+}
+
+/**
+ * Marcar una fase como "No aplica": la decide el área que la haría (LEAD del
+ * dueño por defecto de esa fase) o Dirección. Así ningún área se salta la
+ * revisión de otra, que es justo lo que protege la compuerta.
+ */
+export function canSkipStage(session: SessionContext, stage: { defaultOwnerDepartment: Department }): boolean {
+  return isExecutive(session) || isLeadOf(session, stage.defaultOwnerDepartment);
+}
+
+/** Retirar un documento: quien lo subió, el LEAD del área propietaria o Dirección. */
+export function canRemoveAttachment(session: SessionContext, initiative: Initiative, attachment: Attachment): boolean {
+  return (
+    attachment.uploadedBy === session.userId || isExecutive(session) || isLeadOf(session, initiative.ownerDepartment)
+  );
 }
 
 /** Avance excepcional: LEAD sobre sus áreas, EXECUTIVE sobre todo. */

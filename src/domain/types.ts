@@ -133,6 +133,11 @@ export interface Initiative {
   links: InitiativeLink[];
 
   isArchived: boolean;
+  /**
+   * Fases marcadas "No aplica" (EXTENSIÓN V1). El avance las salta; solo se
+   * omiten fases futuras, con motivo y evento `STAGE_SKIPPED` en la caja negra.
+   */
+  skippedStageIds: number[];
   stageEnteredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -145,6 +150,23 @@ export interface ChecklistValue {
   isCompleted: boolean;
   completedBy: string | null;
   completedAt: string | null;
+}
+
+/** Tabla `initiative_attachments` (EXTENSIÓN V1): PDF/DOCX de apoyo a una iniciativa. */
+export interface Attachment {
+  id: string;
+  initiativeId: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** Pathname en el almacenamiento privado; nunca una URL pública. */
+  storageKey: string;
+  uploadedBy: string;
+  uploadedAt: string;
+  /** Baja lógica: el archivo y la fila se conservan (AGENTS.md §5.8). */
+  isRemoved: boolean;
+  removedBy: string | null;
+  removedAt: string | null;
 }
 
 /** Tabla `initiative_dependencies` — solicitudes de ayuda 🆘. */

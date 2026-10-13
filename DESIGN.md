@@ -200,7 +200,7 @@ El DDL completo con estas extensiones marcadas está en `db/01-schema.sql`.
 | QA & STAGING | QA | 48 h laborables | Regresión E2E, validación salud/pagos, sin logs PII/PHI. |
 | PRODUCCIÓN | Tech | Hito final | Despliegue verificado y apertura a usuarios. |
 
-No se permiten saltos arbitrarios de etapa sin compuerta.
+No se permiten saltos arbitrarios de etapa sin compuerta. Excepción acotada: una fase futura puede marcarse "No aplica" (al crear o después) por el LEAD del área dueña de esa fase o Dirección, con motivo ≥30 y evento `STAGE_SKIPPED`; `avanzarFase` salta esas fases y sigue exigiendo la compuerta de la actual.
 
 ### 7.2 Compuertas de salida (Exit Gates)
 

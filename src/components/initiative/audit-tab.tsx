@@ -15,6 +15,7 @@ const TONE_BY_ACTION: Partial<Record<ActionType, 'danger' | 'warning' | 'success
   BLOCKED_SET: 'danger',
   BLOCKED_CLEARED: 'success',
   STAGE_TRANSITION: 'accent',
+  STAGE_SKIPPED: 'warning',
   DEPENDENCY_CREATED: 'info',
   DEPENDENCY_RESOLVED: 'success',
   DEPENDENCY_REJECTED: 'warning',

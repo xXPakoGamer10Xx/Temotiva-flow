@@ -1,10 +1,11 @@
 import type { SessionContext } from '@/domain/types';
 import { USER_ROLE_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
-import { getNotifications } from '@/server/services/views';
+import { getMyWork, getNotifications } from '@/server/services/views';
 import { canManagePeople } from '@/server/services/rbac';
 import { CommandCenter, type PaletteInitiative } from '@/components/command/command-center';
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
+import { BulkArchiveDialog } from '@/components/initiative/bulk-archive-dialog';
 import { WelcomeGuide } from '@/components/help/welcome-guide';
 import { MobileNav } from './mobile-nav';
 import { Sidebar, type SidebarLink } from './sidebar';
@@ -22,8 +23,9 @@ export async function AppShell({
   children: React.ReactNode;
 }) {
   const store = getDataStore();
-  const [{ received }, initiatives, stages] = await Promise.all([
+  const [{ received }, myWork, initiatives, stages] = await Promise.all([
     getNotifications(store, session),
+    getMyWork(store, session),
     store.listInitiatives(),
     store.listStages(),
   ]);
@@ -38,6 +40,8 @@ export async function AppShell({
   }));
 
   const links: SidebarLink[] = [
+    // Lo primero: lo que espera de mí. El badge cuenta solo eso, no lo asignado.
+    { href: '/mi-trabajo', label: 'Mi trabajo', icon: 'mywork', shortcut: 'G M', badge: myWork.waiting.length },
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
@@ -66,9 +70,18 @@ export async function AppShell({
         <main className="flex min-h-0 flex-1 flex-col overflow-hidden">{children}</main>
       </div>
 
-      <NewInitiativeDialog departments={session.departments} role={session.role} />
+      <NewInitiativeDialog
+        departments={session.departments}
+        role={session.role}
+        stages={stages.map((stage) => ({ id: stage.id, name: stage.name, orderIndex: stage.orderIndex, defaultOwnerDepartment: stage.defaultOwnerDepartment }))}
+      />
       <WelcomeGuide userId={session.userId} role={session.role} />
-      <CommandCenter initiatives={paletteInitiatives} canManagePeople={canManagePeople(session)} />
+      {session.role === 'EXECUTIVE' ? <BulkArchiveDialog initiatives={paletteInitiatives} /> : null}
+      <CommandCenter
+        initiatives={paletteInitiatives}
+        canManagePeople={canManagePeople(session)}
+        canBulkArchive={session.role === 'EXECUTIVE'}
+      />
     </div>
   );
 }

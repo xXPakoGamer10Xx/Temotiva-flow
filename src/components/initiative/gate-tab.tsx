@@ -16,6 +16,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { cn, formatDateTime } from '@/lib/utils';
 import type { InitiativeCapabilities } from './initiative-sheet';
 import { InfoHint } from '@/components/help/info-hint';
+import { RouteStepper } from './route-stepper';
 
 /**
  * Pestaña Compuerta de Salida (TemoFlow.md §1.3).
@@ -34,6 +35,12 @@ export function GateTab({
   capabilities: InitiativeCapabilities;
 }) {
   const { card, gate, nextStage } = detail;
+  const skippedAhead = nextStage
+    ? detail.route
+        .slice(0, detail.route.findIndex((step) => step.stageId === nextStage.id))
+        .filter((step) => step.status === 'SKIPPED')
+        .map((step) => step.name)
+    : [];
   const toggle = useAction(toggleChecklistItemAction);
   const advance = useAction(advanceStageAction);
   const request = useAction(createDependencyAction, { success: 'Solicitud enviada al departamento responsable' });
@@ -73,6 +80,8 @@ export function GateTab({
         <p className="flex-1 text-xs leading-relaxed text-fg-muted">{detail.stage.purpose}</p>
         <InfoHint term="gate" />
       </div>
+
+      <RouteStepper initiativeId={card.id} route={detail.route} session={session} disabled={card.isArchived} />
 
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
         {gate.items.map((item) => (
@@ -147,6 +156,7 @@ export function GateTab({
               <>
                 <ArrowRight className="size-3.5" />
                 Avanzar a {nextStage.name}
+                {skippedAhead.length > 0 ? ` (omite ${skippedAhead.join(', ')})` : ''}
               </>
             ) : (
               <>

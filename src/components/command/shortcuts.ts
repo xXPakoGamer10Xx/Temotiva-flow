@@ -3,6 +3,7 @@ export const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['⌘', 'K'], label: 'Abrir la paleta de comandos' },
   { keys: ['C'], label: 'Nueva iniciativa' },
   { keys: ['/'], label: 'Filtrar el tablero' },
+  { keys: ['G', 'M'], label: 'Ir a Mi trabajo' },
   { keys: ['G', 'B'], label: 'Ir al tablero' },
   { keys: ['G', 'R'], label: 'Ir al radar de esperas' },
   { keys: ['G', 'D'], label: 'Ir al panel de dirección' },

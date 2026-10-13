@@ -3,16 +3,25 @@
 import { z } from 'zod';
 import { DEPARTMENTS, HELP_TYPES_V1, LINK_KINDS, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
 import { getRequestContext } from '@/lib/session';
-import { MIN_ARCHIVE_REASON, MIN_OVERRIDE_REASON, MIN_OVERRIDE_RISK, MIN_REASSIGN_REASON } from '@/domain/rules';
+import {
+  MIN_ARCHIVE_REASON,
+  MIN_OVERRIDE_REASON,
+  MIN_OVERRIDE_RISK,
+  MIN_REASSIGN_REASON,
+  MIN_STAGE_SKIP_REASON,
+} from '@/domain/rules';
 import {
   advanceStage,
   archiveInitiative,
+  archiveInitiatives,
   assignInitiative,
   createInitiative,
   reassignOwner,
   restoreInitiative,
   updateInitiative,
 } from '@/server/services/initiatives';
+import { removeAttachment } from '@/server/services/attachments';
+import { restoreStage, skipStage } from '@/server/services/stage-route';
 import { type ActionResult, initiativeIdSchema, runAction } from './shared';
 
 const linkSchema = z.object({
@@ -32,6 +41,8 @@ const createSchema = z.object({
   ownerDepartment: z.enum(DEPARTMENTS).optional(),
   helpDepartments: z.array(z.enum(DEPARTMENTS)).max(DEPARTMENTS.length).optional(),
   helpType: z.enum(HELP_TYPES_V1).optional(),
+  skippedStageIds: z.array(z.number().int().positive()).max(7).optional(),
+  routeReason: z.string().trim().max(1000).optional(),
 });
 
 export async function createInitiativeAction(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -188,12 +199,71 @@ export async function archiveInitiativeAction(input: unknown): Promise<ActionRes
   });
 }
 
+const bulkArchiveSchema = z.object({
+  initiativeIds: z.array(initiativeIdSchema).min(1, 'Selecciona al menos una iniciativa.').max(200),
+  reason: archiveSchema.shape.reason,
+});
+
+export async function archiveInitiativesAction(
+  input: unknown,
+): Promise<ActionResult<{ archived: string[]; skipped: { id: string; reason: string }[] }>> {
+  return runAction({
+    schema: bulkArchiveSchema,
+    input,
+    handler: async ({ store, session, input: data }) => archiveInitiatives(store, session, data),
+  });
+}
+
 export async function restoreInitiativeAction(input: unknown): Promise<ActionResult<undefined>> {
   return runAction({
     schema: z.object({ initiativeId: initiativeIdSchema }),
     input,
     handler: async ({ store, session, input: data }) => {
       await restoreInitiative(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+const routeChangeSchema = z.object({
+  initiativeId: initiativeIdSchema,
+  stageId: z.number().int().positive(),
+  reason: z
+    .string()
+    .trim()
+    .min(MIN_STAGE_SKIP_REASON, `Explica por qué (mínimo ${MIN_STAGE_SKIP_REASON} caracteres).`)
+    .max(1000),
+});
+
+/** Marca una fase futura como "No aplica" (LEAD del área de esa fase o Dirección). */
+export async function skipStageAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: routeChangeSchema,
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await skipStage(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+export async function restoreStageAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: routeChangeSchema,
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await restoreStage(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+export async function removeAttachmentAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: z.object({ attachmentId: z.string().uuid() }),
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await removeAttachment(store, session, data);
       return undefined;
     },
   });

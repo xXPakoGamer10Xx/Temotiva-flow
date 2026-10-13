@@ -13,8 +13,9 @@ import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
 import { createDependency } from './dependencies';
 import { consolidateBlockedTime, loadInitiative } from './blocking';
-import { forbidden, invalid, invalidState, notFound } from './errors';
+import { DomainError, forbidden, invalid, invalidState, notFound } from './errors';
 import { evaluateGate, type GateEvaluation } from './gate';
+import { assertCanSkip, assertSkipReason, nextApplicableStage, stagesSkippedBetween } from './stage-route';
 import {
   assertPermission,
   canAdvanceInitiative,
@@ -58,6 +59,9 @@ export interface CreateInitiativeInput {
   /** Departamentos a los que se pide ayuda desde el primer momento (dependencias no bloqueantes). */
   helpDepartments?: Department[];
   helpType?: HelpType;
+  /** Fases que no aplican a esta iniciativa (ruta de fases). Exige `routeReason`. */
+  skippedStageIds?: number[];
+  routeReason?: string;
   now?: Date;
 }
 
@@ -97,6 +101,16 @@ export async function createInitiative(
     }
   }
 
+  // Ruta de fases: cada fase omitida se valida como si se omitiera después,
+  // desde la fase inicial y con el mismo ámbito por área.
+  const skippedStages = [...new Set(input.skippedStageIds ?? [])].map((stageId) => {
+    const stage = stages.find((candidate) => candidate.id === stageId);
+    if (!stage) throw invalid('Una de las fases marcadas como No aplica no existe.');
+    assertCanSkip(session, stages, stage, firstStage);
+    return stage;
+  });
+  const routeReason = skippedStages.length > 0 ? assertSkipReason(input.routeReason ?? '') : null;
+
   const initiative: Initiative = {
     id: await store.nextInitiativeId(),
     title,
@@ -118,6 +132,7 @@ export async function createInitiative(
     currentTask: input.currentTask?.trim() || null,
     links: input.links ?? [],
     isArchived: false,
+    skippedStageIds: skippedStages.map((stage) => stage.id).sort((a, b) => a - b),
     stageEnteredAt: now.toISOString(),
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
@@ -139,6 +154,17 @@ export async function createInitiative(
     },
     at: now,
   });
+
+  for (const stage of skippedStages) {
+    await audit(store, {
+      initiativeId: initiative.id,
+      session,
+      actionType: 'STAGE_SKIPPED',
+      fieldName: 'skipped_stage_ids',
+      newValue: { stageKey: stage.key, reason: routeReason },
+      at: now,
+    });
+  }
 
   for (const department of helpDepartments) {
     await createDependency(store, session, {
@@ -382,8 +408,11 @@ export async function advanceStage(
   const fromStage = stages.find((stage) => stage.id === initiative.currentStageId);
   if (!fromStage) throw notFound('La fase actual de la iniciativa no existe.');
 
-  const toStage = stages.find((stage) => stage.orderIndex === fromStage.orderIndex + 1);
+  // Las fases marcadas "No aplica" se saltan; la compuerta de la actual sigue
+  // exigiéndose igual (AGENTS.md §5.9).
+  const toStage = nextApplicableStage(stages, fromStage, initiative.skippedStageIds);
   if (!toStage) throw invalidState('La iniciativa ya está en la última fase del ciclo.');
+  const skippedStageKeys = stagesSkippedBetween(stages, fromStage, toStage).map((stage) => stage.key);
 
   const gate = await evaluateGate(store, initiative);
 
@@ -448,6 +477,7 @@ export async function advanceStage(
       netDurationMs: elapsedMs - blockedMs,
       overridden: overrideMetadata !== null,
       ownerDepartment: toStage.defaultOwnerDepartment,
+      skippedStageKeys,
     },
     at: now,
   });
@@ -554,6 +584,43 @@ export async function archiveInitiative(
   });
 
   return updated;
+}
+
+export interface BulkArchiveResult {
+  archived: string[];
+  skipped: { id: string; reason: string }[];
+}
+
+/**
+ * Archivado en bloque (limpieza de iniciativas de prueba). Reservado a
+ * Dirección. Cada iniciativa pasa por `archiveInitiative`, así que cada una deja
+ * su propio `INITIATIVE_ARCHIVED` en la caja negra; una que no se pueda archivar
+ * se informa en `skipped` sin abortar el resto.
+ */
+export async function archiveInitiatives(
+  store: DataStore,
+  session: SessionContext,
+  input: { initiativeIds: string[]; reason: string; now?: Date },
+): Promise<BulkArchiveResult> {
+  if (session.role !== 'EXECUTIVE') {
+    throw forbidden('El archivado en bloque está reservado a Dirección.');
+  }
+  const reason = input.reason.trim();
+  if (reason.length < MIN_ARCHIVE_REASON) {
+    throw invalid(`Indica el motivo del archivado (mínimo ${MIN_ARCHIVE_REASON} caracteres).`);
+  }
+
+  const result: BulkArchiveResult = { archived: [], skipped: [] };
+  for (const initiativeId of new Set(input.initiativeIds)) {
+    try {
+      await archiveInitiative(store, session, { initiativeId, reason, now: input.now });
+      result.archived.push(initiativeId);
+    } catch (error) {
+      if (!(error instanceof DomainError)) throw error;
+      result.skipped.push({ id: initiativeId, reason: error.message });
+    }
+  }
+  return result;
 }
 
 export async function restoreInitiative(

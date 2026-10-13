@@ -13,6 +13,8 @@ export const MIN_OVERRIDE_RISK = 30;
 
 export const MIN_REASSIGN_REASON = 15;
 export const MIN_ARCHIVE_REASON = 10;
+/** Marcar una fase como "No aplica" pesa como un avance excepcional: mismo mínimo. */
+export const MIN_STAGE_SKIP_REASON = 30;
 export const MIN_DEPENDENCY_DESCRIPTION = 15;
 export const MIN_RESOLUTION_NOTES = 5;
 export const MIN_INITIATIVE_TITLE = 8;

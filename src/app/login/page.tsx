@@ -17,7 +17,7 @@ export default async function LoginPage({
   searchParams?: Promise<{ error?: string }>;
 }) {
   const session = await getSessionContext();
-  if (session) redirect('/board');
+  if (session) redirect('/mi-trabajo');
 
   const resolvedParams = searchParams ? await searchParams : undefined;
   const rawError = resolvedParams?.error;

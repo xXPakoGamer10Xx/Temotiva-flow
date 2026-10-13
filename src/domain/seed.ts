@@ -1,5 +1,6 @@
 import type {
   ActivityLogEntry,
+  Attachment,
   ChecklistValue,
   Dependency,
   Initiative,
@@ -30,6 +31,8 @@ export interface SeedData {
   checklistValues: ChecklistValue[];
   dependencies: Dependency[];
   activityLog: ActivityLogEntry[];
+  /** Opcional: las semillas y snapshots anteriores a los adjuntos no lo traen. */
+  attachments?: Attachment[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */
@@ -404,6 +407,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Cerrada y archivada tras 30 días en producción',
     links: [{ kind: 'NOTION', label: 'Retrospectiva', url: 'https://notion.so/temotiva/onboarding-v1' }],
     isArchived: true,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(760),
     createdAt: hoursAgo(1600),
     updatedAt: hoursAgo(700),
@@ -477,6 +481,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
       { kind: 'NOTION', label: 'Plan de rotación de claves', url: 'https://notion.so/temotiva/kms-rotation' },
     ],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(14),
     createdAt: hoursAgo(980),
     updatedAt: hoursAgo(6),
@@ -534,6 +539,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Setup de colas BullMQ',
     links: [{ kind: 'REPO', label: 'temotiva/api', url: 'https://github.com/temotiva/api/pull/501' }],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(186),
     createdAt: hoursAgo(700),
     updatedAt: hoursAgo(20),
@@ -613,6 +619,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
       { kind: 'NOTION', label: 'Concept Brief', url: 'https://notion.so/temotiva/clima-b2b-brief' },
     ],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(58),
     createdAt: hoursAgo(520),
     updatedAt: hoursAgo(5),
@@ -703,6 +710,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Wireframes del onboarding del protocolo',
     links: [{ kind: 'FIGMA', label: 'Protocolo SOS · prototipo', url: 'https://figma.com/file/temotiva/sos-somatico' }],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(96),
     createdAt: hoursAgo(430),
     updatedAt: hoursAgo(19),
@@ -823,6 +831,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
       { kind: 'REPO', label: 'temotiva/app', url: 'https://github.com/temotiva/app/pull/377' },
     ],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(41),
     createdAt: hoursAgo(600),
     updatedAt: hoursAgo(3),
@@ -909,6 +918,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Dictamen MDR',
     links: [{ kind: 'NOTION', label: 'Expediente regulatorio', url: 'https://notion.so/temotiva/mdr-samd' }],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(63),
     createdAt: hoursAgo(210),
     updatedAt: hoursAgo(10),
@@ -943,6 +953,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Alcance del expediente de portabilidad',
     links: [],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(34),
     createdAt: hoursAgo(150),
     updatedAt: hoursAgo(27),
@@ -1016,6 +1027,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Concept Brief y métrica de impacto',
     links: [{ kind: 'NOTION', label: 'Borrador de brief', url: 'https://notion.so/temotiva/act-journaling' }],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(50),
     createdAt: hoursAgo(50),
     updatedAt: hoursAgo(9),
@@ -1051,6 +1063,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Definición del alcance con Ciberseguridad',
     links: [],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(12),
     createdAt: hoursAgo(12),
     updatedAt: hoursAgo(12),
@@ -1083,6 +1096,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     currentTask: 'Revisión de contraste y foco con lector de pantalla',
     links: [{ kind: 'FIGMA', label: 'Escala accesible', url: 'https://figma.com/file/temotiva/escala-accesible' }],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursAgo(30),
     createdAt: hoursAgo(320),
     updatedAt: hoursAgo(7),

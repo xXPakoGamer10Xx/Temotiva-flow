@@ -3,7 +3,7 @@
 import * as React from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import type { Route } from 'next';
-import { Archive, Search, X } from 'lucide-react';
+import { Archive, Hourglass, Search, UserRound, X } from 'lucide-react';
 import type { Department } from '@/domain/enums';
 import { DEPARTMENTS } from '@/domain/enums';
 import { DEPARTMENT_LABELS, DEPARTMENT_SHORT } from '@/domain/labels';
@@ -22,7 +22,12 @@ import { cn } from '@/lib/utils';
 export function BoardFilters({
   counts,
 }: {
-  counts: { total: number; blocked: number; atRisk: number; byDepartment: Record<Department, number> };
+  counts: {
+    total: number;
+    mine: number;
+    waiting: number;
+    myBlocked: number;
+    blocked: number; atRisk: number; byDepartment: Record<Department, number> };
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -30,6 +35,7 @@ export function BoardFilters({
 
   const department = searchParams.get('dep') as Department | null;
   const flow = searchParams.get('estado');
+  const view = searchParams.get('vista');
   const archived = searchParams.get('archivadas') === '1';
   const [query, setQuery] = React.useState(searchParams.get('q') ?? '');
 
@@ -58,7 +64,7 @@ export function BoardFilters({
     return () => window.clearTimeout(timer);
   }, [apply, query, searchParams]);
 
-  const hasFilters = Boolean(department || flow || query || archived);
+  const hasFilters = Boolean(view || department || flow || query || archived);
 
   return (
     <div className="scrollbar-slim flex items-center gap-1.5 overflow-x-auto border-t border-border px-4 py-2 sm:px-6 xl:flex-wrap xl:overflow-visible [&>*]:shrink-0">
@@ -90,6 +96,35 @@ export function BoardFilters({
         ) : (
           <Kbd className="absolute right-1.5 top-1/2 -translate-y-1/2">/</Kbd>
         )}
+      </div>
+
+      <span className="mx-1 hidden h-4 w-px bg-border sm:block" />
+
+      {/* Lo que me toca, antes que la vista global. */}
+      <div role="group" aria-label="Lo que me toca" className="flex items-center gap-1">
+        <FilterChip active={view === 'mias'} onClick={() => apply({ vista: view === 'mias' ? null : 'mias' })}>
+          <UserRound className="size-3" />
+          Mías
+          <Count value={counts.mine} />
+        </FilterChip>
+        <FilterChip
+          active={view === 'esperando'}
+          tone="warning"
+          onClick={() => apply({ vista: view === 'esperando' ? null : 'esperando' })}
+        >
+          <Hourglass className="size-3" />
+          Esperando de mí
+          <Count value={counts.waiting} />
+        </FilterChip>
+        <FilterChip
+          active={view === 'bloqueadas'}
+          tone="danger"
+          onClick={() => apply({ vista: view === 'bloqueadas' ? null : 'bloqueadas' })}
+        >
+          <span aria-hidden>⛔</span>
+          Mis bloqueadas
+          <Count value={counts.myBlocked} />
+        </FilterChip>
       </div>
 
       <span className="mx-1 hidden h-4 w-px bg-border sm:block" />
@@ -144,7 +179,7 @@ export function BoardFilters({
           type="button"
           onClick={() => {
             setQuery('');
-            apply({ dep: null, estado: null, q: null, archivadas: null });
+            apply({ vista: null, dep: null, estado: null, q: null, archivadas: null });
           }}
           className="ml-auto inline-flex h-7 items-center gap-1 rounded-md px-2 text-xs text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg"
         >

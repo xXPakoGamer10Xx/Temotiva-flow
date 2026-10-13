@@ -107,6 +107,8 @@ export const USER_ROLE_LABELS: Record<UserRole, string> = {
 export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   INITIATIVE_CREATED: 'Iniciativa creada',
   STAGE_TRANSITION: 'Cambio de fase',
+  STAGE_SKIPPED: 'Fase marcada como No aplica',
+  STAGE_RESTORED: 'Fase incluida de nuevo en la ruta',
   EXCEPTION_OVERRIDE: 'Avance excepcional',
   DEPENDENCY_CREATED: 'Solicitud de ayuda abierta',
   DEPENDENCY_RESOLVED: 'Solicitud de ayuda resuelta',
@@ -119,6 +121,8 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   INITIATIVE_UPDATED: 'Iniciativa editada',
   INITIATIVE_ARCHIVED: 'Iniciativa archivada',
   INITIATIVE_RESTORED: 'Iniciativa restaurada',
+  ATTACHMENT_ADDED: 'Documento adjuntado',
+  ATTACHMENT_REMOVED: 'Documento retirado',
   ACCESS_GRANTED: 'Acceso concedido',
   ACCESS_UPDATED: 'Perfil de acceso modificado',
   ACCESS_REVOKED: 'Acceso revocado',

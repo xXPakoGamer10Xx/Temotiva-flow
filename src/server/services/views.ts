@@ -14,6 +14,8 @@ import type { DataStore } from '@/server/repositories/types';
 import { evaluateGate } from './gate';
 import { computeSle, type SleReading } from './sle';
 import { notFound } from './errors';
+import { nextApplicableStage } from './stage-route';
+import { DEPARTMENT_SHORT, HELP_TYPE_LABELS } from '@/domain/labels';
 
 /**
  * Proyecciones de solo lectura que consumen las vistas.
@@ -71,6 +73,9 @@ export interface InitiativeCardView {
   pendingCount: number;
   lastOverride: OverrideMark | null;
   isArchived: boolean;
+  /** Fases marcadas "No aplica" en la ruta de esta iniciativa. */
+  skippedStageCount: number;
+  attachmentCount: number;
   updatedAt: string;
 }
 
@@ -118,6 +123,9 @@ interface CardContext {
   dependenciesByInitiative: Map<string, Dependency[]>;
   logByInitiative: Map<string, ActivityLogEntry[]>;
   gateByInitiative: Map<string, { completed: number; total: number }>;
+  /** Items obligatorios pendientes de la fase actual, para "Esperando de mí". */
+  gatePendingByInitiative: Map<string, StageChecklistItem[]>;
+  attachmentCountByInitiative: Map<string, number>;
   now: Date;
 }
 
@@ -158,6 +166,8 @@ function buildCard(initiative: Initiative, context: CardContext): InitiativeCard
     pendingCount: pending.length,
     lastOverride: overrideMarkOf(context.logByInitiative.get(initiative.id) ?? [], context.stagesById),
     isArchived: initiative.isArchived,
+    skippedStageCount: initiative.skippedStageIds.length,
+    attachmentCount: context.attachmentCountByInitiative.get(initiative.id) ?? 0,
     updatedAt: initiative.updatedAt,
   };
 }
@@ -181,12 +191,22 @@ async function buildContext(
   initiatives: Initiative[],
   now: Date,
 ): Promise<CardContext> {
-  const [stages, users, dependencies, log] = await Promise.all([
+  const [stages, users, dependencies, log, attachments] = await Promise.all([
     store.listStages(),
     store.listUsers(),
     store.listDependencies(),
     store.listActivityLog(),
+    store.listAttachments(),
   ]);
+
+  const attachmentCountByInitiative = new Map<string, number>();
+  for (const attachment of attachments) {
+    if (attachment.isRemoved) continue;
+    attachmentCountByInitiative.set(
+      attachment.initiativeId,
+      (attachmentCountByInitiative.get(attachment.initiativeId) ?? 0) + 1,
+    );
+  }
 
   const dependenciesByInitiative = new Map<string, Dependency[]>();
   for (const dependency of dependencies) {
@@ -204,10 +224,12 @@ async function buildContext(
   }
 
   const gateByInitiative = new Map<string, { completed: number; total: number }>();
+  const gatePendingByInitiative = new Map<string, StageChecklistItem[]>();
   await Promise.all(
     initiatives.map(async (initiative) => {
       const gate = await evaluateGate(store, initiative);
       gateByInitiative.set(initiative.id, { completed: gate.completedCount, total: gate.mandatoryCount });
+      gatePendingByInitiative.set(initiative.id, gate.pending);
     }),
   );
 
@@ -217,11 +239,121 @@ async function buildContext(
     dependenciesByInitiative,
     logByInitiative,
     gateByInitiative,
+    gatePendingByInitiative,
+    attachmentCountByInitiative,
     now,
   };
 }
 
+/**
+ * "Lo que me toca": relación de una iniciativa con quien mira. Una sola
+ * definición para la vista Mi trabajo y para los filtros del tablero, así que
+ * los contadores de ambos coinciden siempre. Toda comprobación de área es
+ * `departments.includes` (AGENTS.md §5.12).
+ */
+export const MY_WORK_VIEWS = ['mias', 'esperando', 'bloqueadas'] as const;
+export type MyWorkViewKey = (typeof MY_WORK_VIEWS)[number];
+
+export interface MyWorkRelation {
+  /** Asignada a mí. */
+  isMine: boolean;
+  /** De un área mía y sin persona asignada: alguien del equipo tiene que tomarla. */
+  isUnassignedInMyArea: boolean;
+  /**
+   * Por qué alguien espera de mí: solicitudes 🆘 abiertas a mis áreas y
+   * requisitos de compuerta que solo mis áreas pueden marcar en iniciativas que
+   * lleva otra área.
+   */
+  waitingReasons: string[];
+  /** Parada y me afecta: es mía, de mi área o espera una solicitud que hice. */
+  isBlockedForMe: boolean;
+}
+
+function relationOf(initiative: Initiative, context: CardContext, session: SessionContext): MyWorkRelation {
+  const mine = initiative.currentAssigneeId === session.userId;
+  const inMyArea = session.departments.includes(initiative.ownerDepartment);
+  const pendingDependencies = (context.dependenciesByInitiative.get(initiative.id) ?? []).filter(
+    (dependency) => dependency.status === 'PENDING',
+  );
+
+  const waitingReasons = pendingDependencies
+    .filter((dependency) => session.departments.includes(dependency.targetDepartment))
+    .map(
+      (dependency) =>
+        `🆘 ${HELP_TYPE_LABELS[dependency.helpType]} para ${DEPARTMENT_SHORT[dependency.targetDepartment]}: ${dependency.description}`,
+    );
+
+  if (!inMyArea) {
+    for (const item of context.gatePendingByInitiative.get(initiative.id) ?? []) {
+      if (session.departments.includes(item.responsibleDepartment)) {
+        waitingReasons.push(`Requisito de compuerta: ${item.label}`);
+      }
+    }
+  }
+
+  const askedByMe = pendingDependencies.some((dependency) => dependency.requestedBy === session.userId);
+
+  return {
+    isMine: mine,
+    isUnassignedInMyArea: inMyArea && initiative.currentAssigneeId === null,
+    waitingReasons,
+    isBlockedForMe: initiative.isBlocked && (mine || inMyArea || askedByMe),
+  };
+}
+
+function matchesMyWork(relation: MyWorkRelation, view: MyWorkViewKey): boolean {
+  if (view === 'mias') return relation.isMine;
+  if (view === 'esperando') return relation.waitingReasons.length > 0;
+  return relation.isBlockedForMe;
+}
+
+export interface MyWorkItem {
+  card: InitiativeCardView;
+  waitingReasons: string[];
+}
+
+export interface MyWorkView {
+  waiting: MyWorkItem[];
+  mine: MyWorkItem[];
+  blocked: MyWorkItem[];
+  unassignedInMyArea: MyWorkItem[];
+}
+
+/**
+ * Vista "Mi trabajo": lo primero que ve cada persona al entrar. Las archivadas
+ * no cuentan. Orden: prioridad y, a igualdad, la que más SLE ha consumido.
+ */
+export async function getMyWork(
+  store: DataStore,
+  session: SessionContext,
+  options: { now?: Date } = {},
+): Promise<MyWorkView> {
+  const now = options.now ?? new Date();
+  const initiatives = await store.listInitiatives();
+  const context = await buildContext(store, initiatives, now);
+
+  const view: MyWorkView = { waiting: [], mine: [], blocked: [], unassignedInMyArea: [] };
+  for (const initiative of initiatives) {
+    const relation = relationOf(initiative, context, session);
+    const item: MyWorkItem = { card: buildCard(initiative, context), waitingReasons: relation.waitingReasons };
+    if (relation.waitingReasons.length > 0) view.waiting.push(item);
+    if (relation.isMine) view.mine.push(item);
+    if (relation.isBlockedForMe) view.blocked.push(item);
+    if (relation.isUnassignedInMyArea) view.unassignedInMyArea.push(item);
+  }
+
+  const byUrgency = (a: MyWorkItem, b: MyWorkItem): number =>
+    priorityWeight(b.card.priority) - priorityWeight(a.card.priority) || b.card.sle.ratio - a.card.sle.ratio;
+  view.waiting.sort(byUrgency);
+  view.mine.sort(byUrgency);
+  view.blocked.sort(byUrgency);
+  view.unassignedInMyArea.sort(byUrgency);
+  return view;
+}
+
 export interface BoardFilter {
+  /** Lo que me toca: requiere la sesión de quien mira. */
+  view?: MyWorkViewKey;
   /** Departamento propietario o destinatario de una solicitud abierta. */
   department?: Department;
   /** `parada` deja solo las detenidas; `riesgo`, las que rozan o superan su SLE. */
@@ -238,7 +370,9 @@ function normalizeText(value: string): string {
     .toLowerCase();
 }
 
-function matchesFilter(card: InitiativeCardView, filter: BoardFilter): boolean {
+function matchesFilter(card: InitiativeCardView, filter: BoardFilter, relation: MyWorkRelation | null): boolean {
+  if (filter.view && (!relation || !matchesMyWork(relation, filter.view))) return false;
+
   if (filter.department) {
     const isOwner = card.ownerDepartment === filter.department;
     const isAsked = card.dependencies.some(
@@ -270,7 +404,7 @@ function matchesFilter(card: InitiativeCardView, filter: BoardFilter): boolean {
  */
 export async function getBoardView(
   store: DataStore,
-  options: { now?: Date; includeArchived?: boolean; filter?: BoardFilter } = {},
+  options: { now?: Date; includeArchived?: boolean; filter?: BoardFilter; session?: SessionContext } = {},
 ): Promise<BoardColumnView[]> {
   const now = options.now ?? new Date();
   const filter = options.filter ?? {};
@@ -280,6 +414,12 @@ export async function getBoardView(
   ]);
   const context = await buildContext(store, initiatives, now);
   const cards = initiatives.map((initiative) => buildCard(initiative, context));
+  const relations = new Map<string, MyWorkRelation>();
+  if (options.session && filter.view) {
+    for (const initiative of initiatives) {
+      relations.set(initiative.id, relationOf(initiative, context, options.session));
+    }
+  }
 
   return stages.map((stage) => {
     const stageCards = cards
@@ -293,7 +433,7 @@ export async function getBoardView(
 
     return {
       stage,
-      cards: stageCards.filter((card) => matchesFilter(card, filter)),
+      cards: stageCards.filter((card) => matchesFilter(card, filter, relations.get(card.id) ?? null)),
       totalInStage: stageCards.length,
       wipCount,
       wipLimit: stage.wipLimit,
@@ -423,10 +563,35 @@ export interface AuditEntryView {
   overrideMetadata: OverrideMetadata | null;
 }
 
+export interface AttachmentView {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  uploadedBy: PersonView | null;
+  uploadedAt: string;
+  /** Para ocultar "Retirar" a quien no puede; el servicio lo revalida. */
+  uploadedById: string;
+}
+
+export interface RouteStepView {
+  stageId: number;
+  name: string;
+  defaultOwnerDepartment: Department;
+  status: 'DONE' | 'CURRENT' | 'FUTURE' | 'SKIPPED';
+  /** Inicio y hito final no se omiten nunca. */
+  isSkippable: boolean;
+  /** Motivo, autoría y fecha de la omisión, del último `STAGE_SKIPPED`. */
+  skip: { reason: string; by: string; at: string } | null;
+}
+
 export interface InitiativeDetailView {
   card: InitiativeCardView;
   stage: WorkflowStage;
   nextStage: WorkflowStage | null;
+  /** Ruta completa: cada fase con su estado respecto a esta iniciativa. */
+  route: RouteStepView[];
+  attachments: AttachmentView[];
   gate: { items: GateItemView[]; completed: number; total: number; isComplete: boolean };
   dependencies: DependencyView[];
   audit: AuditEntryView[];
@@ -446,18 +611,52 @@ export async function getInitiativeDetail(
   const initiative = await store.initiativeById(initiativeId);
   if (!initiative) throw notFound(`No existe la iniciativa ${initiativeId}.`);
 
-  const [stages, users, dependencies, log, gate] = await Promise.all([
+  const [stages, users, dependencies, log, gate, attachmentRows] = await Promise.all([
     store.listStages(),
     store.listUsers(),
     store.listDependencies(initiativeId),
     store.listActivityLog(initiativeId),
     evaluateGate(store, initiative),
+    store.listAttachments(initiativeId),
   ]);
+  const liveAttachments = attachmentRows.filter((attachment) => !attachment.isRemoved);
 
   const stagesById = new Map(stages.map((stage) => [stage.id, stage]));
   const usersById = new Map(users.map((user) => [user.id, user]));
   const stage = stagesById.get(initiative.currentStageId) ?? fallbackStage(initiative.currentStageId);
-  const nextStage = stages.find((candidate) => candidate.orderIndex === stage.orderIndex + 1) ?? null;
+  const nextStage = nextApplicableStage(stages, stage, initiative.skippedStageIds);
+  const orderedStages = [...stages].sort((a, b) => a.orderIndex - b.orderIndex);
+  const route: RouteStepView[] = orderedStages.map((candidate, index) => {
+    const skipped = initiative.skippedStageIds.includes(candidate.id);
+    const lastSkip = log
+      .filter(
+        (entry) =>
+          entry.actionType === 'STAGE_SKIPPED' &&
+          (entry.newValue as { stageKey?: string } | null)?.stageKey === candidate.key,
+      )
+      .at(-1);
+    const detail = lastSkip?.newValue as { reason?: string } | null | undefined;
+    return {
+      stageId: candidate.id,
+      name: candidate.name,
+      defaultOwnerDepartment: candidate.defaultOwnerDepartment,
+      status: skipped
+        ? 'SKIPPED'
+        : candidate.id === stage.id
+          ? 'CURRENT'
+          : candidate.orderIndex < stage.orderIndex
+            ? 'DONE'
+            : 'FUTURE',
+      isSkippable: index !== 0 && index !== orderedStages.length - 1 && candidate.orderIndex > stage.orderIndex,
+      skip: skipped && lastSkip
+        ? {
+            reason: detail?.reason ?? '',
+            by: usersById.get(lastSkip.userId)?.name ?? '—',
+            at: lastSkip.createdAt,
+          }
+        : null,
+    };
+  });
 
   // Se arma el contexto con lo que ya está cargado para esta iniciativa: antes
   // se llamaba a `buildContext`, que volvía a traer todos los usuarios, todas
@@ -468,6 +667,8 @@ export async function getInitiativeDetail(
     dependenciesByInitiative: new Map([[initiative.id, dependencies]]),
     logByInitiative: new Map([[initiative.id, log]]),
     gateByInitiative: new Map([[initiative.id, { completed: gate.completedCount, total: gate.mandatoryCount }]]),
+    gatePendingByInitiative: new Map([[initiative.id, gate.pending]]),
+    attachmentCountByInitiative: new Map([[initiative.id, liveAttachments.length]]),
     now,
   });
 
@@ -492,6 +693,16 @@ export async function getInitiativeDetail(
     card,
     stage,
     nextStage,
+    route,
+    attachments: liveAttachments.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      contentType: attachment.contentType,
+      sizeBytes: attachment.sizeBytes,
+      uploadedBy: personOf(usersById.get(attachment.uploadedBy)),
+      uploadedAt: attachment.uploadedAt,
+      uploadedById: attachment.uploadedBy,
+    })),
     gate: {
       items: gateItems,
       completed: gate.completedCount,

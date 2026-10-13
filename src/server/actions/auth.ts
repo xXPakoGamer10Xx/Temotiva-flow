@@ -10,7 +10,7 @@ import { isDevAuthEnabled, signIn, signOut } from '@/lib/auth';
  */
 
 export async function signInWithGoogleAction(): Promise<void> {
-  await signIn('google', { redirectTo: '/board' });
+  await signIn('google', { redirectTo: '/mi-trabajo' });
 }
 
 export async function signOutAction(): Promise<void> {
@@ -23,7 +23,7 @@ export async function devSignInAction(email: string): Promise<{ ok: false; messa
   }
 
   try {
-    await signIn('dev', { email, redirectTo: '/board' });
+    await signIn('dev', { email, redirectTo: '/mi-trabajo' });
   } catch (error) {
     // next-auth relanza un redirect como excepción: hay que dejarlo pasar.
     if (error instanceof AuthError) {

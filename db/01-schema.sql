@@ -125,6 +125,9 @@ CREATE TABLE initiatives (
     current_task VARCHAR(255),                       -- EXTENSIÓN V1: columna del Radar de Esperas
     links JSONB NOT NULL DEFAULT '[]'::jsonb,        -- EXTENSIÓN V1: [{kind,label,url}]
     is_archived BOOLEAN NOT NULL DEFAULT FALSE,      -- EXTENSIÓN V1: archivado = borrado lógico
+    -- EXTENSIÓN V1: fases marcadas "No aplica". El avance las salta; cada
+    -- omisión deja `STAGE_SKIPPED` con su motivo en la caja negra.
+    skipped_stage_ids INT[] NOT NULL DEFAULT '{}',
 
     stage_entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -183,6 +186,26 @@ CREATE TABLE initiative_dependencies (
 
 CREATE INDEX dependencies_pending_idx ON initiative_dependencies (target_department) WHERE status = 'PENDING';
 CREATE INDEX dependencies_initiative_idx ON initiative_dependencies (initiative_id);
+
+-- 6b. DOCUMENTOS ADJUNTOS (EXTENSIÓN V1) ---------------------------------------
+
+CREATE TABLE initiative_attachments (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    initiative_id VARCHAR(20) REFERENCES initiatives(id) NOT NULL,
+    file_name VARCHAR(255) NOT NULL,
+    content_type VARCHAR(100) NOT NULL CHECK (content_type IN (
+        'application/pdf',
+        'application/vnd.openxmlformats-officedocument.wordprocessingml.document')),
+    size_bytes INT NOT NULL CHECK (size_bytes > 0 AND size_bytes <= 10485760),
+    storage_key TEXT NOT NULL,                     -- pathname en el almacén privado; nunca una URL pública
+    uploaded_by UUID REFERENCES users(id) NOT NULL,
+    uploaded_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_removed BOOLEAN NOT NULL DEFAULT FALSE,     -- baja lógica: nada se borra (AGENTS.md §5.8)
+    removed_by UUID REFERENCES users(id),
+    removed_at TIMESTAMPTZ
+);
+
+CREATE INDEX attachments_initiative_idx ON initiative_attachments (initiative_id) WHERE NOT is_removed;
 
 -- 7. AUDIT LOG (LA CAJA NEGRA INMUTABLE) --------------------------------------
 

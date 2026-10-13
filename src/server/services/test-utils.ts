@@ -73,6 +73,7 @@ export function makeInitiative(overrides: Partial<Initiative> = {}): Initiative 
     currentTask: null,
     links: [],
     isArchived: false,
+    skippedStageIds: [],
     stageEnteredAt: hoursBefore(10),
     createdAt: hoursBefore(100),
     updatedAt: hoursBefore(10),

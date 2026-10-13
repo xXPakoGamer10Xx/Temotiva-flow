@@ -108,6 +108,10 @@ async function run(): Promise<void> {
       console.log('ℹ️ Las tablas ya existen.');
     }
 
+    // Migraciones idempotentes sobre bases ya creadas: se aplican siempre.
+    console.log('📦 Aplicando migraciones (db/02-feedback-v1.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '02-feedback-v1.sql'), 'utf8'));
+
     const seed = buildSeedData();
     const stageCount = Number((await client.query('SELECT COUNT(*)::int AS c FROM workflow_stages')).rows[0].c);
 
