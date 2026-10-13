@@ -9,6 +9,9 @@ import { BoardCard } from '@/components/board/board-card';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 import { NewInitiativeButton } from '@/components/initiative/new-initiative-dialog';
 
+/** Motivos visibles por tarjeta; el resto se ve al abrir la ficha. */
+const MAX_REASONS = 3;
+
 export const dynamic = 'force-dynamic';
 export const metadata = { title: 'Mi trabajo' };
 
@@ -28,7 +31,7 @@ export default async function MyWorkPage({ searchParams }: { searchParams: Promi
     <>
       <PageHeader
         title="Mi trabajo"
-        description={`Lo que te toca a ti y a ${departmentsLabel(session.departments)}, ordenado por prioridad.`}
+        description={`Lo que te toca a ti y a ${session.departments.length > 3 ? 'tus áreas' : departmentsLabel(session.departments)}, ordenado por prioridad.`}
         actions={<NewInitiativeButton />}
       />
 
@@ -105,17 +108,22 @@ function Section({
       {items.length === 0 ? (
         <p className="rounded-lg border border-dashed border-border px-3 py-3 text-xs text-fg-muted">{empty}</p>
       ) : (
-        <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+        <ul className="gap-2 [column-fill:balance] sm:columns-2 lg:columns-3">
           {items.map((item) => (
-            <li key={item.card.id} className="flex flex-col gap-1.5">
+            <li key={item.card.id} className="mb-2 flex break-inside-avoid flex-col gap-1.5">
               <BoardCard card={item.card} basePath="/mi-trabajo" />
               {showReasons && item.waitingReasons.length > 0 ? (
                 <ul className="space-y-0.5 px-1">
-                  {item.waitingReasons.map((reason) => (
-                    <li key={reason} className="text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">
+                  {item.waitingReasons.slice(0, MAX_REASONS).map((reason) => (
+                    <li key={reason} className="line-clamp-2 text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">
                       {reason}
                     </li>
                   ))}
+                  {item.waitingReasons.length > MAX_REASONS ? (
+                    <li className="text-xs text-fg-subtle">
+                      +{item.waitingReasons.length - MAX_REASONS} más en la ficha
+                    </li>
+                  ) : null}
                 </ul>
               ) : null}
             </li>
