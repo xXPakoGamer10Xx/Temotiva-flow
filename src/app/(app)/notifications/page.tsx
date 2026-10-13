@@ -5,6 +5,7 @@ import { HELP_STATUS_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getNotifications, type NotificationView } from '@/server/services/views';
 import { PageHeader } from '@/components/layout/app-shell';
+import { MarkNotificationsSeen } from '@/components/layout/mark-notifications-seen';
 import { Badge, Card, EmptyState, SectionLabel } from '@/components/ui/primitives';
 import { HelpTypeBadge } from '@/components/shared/signals';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
@@ -28,6 +29,7 @@ export default async function NotificationsPage({
 
   return (
     <>
+      <MarkNotificationsSeen />
       <PageHeader
         title="Notificaciones"
         description={`Solicitudes de ayuda dirigidas a ${departmentsLabel(session.departments)} y las que has abierto tú.`}

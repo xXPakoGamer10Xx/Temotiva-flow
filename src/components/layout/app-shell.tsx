@@ -1,4 +1,6 @@
+import { cookies } from 'next/headers';
 import type { SessionContext } from '@/domain/types';
+import { notificationsSeenCookie } from '@/lib/notifications-seen';
 import { USER_ROLE_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getMyWork, getNotifications } from '@/server/services/views';
@@ -30,6 +32,10 @@ export async function AppShell({
     store.listStages(),
   ]);
 
+  // El badge cuenta lo que llegó después de la última vez que abriste la bandeja.
+  const seenAt = (await cookies()).get(notificationsSeenCookie(session.userId))?.value;
+  const unseenCount = received.filter((item) => !seenAt || item.dependency.createdAt > seenAt).length;
+
   const stageNames = new Map(stages.map((stage) => [stage.id, stage.name]));
   const paletteInitiatives: PaletteInitiative[] = initiatives.map((initiative) => ({
     id: initiative.id,
@@ -45,7 +51,7 @@ export async function AppShell({
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
-    { href: '/notifications', label: 'Notificaciones', icon: 'notifications', badge: received.length },
+    { href: '/notifications', label: 'Notificaciones', icon: 'notifications', badge: unseenCount },
     { href: '/ayuda', label: 'Ayuda', icon: 'help', shortcut: 'G H' },
     // Los responsables también gestionan personas, solo que de sus áreas.
     ...(canManagePeople(session)
