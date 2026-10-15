@@ -69,3 +69,7 @@ CREATE TABLE IF NOT EXISTS personal_steps (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 CREATE INDEX IF NOT EXISTS idx_personal_steps_owner ON personal_steps (initiative_id, user_id);
+
+-- Imágenes de apoyo en el feedback: [{id,fileName,contentType,sizeBytes,storageKey,uploadedAt}].
+ALTER TABLE feedback_items
+    ADD COLUMN IF NOT EXISTS images JSONB NOT NULL DEFAULT '[]'::jsonb;

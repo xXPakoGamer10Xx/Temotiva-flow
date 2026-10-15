@@ -28,6 +28,10 @@ export const MIN_PERSONAL_STEP_TITLE = 2;
 export const MAX_PERSONAL_STEP_TITLE = 80;
 export const MAX_PERSONAL_STEPS_PER_INITIATIVE = 20;
 
+/** Imágenes de apoyo en un feedback (capturas, fotos). */
+export const MAX_FEEDBACK_IMAGES = 3;
+export const MAX_FEEDBACK_IMAGE_BYTES = 4 * 1024 * 1024;
+
 /** Longitud del texto de feedback del equipo. */
 export const MIN_FEEDBACK_MESSAGE = 10;
 export const MAX_FEEDBACK_MESSAGE = 2000;

@@ -173,6 +173,17 @@ export interface Attachment {
   removedAt: string | null;
 }
 
+/** Imagen adjunta a un feedback (captura de pantalla, foto). Se guarda en el almacén privado. */
+export interface FeedbackImage {
+  id: string;
+  fileName: string;
+  contentType: string;
+  sizeBytes: number;
+  /** Pathname en el almacenamiento privado; nunca una URL pública. */
+  storageKey: string;
+  uploadedAt: string;
+}
+
 /** Tabla `feedback_items` (EXTENSIÓN V1): comentarios del equipo sobre la app, la web o la plataforma. */
 export interface FeedbackItem {
   id: string;
@@ -183,6 +194,8 @@ export interface FeedbackItem {
   createdAt: string;
   updatedBy: string | null;
   updatedAt: string | null;
+  /** Opcional: el feedback anterior a las imágenes no lo trae. */
+  images?: FeedbackImage[];
 }
 
 /** Tabla `notification_prefs` (EXTENSIÓN V1): si un responsable quiere recibir las notificaciones. Sin fila = sí. */

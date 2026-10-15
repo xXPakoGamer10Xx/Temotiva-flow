@@ -3,6 +3,7 @@ import type {
   ActivityLogEntry,
   Attachment,
   DepartmentNotificationSetting,
+  FeedbackImage,
   FeedbackItem,
   NotificationPref,
   PersonalStep,
@@ -63,7 +64,7 @@ export class InMemoryDataStore implements DataStore {
     );
     this.dependencies = new Map(data.dependencies.map((dependency) => [dependency.id, clone(dependency)]));
     this.attachments = new Map((data.attachments ?? []).map((attachment) => [attachment.id, clone(attachment)]));
-    this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone(item)]));
+    this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
     this.departmentNotificationSettings = new Map(
@@ -312,6 +313,15 @@ export class InMemoryDataStore implements DataStore {
     this.feedback.set(item.id, clone(item));
     this.touched();
     return clone(item);
+  }
+
+  async appendFeedbackImage(id: string, image: FeedbackImage): Promise<FeedbackItem> {
+    const current = this.feedback.get(id);
+    if (!current) throw new Error(`Feedback no encontrado: ${id}`);
+    const updated: FeedbackItem = { ...current, images: [...(current.images ?? []), clone(image)] };
+    this.feedback.set(id, updated);
+    this.touched();
+    return clone(updated);
   }
 
   async updateFeedbackStatus(

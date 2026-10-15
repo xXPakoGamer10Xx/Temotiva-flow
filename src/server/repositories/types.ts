@@ -4,6 +4,7 @@ import type {
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
+  FeedbackImage,
   FeedbackItem,
   Initiative,
   NotificationPref,
@@ -80,6 +81,8 @@ export interface DataStore {
   listFeedback(): Promise<FeedbackItem[]>;
   feedbackById(id: string): Promise<FeedbackItem | null>;
   insertFeedback(item: FeedbackItem): Promise<FeedbackItem>;
+  /** Añade una imagen a un feedback ya creado. */
+  appendFeedbackImage(id: string, image: FeedbackImage): Promise<FeedbackItem>;
   updateFeedbackStatus(id: string, status: FeedbackStatus, updatedBy: string, updatedAt: string): Promise<FeedbackItem>;
 
   // --- Pasos propios (privados) -------------------------------------------------

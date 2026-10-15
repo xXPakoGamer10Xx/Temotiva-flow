@@ -6,6 +6,7 @@ import type {
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
+  FeedbackImage,
   FeedbackItem,
   Initiative,
   NotificationPref,
@@ -610,7 +611,7 @@ export class PostgresDataStore implements DataStore {
 
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
-      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at
+      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
        FROM feedback_items ORDER BY created_at DESC`,
     );
     return res.rows.map((r) => this.mapFeedback(r));
@@ -618,7 +619,7 @@ export class PostgresDataStore implements DataStore {
 
   async feedbackById(id: string): Promise<FeedbackItem | null> {
     const res = await this.pool.query(
-      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at
+      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
        FROM feedback_items WHERE id = $1`,
       [id],
     );
@@ -627,11 +628,21 @@ export class PostgresDataStore implements DataStore {
 
   async insertFeedback(item: FeedbackItem): Promise<FeedbackItem> {
     await this.pool.query(
-      `INSERT INTO feedback_items (id, category, message, status, created_by, created_at)
-       VALUES ($1, $2, $3, $4, $5, $6)`,
-      [item.id, item.category, item.message, item.status, item.createdBy, item.createdAt],
+      `INSERT INTO feedback_items (id, category, message, status, created_by, created_at, images)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [item.id, item.category, item.message, item.status, item.createdBy, item.createdAt, JSON.stringify(item.images ?? [])],
     );
     return item;
+  }
+
+  async appendFeedbackImage(id: string, image: FeedbackImage): Promise<FeedbackItem> {
+    await this.pool.query(`UPDATE feedback_items SET images = images || $2::jsonb WHERE id = $1`, [
+      id,
+      JSON.stringify([image]),
+    ]);
+    const updated = await this.feedbackById(id);
+    if (!updated) throw new Error(`Feedback no encontrado: ${id}`);
+    return updated;
   }
 
   async updateFeedbackStatus(
@@ -968,6 +979,7 @@ export class PostgresDataStore implements DataStore {
       createdAt: toIso(r.created_at),
       updatedBy: r.updated_by ? String(r.updated_by) : null,
       updatedAt: toNullableIso(r.updated_at),
+      images: Array.isArray(r.images) ? (r.images as FeedbackImage[]) : [],
     };
   }
 
