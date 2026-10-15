@@ -16,8 +16,15 @@ import {
   PRIORITY_REASON_HINTS,
   PRIORITY_REASON_LABELS,
 } from '@/domain/labels';
-import { MIN_INITIATIVE_TITLE, MIN_STAGE_SKIP_REASON } from '@/domain/rules';
+import {
+  MAX_PERSONAL_STEPS_PER_INITIATIVE,
+  MAX_PERSONAL_STEP_TITLE,
+  MIN_INITIATIVE_TITLE,
+  MIN_PERSONAL_STEP_TITLE,
+  MIN_STAGE_SKIP_REASON,
+} from '@/domain/rules';
 import { createInitiativeAction } from '@/server/actions/initiatives';
+import { addPersonalStepAction } from '@/server/actions/personal-steps';
 import { ActionError, useAction } from '@/lib/use-action';
 import { UI_EVENTS, openNewInitiative, useUiEvent } from '@/components/command/command-bus';
 import { Button } from '@/components/ui/button';
@@ -81,6 +88,10 @@ export function NewInitiativeDialog({
   const [routeReason, setRouteReason] = React.useState('');
   const [links, setLinks] = React.useState<InitiativeLink[]>([]);
   const [estimate, setEstimate] = React.useState('');
+  // Fases propias (privadas): se crean junto con la iniciativa y solo las ve quien las crea.
+  const [personal, setPersonal] = React.useState<{ title: string; afterStageId: number }[]>([]);
+  const [personalTitle, setPersonalTitle] = React.useState('');
+  const [personalAfter, setPersonalAfter] = React.useState<number>(stages[0]?.id ?? 0);
 
   const orderedStages = [...stages].sort((a, b) => a.orderIndex - b.orderIndex);
   // Inicio y hito final son de toda ruta; omitir otra exige ser LEAD de su área o Dirección.
@@ -90,6 +101,13 @@ export function NewInitiativeDialog({
     (role === 'EXECUTIVE' || (role === 'LEAD' && departments.includes(stage.defaultOwnerDepartment)));
   const toggleSkipped = (id: number): void =>
     setSkipped((current) => (current.includes(id) ? current.filter((value) => value !== id) : [...current, id]));
+
+  const addPersonal = (): void => {
+    const title = personalTitle.trim();
+    if (title.length < MIN_PERSONAL_STEP_TITLE) return;
+    setPersonal((current) => [...current, { title, afterStageId: personalAfter }]);
+    setPersonalTitle('');
+  };
 
   const toggleHelp = (department: Department): void =>
     setHelpDepartments((current) =>
@@ -129,14 +147,19 @@ export function NewInitiativeDialog({
         estimatedDurationDays: estimate.trim() === '' ? undefined : Number(estimate),
       },
       (data) => {
-      // La iniciativa ya existe: ahora se suben sus documentos, uno a uno.
+      // La iniciativa ya existe: ahora se crean sus fases propias y se suben sus documentos, uno a uno.
       const pending = files;
+      const ownSteps = personal;
       void (async () => {
+        for (const step of ownSteps) {
+          const result = await addPersonalStepAction({ initiativeId: data.id, ...step });
+          if (!result.ok) toast(`${step.title}: ${result.message}`, 'danger');
+        }
         for (const file of pending) {
           const problem = await uploadAttachment(data.id, file);
           if (problem) toast(`${file.name}: ${problem}`, 'danger');
         }
-        if (pending.length > 0) router.refresh();
+        if (pending.length > 0 || ownSteps.length > 0) router.refresh();
       })();
       setFiles([]);
       setFileError(null);
@@ -149,6 +172,8 @@ export function NewInitiativeDialog({
       setCurrentTask('');
       setLinks([]);
       setEstimate('');
+      setPersonal([]);
+      setPersonalTitle('');
       router.push(`/board?iniciativa=${data.id}`);
       },
     );
@@ -317,6 +342,74 @@ export function NewInitiativeDialog({
                       </button>
                     );
                   })}
+                </div>
+                <div className="space-y-1.5 pt-1">
+                  <Label htmlFor="new-personal-step">Mis propias fases (solo tú las ves)</Label>
+                  {personal.length > 0 ? (
+                    <ul className="flex flex-wrap gap-1.5">
+                      {personal.map((step, index) => (
+                        <li
+                          key={`${step.title}-${index}`}
+                          className="inline-flex h-7 items-center gap-1.5 rounded-md border border-dashed border-border-strong px-2 text-xs"
+                        >
+                          <span className="font-medium">{step.title}</span>
+                          <span className="text-fg-subtle">
+                            tras {orderedStages.find((stage) => stage.id === step.afterStageId)?.name}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setPersonal((current) => current.filter((_, i) => i !== index))}
+                            className="text-fg-subtle hover:text-fg"
+                            aria-label={`Quitar ${step.title}`}
+                          >
+                            <X className="size-3.5" />
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : null}
+                  {personal.length < MAX_PERSONAL_STEPS_PER_INITIATIVE ? (
+                    <div className="grid gap-1.5 sm:grid-cols-[1fr_10rem_auto]">
+                      <Input
+                        id="new-personal-step"
+                        value={personalTitle}
+                        maxLength={MAX_PERSONAL_STEP_TITLE}
+                        placeholder="Nombre de tu fase"
+                        onChange={(event) => setPersonalTitle(event.target.value)}
+                        onKeyDown={(event) => {
+                          // Enter añade la fase; no envía todo el formulario.
+                          if (event.key === 'Enter') {
+                            event.preventDefault();
+                            addPersonal();
+                          }
+                        }}
+                      />
+                      <Select
+                        aria-label="Mostrar tras la fase"
+                        value={personalAfter}
+                        onChange={(event) => setPersonalAfter(Number(event.target.value))}
+                      >
+                        {orderedStages.map((stage) => (
+                          <option key={stage.id} value={stage.id}>
+                            Tras {stage.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={personalTitle.trim().length < MIN_PERSONAL_STEP_TITLE}
+                        onClick={addPersonal}
+                      >
+                        <Plus className="size-3.5" />
+                        Añadir
+                      </Button>
+                    </div>
+                  ) : null}
+                  <p className="text-xs text-fg-subtle">
+                    Pasos tuyos dentro de la ruta. No cambian las 7 fases ni la compuerta, y nadie más los ve.
+                  </p>
                 </div>
                 {skipped.length > 0 ? (
                   <Textarea
