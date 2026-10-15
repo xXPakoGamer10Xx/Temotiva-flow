@@ -50,7 +50,8 @@ export function FeedbackBoard({ items, canManage }: { items: FeedbackView[]; can
   };
 
   const visible = filter === 'ALL' ? items : items.filter((item) => item.status === filter);
-  const canSend = message.trim().length >= MIN_FEEDBACK_MESSAGE && !create.isPending;
+  const missing = Math.max(0, MIN_FEEDBACK_MESSAGE - message.trim().length);
+  const canSend = missing === 0 && !create.isPending;
 
   return (
     <>
@@ -153,6 +154,13 @@ export function FeedbackBoard({ items, canManage }: { items: FeedbackView[]; can
             {imageError ? <p role="alert" className="text-xs text-[var(--danger)]">{imageError}</p> : null}
           </div>
           <ActionError message={create.error} />
+          {missing > 0 ? (
+            <p className="text-xs text-fg-subtle">
+              {message.trim().length === 0
+                ? `Escribe al menos ${MIN_FEEDBACK_MESSAGE} caracteres para poder enviarlo.`
+                : `Faltan ${missing} ${missing === 1 ? 'carácter' : 'caracteres'} para poder enviarlo (mínimo ${MIN_FEEDBACK_MESSAGE}).`}
+            </p>
+          ) : null}
           <Button type="submit" size="sm" disabled={!canSend}>
             <Send className="size-3.5" />
             {create.isPending ? 'Enviando…' : 'Enviar feedback'}
