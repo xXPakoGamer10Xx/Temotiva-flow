@@ -15,6 +15,7 @@ import { evaluateGate } from './gate';
 import { computeSle, type SleReading } from './sle';
 import { notFound } from './errors';
 import { nextApplicableStage } from './stage-route';
+import { canAdvanceInitiative } from './rbac';
 import { DEPARTMENT_SHORT, HELP_TYPE_LABELS } from '@/domain/labels';
 
 /**
@@ -61,6 +62,13 @@ export interface InitiativeCardView {
   assignee: PersonView | null;
   currentTask: string | null;
   links: InitiativeLink[];
+  estimatedDurationDays: number | null;
+  /**
+   * Fase a la que esta persona puede arrastrar la tarjeta en el tablero, o `null`
+   * si no puede moverla (otra área propietaria, archivada, sin fase siguiente).
+   * Solo la rellena `getBoardView` con sesión; el servidor vuelve a comprobarlo.
+   */
+  dragTargetStageId?: number | null;
   isBlocked: boolean;
   stopReason: StopReason | null;
   blockedDescription: string | null;
@@ -146,6 +154,7 @@ function buildCard(initiative: Initiative, context: CardContext): InitiativeCard
     assignee: personOf(initiative.currentAssigneeId ? context.usersById.get(initiative.currentAssigneeId) : undefined),
     currentTask: initiative.currentTask,
     links: initiative.links,
+    estimatedDurationDays: initiative.estimatedDurationDays ?? null,
     isBlocked: initiative.isBlocked,
     stopReason: initiative.stopReason,
     blockedDescription: initiative.blockedDescription,
@@ -413,7 +422,14 @@ export async function getBoardView(
     store.listInitiatives({ includeArchived: options.includeArchived }),
   ]);
   const context = await buildContext(store, initiatives, now);
-  const cards = initiatives.map((initiative) => buildCard(initiative, context));
+  const cards = initiatives.map((initiative) => {
+    const card = buildCard(initiative, context);
+    const current = stages.find((stage) => stage.id === initiative.currentStageId);
+    const next = current ? nextApplicableStage(stages, current, initiative.skippedStageIds) : null;
+    card.dragTargetStageId =
+      options.session && !initiative.isArchived && canAdvanceInitiative(options.session, initiative) ? (next?.id ?? null) : null;
+    return card;
+  });
   const relations = new Map<string, MyWorkRelation>();
   if (options.session && filter.view) {
     for (const initiative of initiatives) {
@@ -773,12 +789,23 @@ export async function getNotifications(
   store: DataStore,
   session: SessionContext,
 ): Promise<{ received: NotificationView[]; sent: NotificationView[] }> {
-  const [initiatives, dependencies, users, stages] = await Promise.all([
+  const [initiatives, dependencies, users, stages, ownPref, areaSettings] = await Promise.all([
     store.listInitiatives({ includeArchived: true }),
     store.listDependencies(),
     store.listUsers(),
     store.listStages(),
+    store.notificationPrefByUser(session.userId),
+    store.listDepartmentNotificationSettings(),
   ]);
+
+  // Sin preferencia guardada se recibe todo (comportamiento previo).
+  const receivesOwn = ownPref?.enabled ?? true;
+  const teamDisabled = new Set(areaSettings.filter((setting) => !setting.teamEnabled).map((setting) => setting.department));
+  /** Responsables y Dirección siguen su preferencia; el equipo, el ajuste de su área. */
+  const receivesFor = (department: Department): boolean => {
+    if (!session.departments.includes(department)) return false;
+    return session.role === 'MEMBER' ? !teamDisabled.has(department) : receivesOwn;
+  };
 
   const initiativesById = new Map(initiatives.map((initiative) => [initiative.id, initiative]));
   const usersById = new Map(users.map((user) => [user.id, user]));
@@ -810,8 +837,7 @@ export async function getNotifications(
   // Con varias áreas, llega lo dirigido a cualquiera de ellas.
   const received = dependencies
     .filter(
-      (dependency) =>
-        dependency.status === 'PENDING' && session.departments.includes(dependency.targetDepartment),
+      (dependency) => dependency.status === 'PENDING' && receivesFor(dependency.targetDepartment),
     )
     .map(toView)
     .filter((view): view is NotificationView => view !== null);

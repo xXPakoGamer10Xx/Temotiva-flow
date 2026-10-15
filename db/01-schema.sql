@@ -128,6 +128,8 @@ CREATE TABLE initiatives (
     -- EXTENSIÓN V1: fases marcadas "No aplica". El avance las salta; cada
     -- omisión deja `STAGE_SKIPPED` con su motivo en la caja negra.
     skipped_stage_ids INT[] NOT NULL DEFAULT '{}',
+    -- EXTENSIÓN V1: tiempo estimado opcional, en días
+    estimated_duration_days INT CHECK (estimated_duration_days IS NULL OR estimated_duration_days > 0),
 
     stage_entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),

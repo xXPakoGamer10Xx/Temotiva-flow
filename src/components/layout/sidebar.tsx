@@ -10,6 +10,7 @@ import {
   Inbox,
   KanbanSquare,
   LogOut,
+  MessageSquarePlus,
   Moon,
   PanelLeft,
   Radar,
@@ -38,7 +39,7 @@ import { cn } from '@/lib/utils';
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'team' | 'help';
+  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'feedback' | 'team' | 'help';
   badge?: number;
   shortcut?: string;
 }
@@ -49,6 +50,7 @@ const ICONS = {
   radar: Radar,
   executive: TrendingUp,
   notifications: Bell,
+  feedback: MessageSquarePlus,
   team: ShieldCheck,
   help: CircleHelp,
 } as const;

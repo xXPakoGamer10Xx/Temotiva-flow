@@ -25,6 +25,8 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { Input, Kbd, Label, Select, Textarea } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
 import { cn } from '@/lib/utils';
+import type { InitiativeLink } from '@/domain/types';
+import { LinksEditor, cleanLinks, linksAreValid } from './links-editor';
 
 /**
  * Alta de iniciativa. Toda iniciativa nace en Ideación, propiedad del
@@ -77,6 +79,8 @@ export function NewInitiativeDialog({
   const [fileError, setFileError] = React.useState<string | null>(null);
   const [skipped, setSkipped] = React.useState<number[]>([]);
   const [routeReason, setRouteReason] = React.useState('');
+  const [links, setLinks] = React.useState<InitiativeLink[]>([]);
+  const [estimate, setEstimate] = React.useState('');
 
   const orderedStages = [...stages].sort((a, b) => a.orderIndex - b.orderIndex);
   // Inicio y hito final son de toda ruta; omitir otra exige ser LEAD de su área o Dirección.
@@ -97,6 +101,8 @@ export function NewInitiativeDialog({
   const canSubmit =
     title.trim().length >= MIN_INITIATIVE_TITLE &&
     (skipped.length === 0 || routeReason.trim().length >= MIN_STAGE_SKIP_REASON) &&
+    linksAreValid(links) &&
+    (estimate.trim() === '' || (Number.isInteger(Number(estimate)) && Number(estimate) >= 1 && Number(estimate) <= 365)) &&
     !create.isPending;
 
   const addFiles = (list: FileList | null): void => {
@@ -119,6 +125,8 @@ export function NewInitiativeDialog({
         helpType,
         skippedStageIds: skipped,
         routeReason: skipped.length > 0 ? routeReason : undefined,
+        links: cleanLinks(links),
+        estimatedDurationDays: estimate.trim() === '' ? undefined : Number(estimate),
       },
       (data) => {
       // La iniciativa ya existe: ahora se suben sus documentos, uno a uno.
@@ -139,6 +147,8 @@ export function NewInitiativeDialog({
       setTitle('');
       setDescription('');
       setCurrentTask('');
+      setLinks([]);
+      setEstimate('');
       router.push(`/board?iniciativa=${data.id}`);
       },
     );
@@ -378,6 +388,28 @@ export function NewInitiativeDialog({
                   onChange={(event) => setCurrentTask(event.target.value)}
                   placeholder="Redacción del Concept Brief"
                 />
+              </div>
+
+              <div className="space-y-1.5">
+                <Label htmlFor="new-estimate">Tiempo estimado en días (opcional)</Label>
+                <Input
+                  id="new-estimate"
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  max={365}
+                  step={1}
+                  value={estimate}
+                  onChange={(event) => setEstimate(event.target.value)}
+                  placeholder="Ej. 14"
+                  className="tabular-nums sm:w-40"
+                />
+                <p className="text-xs text-fg-subtle">Cuánto se espera que tarde. Es orientativo y no cuenta contra el SLE.</p>
+              </div>
+
+              <div className="space-y-1.5">
+                <Label>Enlaces (opcional)</Label>
+                <LinksEditor value={links} onChange={setLinks} />
               </div>
 
               <ActionError message={create.error} />

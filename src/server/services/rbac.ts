@@ -172,6 +172,21 @@ export function canAnonymizeUser(session: SessionContext): boolean {
   return isExecutive(session);
 }
 
+/** Cambiar el estado del feedback (pendiente / en proceso / hecho): responsables de área y Dirección. */
+export function canManageFeedback(session: SessionContext): boolean {
+  return session.role !== 'MEMBER';
+}
+
+/** Cada responsable (y Dirección) decide si recibe sus propias notificaciones. */
+export function canChooseOwnNotifications(session: SessionContext): boolean {
+  return session.role !== 'MEMBER';
+}
+
+/** Activar o desactivar las notificaciones del equipo de un área: su responsable o Dirección. */
+export function canConfigureAreaNotifications(session: SessionContext, department: Department): boolean {
+  return isExecutive(session) || isLeadOf(session, department);
+}
+
 /** Lanza `FORBIDDEN` con el texto que verá la persona si el permiso no se cumple. */
 export function assertPermission(allowed: boolean, message: string): void {
   if (!allowed) throw forbidden(message);

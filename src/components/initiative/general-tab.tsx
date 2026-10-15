@@ -23,7 +23,9 @@ import { ActionError, useAction } from '@/lib/use-action';
 import { Button } from '@/components/ui/button';
 import { Input, Label, Select, Separator, Textarea } from '@/components/ui/primitives';
 import { formatDateTime } from '@/lib/utils';
+import type { InitiativeLink } from '@/domain/types';
 import type { InitiativeCapabilities } from './initiative-sheet';
+import { LinksEditor, cleanLinks, linksAreValid, sameLinks } from './links-editor';
 import { DocumentsSection } from './documents-section';
 
 /**
@@ -59,13 +61,23 @@ export function GeneralTab({
   const [archiveOpen, setArchiveOpen] = React.useState(false);
   const [archiveReason, setArchiveReason] = React.useState('');
 
+  const [links, setLinks] = React.useState<InitiativeLink[]>(card.links);
+  const [estimate, setEstimate] = React.useState(card.estimatedDurationDays?.toString() ?? '');
+  const estimateNumber = estimate.trim() === '' ? null : Number(estimate);
+  const estimateOk = estimateNumber === null || (Number.isInteger(estimateNumber) && estimateNumber >= 1 && estimateNumber <= 365);
+
+  const linksDirty = !sameLinks(links, card.links);
+  const linksOk = linksAreValid(links);
+
   const isDirty =
     title !== card.title ||
     description !== card.description ||
     (currentTask || null) !== card.currentTask ||
     priority !== card.priority ||
-    priorityReason !== card.priorityReason;
+    priorityReason !== card.priorityReason ||
+    estimateNumber !== card.estimatedDurationDays;
 
+  // One save covers both the descriptive fields and the links.
   const save = (): void => {
     update.run({
       initiativeId: card.id,
@@ -74,6 +86,8 @@ export function GeneralTab({
       currentTask: currentTask || null,
       priority,
       priorityReason,
+      links: cleanLinks(links),
+      estimatedDurationDays: estimateNumber,
     });
   };
 
@@ -98,6 +112,23 @@ export function GeneralTab({
             value={description}
             onChange={(event) => setDescription(event.target.value)}
             disabled={card.isArchived}
+          />
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="initiative-estimate">Tiempo estimado (días)</Label>
+          <Input
+            id="initiative-estimate"
+            type="number"
+            inputMode="numeric"
+            min={1}
+            max={365}
+            step={1}
+            value={estimate}
+            placeholder="Sin estimar"
+            onChange={(event) => setEstimate(event.target.value)}
+            disabled={card.isArchived}
+            className="tabular-nums sm:w-40"
           />
         </div>
 
@@ -150,7 +181,7 @@ export function GeneralTab({
         <ActionError message={update.error} />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={save} disabled={!isDirty || update.isPending || card.isArchived} size="sm">
+          <Button onClick={save} disabled={!isDirty || !linksOk || !estimateOk || update.isPending || card.isArchived} size="sm">
             <Save className="size-4" />
             {update.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
@@ -254,9 +285,7 @@ export function GeneralTab({
 
       <div className="space-y-2">
         <Label>Enlaces</Label>
-        {card.links.length === 0 ? (
-          <p className="text-xs text-fg-muted">Sin enlaces de Figma, Notion o repositorio.</p>
-        ) : (
+        {card.links.length > 0 ? (
           <ul className="space-y-1.5">
             {card.links.map((link) => (
               <li key={link.url}>
@@ -272,7 +301,15 @@ export function GeneralTab({
               </li>
             ))}
           </ul>
-        )}
+        ) : null}
+        <LinksEditor value={links} onChange={setLinks} disabled={card.isArchived} />
+        <div className="flex flex-wrap items-center gap-2">
+          <Button onClick={save} disabled={!linksDirty || !linksOk || update.isPending || card.isArchived} size="sm">
+            <Save className="size-4" />
+            {update.isPending ? 'Guardando…' : 'Guardar enlaces'}
+          </Button>
+          {linksDirty ? <span className="text-xs text-fg-muted">Hay cambios sin guardar</span> : null}
+        </div>
       </div>
 
       <Separator />

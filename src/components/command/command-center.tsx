@@ -11,6 +11,7 @@ import {
   CornerDownLeft,
   Inbox,
   KanbanSquare,
+  MessageSquarePlus,
   Moon,
   Plus,
   Radar,
@@ -176,6 +177,16 @@ export function CommandCenter({
     ];
 
     views.push({
+      id: 'go-feedback',
+      label: 'Feedback',
+      hint: 'G F',
+      group: 'Ir a',
+      icon: <MessageSquarePlus className="size-3.5" />,
+      keywords: 'comentarios sugerencias mejoras app web plataforma',
+      run: () => go('/feedback'),
+    });
+
+    views.push({
       id: 'go-account',
       label: 'Mi cuenta',
       group: 'Ir a',
@@ -303,7 +314,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();

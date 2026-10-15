@@ -1,6 +1,8 @@
 import type {
   ActionType,
   Department,
+  FeedbackCategory,
+  FeedbackStatus,
   HelpStatus,
   HelpType,
   LinkKind,
@@ -129,6 +131,21 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   ACCESS_ANONYMIZED: 'Perfil anonimizado',
   PROFILE_UPDATED: 'Perfil actualizado',
   SYSTEM_SETTINGS_UPDATED: 'Parámetros del sistema modificados',
+  FEEDBACK_CREATED: 'Feedback enviado',
+  FEEDBACK_STATUS_CHANGED: 'Estado de feedback cambiado',
+  NOTIFICATION_SETTINGS_CHANGED: 'Preferencias de notificación cambiadas',
+};
+
+export const FEEDBACK_CATEGORY_LABELS: Record<FeedbackCategory, string> = {
+  APP: 'App',
+  WEB: 'Web',
+  PLATFORM: 'Plataforma',
+};
+
+export const FEEDBACK_STATUS_LABELS: Record<FeedbackStatus, string> = {
+  PENDING: 'Pendiente',
+  IN_PROGRESS: 'En proceso',
+  DONE: 'Hecho',
 };
 
 export const LINK_KIND_LABELS: Record<LinkKind, string> = {

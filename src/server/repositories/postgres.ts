@@ -5,12 +5,16 @@ import type {
   Attachment,
   ChecklistValue,
   Dependency,
+  DepartmentNotificationSetting,
+  FeedbackItem,
   Initiative,
+  NotificationPref,
+  PersonalStep,
   StageChecklistItem,
   User,
   WorkflowStage,
 } from '@/domain/types';
-import type { Department, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
+import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
 import type { DataStore } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -355,7 +359,7 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at
        FROM initiatives
        ${where}
        ORDER BY updated_at DESC`,
@@ -369,7 +373,7 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at
        FROM initiatives
        WHERE id = $1`,
       [id],
@@ -384,12 +388,12 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, stage_entered_at, created_at, updated_at, estimated_duration_days
       ) VALUES (
         $1, $2, $3, $4, $5, $6, $7,
         $8, $9, $10, $11, $12,
         $13, $14, $15, $16,
-        $17, $18, $19, $20, $21, $22, $23, $24
+        $17, $18, $19, $20, $21, $22, $23, $24, $25
       )`,
       [
         initiative.id,
@@ -416,6 +420,7 @@ export class PostgresDataStore implements DataStore {
         initiative.stageEnteredAt,
         initiative.createdAt,
         initiative.updatedAt,
+        initiative.estimatedDurationDays ?? null,
       ],
     );
     return initiative;
@@ -448,6 +453,7 @@ export class PostgresDataStore implements DataStore {
       currentTask: 'current_task',
       isArchived: 'is_archived',
       skippedStageIds: 'skipped_stage_ids',
+      estimatedDurationDays: 'estimated_duration_days',
       stageEnteredAt: 'stage_entered_at',
       updatedAt: 'updated_at',
     };
@@ -600,6 +606,122 @@ export class PostgresDataStore implements DataStore {
     const updated = await this.attachmentById(id);
     if (!updated) throw new Error(`Documento no encontrado: ${id}`);
     return updated;
+  }
+
+  async listFeedback(): Promise<FeedbackItem[]> {
+    const res = await this.pool.query(
+      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at
+       FROM feedback_items ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapFeedback(r));
+  }
+
+  async feedbackById(id: string): Promise<FeedbackItem | null> {
+    const res = await this.pool.query(
+      `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at
+       FROM feedback_items WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapFeedback(res.rows[0]);
+  }
+
+  async insertFeedback(item: FeedbackItem): Promise<FeedbackItem> {
+    await this.pool.query(
+      `INSERT INTO feedback_items (id, category, message, status, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [item.id, item.category, item.message, item.status, item.createdBy, item.createdAt],
+    );
+    return item;
+  }
+
+  async updateFeedbackStatus(
+    id: string,
+    status: FeedbackStatus,
+    updatedBy: string,
+    updatedAt: string,
+  ): Promise<FeedbackItem> {
+    await this.pool.query(
+      `UPDATE feedback_items SET status = $2, updated_by = $3, updated_at = $4 WHERE id = $1`,
+      [id, status, updatedBy, updatedAt],
+    );
+    const updated = await this.feedbackById(id);
+    if (!updated) throw new Error(`Feedback no encontrado: ${id}`);
+    return updated;
+  }
+
+  async listPersonalSteps(initiativeId: string, userId: string): Promise<PersonalStep[]> {
+    const res = await this.pool.query(
+      `SELECT id, initiative_id, user_id, title, after_stage_id, is_done, created_at
+       FROM personal_steps WHERE initiative_id = $1 AND user_id = $2 ORDER BY created_at`,
+      [initiativeId, userId],
+    );
+    return res.rows.map((r) => this.mapPersonalStep(r));
+  }
+
+  async personalStepById(id: string): Promise<PersonalStep | null> {
+    const res = await this.pool.query(
+      `SELECT id, initiative_id, user_id, title, after_stage_id, is_done, created_at FROM personal_steps WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapPersonalStep(res.rows[0]);
+  }
+
+  async insertPersonalStep(step: PersonalStep): Promise<PersonalStep> {
+    await this.pool.query(
+      `INSERT INTO personal_steps (id, initiative_id, user_id, title, after_stage_id, is_done, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [step.id, step.initiativeId, step.userId, step.title, step.afterStageId, step.isDone, step.createdAt],
+    );
+    return step;
+  }
+
+  async setPersonalStepDone(id: string, isDone: boolean): Promise<PersonalStep> {
+    await this.pool.query(`UPDATE personal_steps SET is_done = $2 WHERE id = $1`, [id, isDone]);
+    const updated = await this.personalStepById(id);
+    if (!updated) throw new Error(`Paso no encontrado: ${id}`);
+    return updated;
+  }
+
+  async deletePersonalStep(id: string): Promise<void> {
+    await this.pool.query(`DELETE FROM personal_steps WHERE id = $1`, [id]);
+  }
+
+  async notificationPrefByUser(userId: string): Promise<NotificationPref | null> {
+    const res = await this.pool.query(`SELECT user_id, enabled FROM notification_prefs WHERE user_id = $1`, [userId]);
+    const row = res.rows[0];
+    return row ? { userId: String(row.user_id), enabled: Boolean(row.enabled) } : null;
+  }
+
+  async setNotificationPref(pref: NotificationPref): Promise<NotificationPref> {
+    await this.pool.query(
+      `INSERT INTO notification_prefs (user_id, enabled) VALUES ($1, $2)
+       ON CONFLICT (user_id) DO UPDATE SET enabled = EXCLUDED.enabled`,
+      [pref.userId, pref.enabled],
+    );
+    return pref;
+  }
+
+  async listDepartmentNotificationSettings(): Promise<DepartmentNotificationSetting[]> {
+    const res = await this.pool.query(
+      `SELECT department, team_enabled, updated_by, updated_at FROM department_notification_settings`,
+    );
+    return res.rows.map((r) => ({
+      department: String(r.department) as Department,
+      teamEnabled: Boolean(r.team_enabled),
+      updatedBy: String(r.updated_by),
+      updatedAt: toIso(r.updated_at),
+    }));
+  }
+
+  async setDepartmentNotificationSetting(setting: DepartmentNotificationSetting): Promise<DepartmentNotificationSetting> {
+    await this.pool.query(
+      `INSERT INTO department_notification_settings (department, team_enabled, updated_by, updated_at)
+       VALUES ($1, $2, $3, $4)
+       ON CONFLICT (department) DO UPDATE
+         SET team_enabled = EXCLUDED.team_enabled, updated_by = EXCLUDED.updated_by, updated_at = EXCLUDED.updated_at`,
+      [setting.department, setting.teamEnabled, setting.updatedBy, setting.updatedAt],
+    );
+    return setting;
   }
 
   async insertDependency(dependency: Dependency): Promise<Dependency> {
@@ -813,6 +935,7 @@ export class PostgresDataStore implements DataStore {
       links: Array.isArray(parsedLinks) ? (parsedLinks as Initiative['links']) : [],
       isArchived: Boolean(r.is_archived),
       skippedStageIds: Array.isArray(r.skipped_stage_ids) ? r.skipped_stage_ids.map(Number) : [],
+      estimatedDurationDays: r.estimated_duration_days == null ? null : Number(r.estimated_duration_days),
       stageEnteredAt: toIso(r.stage_entered_at),
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
@@ -832,6 +955,31 @@ export class PostgresDataStore implements DataStore {
       isRemoved: Boolean(r.is_removed),
       removedBy: r.removed_by ? String(r.removed_by) : null,
       removedAt: toNullableIso(r.removed_at),
+    };
+  }
+
+  private mapFeedback(r: Record<string, unknown>): FeedbackItem {
+    return {
+      id: String(r.id),
+      category: String(r.category) as FeedbackItem['category'],
+      message: String(r.message),
+      status: String(r.status) as FeedbackItem['status'],
+      createdBy: String(r.created_by),
+      createdAt: toIso(r.created_at),
+      updatedBy: r.updated_by ? String(r.updated_by) : null,
+      updatedAt: toNullableIso(r.updated_at),
+    };
+  }
+
+  private mapPersonalStep(r: Record<string, unknown>): PersonalStep {
+    return {
+      id: String(r.id),
+      initiativeId: String(r.initiative_id),
+      userId: String(r.user_id),
+      title: String(r.title),
+      afterStageId: Number(r.after_stage_id),
+      isDone: Boolean(r.is_done),
+      createdAt: toIso(r.created_at),
     };
   }
 

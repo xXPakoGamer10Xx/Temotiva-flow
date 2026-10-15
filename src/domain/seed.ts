@@ -3,7 +3,11 @@ import type {
   Attachment,
   ChecklistValue,
   Dependency,
+  DepartmentNotificationSetting,
+  FeedbackItem,
   Initiative,
+  NotificationPref,
+  PersonalStep,
   StageChecklistItem,
   User,
   WorkflowStage,
@@ -33,6 +37,12 @@ export interface SeedData {
   activityLog: ActivityLogEntry[];
   /** Opcional: las semillas y snapshots anteriores a los adjuntos no lo traen. */
   attachments?: Attachment[];
+  /** Opcional: las semillas y snapshots anteriores al feedback no lo traen. */
+  feedback?: FeedbackItem[];
+  /** Opcionales: sin filas, todo el mundo recibe sus notificaciones (comportamiento previo). */
+  personalSteps?: PersonalStep[];
+  notificationPrefs?: NotificationPref[];
+  departmentNotificationSettings?: DepartmentNotificationSetting[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */

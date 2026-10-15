@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { Route } from 'next';
-import { Paperclip } from 'lucide-react';
+import { Clock, Paperclip } from 'lucide-react';
 import type { InitiativeCardView } from '@/server/services/views';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { Avatar } from '@/components/ui/primitives';
@@ -67,7 +67,7 @@ export function BoardCard({
           <p className="text-xs leading-relaxed text-fg-muted [overflow-wrap:anywhere]">{card.currentTask}</p>
         ) : null}
 
-        {card.dependencies.length > 0 || card.lastOverride || card.skippedStageCount > 0 || card.attachmentCount > 0 ? (
+        {card.dependencies.length > 0 || card.lastOverride || card.skippedStageCount > 0 || card.attachmentCount > 0 || card.estimatedDurationDays ? (
           <div className="flex flex-wrap items-center gap-1">
             <DependencySatellites dependencies={card.dependencies} />
             {card.lastOverride ? <OverrideMarkBadge /> : null}
@@ -78,6 +78,12 @@ export function BoardCard({
               >
                 <Paperclip className="size-3.5" aria-hidden />
                 {card.attachmentCount}
+              </span>
+            ) : null}
+            {card.estimatedDurationDays ? (
+              <span className="tone-neutral inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs tabular-nums" title="Tiempo estimado">
+                <Clock className="size-3.5" aria-hidden />
+                {card.estimatedDurationDays} d
               </span>
             ) : null}
             {card.skippedStageCount > 0 ? (

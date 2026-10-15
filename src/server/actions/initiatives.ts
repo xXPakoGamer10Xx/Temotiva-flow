@@ -30,6 +30,13 @@ const linkSchema = z.object({
   url: z.string().trim().url('El enlace debe ser una URL válida.'),
 });
 
+// Optional estimate in whole days; the form sends nothing (or null) when left empty.
+const durationSchema = z
+  .number()
+  .int('El tiempo estimado debe ser un número entero de días.')
+  .min(1, 'El tiempo estimado debe ser de al menos 1 día.')
+  .max(365, 'El tiempo estimado no puede superar 365 días.');
+
 const createSchema = z.object({
   title: z.string().trim().min(8, 'El título debe tener al menos 8 caracteres.').max(255),
   description: z.string().trim().max(4000).default(''),
@@ -38,6 +45,7 @@ const createSchema = z.object({
   priorityReason: z.enum(PRIORITY_REASONS),
   currentTask: z.string().trim().max(255).optional(),
   links: z.array(linkSchema).max(10).optional(),
+  estimatedDurationDays: durationSchema.optional(),
   ownerDepartment: z.enum(DEPARTMENTS).optional(),
   helpDepartments: z.array(z.enum(DEPARTMENTS)).max(DEPARTMENTS.length).optional(),
   helpType: z.enum(HELP_TYPES_V1).optional(),
@@ -62,6 +70,7 @@ const updateSchema = z.object({
   description: z.string().trim().max(4000).optional(),
   currentTask: z.string().trim().max(255).nullable().optional(),
   links: z.array(linkSchema).max(10).optional(),
+  estimatedDurationDays: durationSchema.nullable().optional(),
   priority: z.enum(PRIORITY_LEVELS).optional(),
   priorityReason: z.enum(PRIORITY_REASONS).optional(),
 });

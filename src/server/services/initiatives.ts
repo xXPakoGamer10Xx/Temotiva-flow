@@ -51,6 +51,7 @@ export interface CreateInitiativeInput {
   priorityReason: PriorityReason;
   currentTask?: string | null;
   links?: InitiativeLink[];
+  estimatedDurationDays?: number | null;
   /**
    * Área propietaria elegida al crear. Sin ella, la de la fase inicial. Solo se
    * puede elegir una de las áreas propias (Dirección, cualquiera).
@@ -131,6 +132,7 @@ export async function createInitiative(
     blockedMsInStage: 0,
     currentTask: input.currentTask?.trim() || null,
     links: input.links ?? [],
+    estimatedDurationDays: input.estimatedDurationDays ?? null,
     isArchived: false,
     skippedStageIds: skippedStages.map((stage) => stage.id).sort((a, b) => a - b),
     stageEnteredAt: now.toISOString(),
@@ -186,6 +188,7 @@ export interface UpdateInitiativeInput {
   description?: string;
   currentTask?: string | null;
   links?: InitiativeLink[];
+  estimatedDurationDays?: number | null;
   priority?: PriorityLevel;
   priorityReason?: PriorityReason;
   now?: Date;
@@ -236,6 +239,14 @@ export async function updateInitiative(
     if (next !== initiative.currentTask) {
       patch.currentTask = next;
       changes.currentTask = { from: initiative.currentTask, to: next };
+    }
+  }
+  if (input.estimatedDurationDays !== undefined) {
+    const next = input.estimatedDurationDays ?? null;
+    const previous = initiative.estimatedDurationDays ?? null;
+    if (next !== previous) {
+      patch.estimatedDurationDays = next;
+      changes.estimatedDurationDays = { from: previous, to: next };
     }
   }
   if (input.links !== undefined) {

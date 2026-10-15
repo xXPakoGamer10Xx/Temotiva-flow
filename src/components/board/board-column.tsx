@@ -4,6 +4,7 @@ import { formatDuration } from '@/server/services/sle';
 import { Badge } from '@/components/ui/primitives';
 import { DEPARTMENT_ACCENT, DepartmentDot } from '@/components/shared/signals';
 import { BoardCard } from './board-card';
+import { DraggableCard, DropZone } from './board-dnd';
 import { InfoHint } from '@/components/help/info-hint';
 import { cn } from '@/lib/utils';
 
@@ -79,7 +80,11 @@ export function BoardColumn({
         </div>
       </header>
 
-      <div className="scrollbar-slim relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-2.5">
+      <DropZone
+        stageId={column.stage.id}
+        stageName={column.stage.name}
+        className="scrollbar-slim relative flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto px-2.5 pb-2.5"
+      >
         {column.cards.length === 0 ? (
           <p className="rounded-lg border border-dashed border-border-strong px-3 py-5 text-center text-xs text-fg-muted">
             {hidden > 0 ? `${hidden} oculta(s) por el filtro` : 'Sin iniciativas'}
@@ -87,14 +92,16 @@ export function BoardColumn({
         ) : (
           <>
             {column.cards.map((card) => (
-              <BoardCard key={card.id} card={card} basePath={basePath} query={query} />
+              <DraggableCard key={card.id} cardId={card.id} targetStageId={card.dragTargetStageId ?? null}>
+                <BoardCard card={card} basePath={basePath} query={query} />
+              </DraggableCard>
             ))}
             {hidden > 0 ? (
               <p className="px-1 text-xs text-fg-subtle">{hidden} más oculta(s) por el filtro</p>
             ) : null}
           </>
         )}
-      </div>
+      </DropZone>
     </section>
   );
 }

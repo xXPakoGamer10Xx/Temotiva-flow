@@ -22,3 +22,12 @@ export const MIN_BLOCK_DESCRIPTION = 10;
 
 /** Umbral de riesgo del reloj de SLE: 75 % del objetivo consumido. */
 export const AT_RISK_RATIO = 0.75;
+
+/** Pasos propios (privados) de una persona en una iniciativa. */
+export const MIN_PERSONAL_STEP_TITLE = 2;
+export const MAX_PERSONAL_STEP_TITLE = 80;
+export const MAX_PERSONAL_STEPS_PER_INITIATIVE = 20;
+
+/** Longitud del texto de feedback del equipo. */
+export const MIN_FEEDBACK_MESSAGE = 10;
+export const MAX_FEEDBACK_MESSAGE = 2000;

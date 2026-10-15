@@ -2,6 +2,10 @@ import { randomUUID } from 'node:crypto';
 import type {
   ActivityLogEntry,
   Attachment,
+  DepartmentNotificationSetting,
+  FeedbackItem,
+  NotificationPref,
+  PersonalStep,
   ChecklistValue,
   Dependency,
   Initiative,
@@ -9,7 +13,7 @@ import type {
   User,
   WorkflowStage,
 } from '@/domain/types';
-import type { StageKey } from '@/domain/enums';
+import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
 import type { DataStore } from './types';
 
@@ -34,6 +38,10 @@ export class InMemoryDataStore implements DataStore {
   private checklistValues = new Map<string, ChecklistValue>();
   private dependencies = new Map<string, Dependency>();
   private attachments = new Map<string, Attachment>();
+  private feedback = new Map<string, FeedbackItem>();
+  private personalSteps = new Map<string, PersonalStep>();
+  private notificationPrefs = new Map<string, NotificationPref>();
+  private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -55,6 +63,12 @@ export class InMemoryDataStore implements DataStore {
     );
     this.dependencies = new Map(data.dependencies.map((dependency) => [dependency.id, clone(dependency)]));
     this.attachments = new Map((data.attachments ?? []).map((attachment) => [attachment.id, clone(attachment)]));
+    this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone(item)]));
+    this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
+    this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
+    this.departmentNotificationSettings = new Map(
+      (data.departmentNotificationSettings ?? []).map((setting) => [setting.department, clone(setting)]),
+    );
     this.activityLog = data.activityLog.map((entry) => clone(entry));
   }
 
@@ -68,6 +82,10 @@ export class InMemoryDataStore implements DataStore {
       checklistValues: [...this.checklistValues.values()].map(clone),
       dependencies: [...this.dependencies.values()].map(clone),
       attachments: [...this.attachments.values()].map(clone),
+      feedback: [...this.feedback.values()].map(clone),
+      personalSteps: [...this.personalSteps.values()].map(clone),
+      notificationPrefs: [...this.notificationPrefs.values()].map(clone),
+      departmentNotificationSettings: [...this.departmentNotificationSettings.values()].map(clone),
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -279,6 +297,88 @@ export class InMemoryDataStore implements DataStore {
     this.attachments.set(id, updated);
     this.touched();
     return clone(updated);
+  }
+
+  async listFeedback(): Promise<FeedbackItem[]> {
+    return [...this.feedback.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone);
+  }
+
+  async feedbackById(id: string): Promise<FeedbackItem | null> {
+    const item = this.feedback.get(id);
+    return item ? clone(item) : null;
+  }
+
+  async insertFeedback(item: FeedbackItem): Promise<FeedbackItem> {
+    this.feedback.set(item.id, clone(item));
+    this.touched();
+    return clone(item);
+  }
+
+  async updateFeedbackStatus(
+    id: string,
+    status: FeedbackStatus,
+    updatedBy: string,
+    updatedAt: string,
+  ): Promise<FeedbackItem> {
+    const current = this.feedback.get(id);
+    if (!current) throw new Error(`Feedback no encontrado: ${id}`);
+    const updated: FeedbackItem = { ...current, status, updatedBy, updatedAt };
+    this.feedback.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async listPersonalSteps(initiativeId: string, userId: string): Promise<PersonalStep[]> {
+    return [...this.personalSteps.values()]
+      .filter((step) => step.initiativeId === initiativeId && step.userId === userId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(clone);
+  }
+
+  async personalStepById(id: string): Promise<PersonalStep | null> {
+    const step = this.personalSteps.get(id);
+    return step ? clone(step) : null;
+  }
+
+  async insertPersonalStep(step: PersonalStep): Promise<PersonalStep> {
+    this.personalSteps.set(step.id, clone(step));
+    this.touched();
+    return clone(step);
+  }
+
+  async setPersonalStepDone(id: string, isDone: boolean): Promise<PersonalStep> {
+    const current = this.personalSteps.get(id);
+    if (!current) throw new Error(`Paso no encontrado: ${id}`);
+    const updated: PersonalStep = { ...current, isDone };
+    this.personalSteps.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async deletePersonalStep(id: string): Promise<void> {
+    this.personalSteps.delete(id);
+    this.touched();
+  }
+
+  async notificationPrefByUser(userId: string): Promise<NotificationPref | null> {
+    const pref = this.notificationPrefs.get(userId);
+    return pref ? clone(pref) : null;
+  }
+
+  async setNotificationPref(pref: NotificationPref): Promise<NotificationPref> {
+    this.notificationPrefs.set(pref.userId, clone(pref));
+    this.touched();
+    return clone(pref);
+  }
+
+  async listDepartmentNotificationSettings(): Promise<DepartmentNotificationSetting[]> {
+    return [...this.departmentNotificationSettings.values()].map(clone);
+  }
+
+  async setDepartmentNotificationSetting(setting: DepartmentNotificationSetting): Promise<DepartmentNotificationSetting> {
+    this.departmentNotificationSettings.set(setting.department, clone(setting));
+    this.touched();
+    return clone(setting);
   }
 
   async insertDependency(dependency: Dependency): Promise<Dependency> {

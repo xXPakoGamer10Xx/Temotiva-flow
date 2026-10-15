@@ -328,6 +328,32 @@ describe('calidad del registro', () => {
     expect(added).toEqual(['https://figma.com/file/nuevo']);
   });
 
+  it('el tiempo estimado es opcional, cualquiera lo edita y queda en el registro', async () => {
+    const { store } = makeTestStore([makeInitiative({ ownerDepartment: 'LEGAL' })]);
+    expect((await store.initiativeById('TEMO-500'))?.estimatedDurationDays ?? null).toBeNull();
+
+    // Un miembro de otra área también puede: es un campo descriptivo (§5.14).
+    await updateInitiative(store, makeSession('DESIGN', 'MEMBER'), {
+      initiativeId: 'TEMO-500',
+      estimatedDurationDays: 14,
+      now: TEST_NOW,
+    });
+    expect((await store.initiativeById('TEMO-500'))?.estimatedDurationDays).toBe(14);
+
+    const log = await store.listActivityLog('TEMO-500');
+    const entry = log.find((item) => item.actionType === 'INITIATIVE_UPDATED');
+    expect(entry?.oldValue).toMatchObject({ estimatedDurationDays: null });
+    expect(entry?.newValue).toMatchObject({ estimatedDurationDays: 14 });
+
+    // Se puede volver a dejar sin estimar.
+    await updateInitiative(store, makeSession('LEGAL', 'LEAD'), {
+      initiativeId: 'TEMO-500',
+      estimatedDurationDays: null,
+      now: TEST_NOW,
+    });
+    expect((await store.initiativeById('TEMO-500'))?.estimatedDurationDays).toBeNull();
+  });
+
   it('la firma del avance excepcional guarda la IP de confianza, no la declarada', async () => {
     const { store } = makeTestStore([makeInitiative({ ownerDepartment: 'LEGAL' })]);
     const lead = makeSession('LEGAL', 'LEAD');

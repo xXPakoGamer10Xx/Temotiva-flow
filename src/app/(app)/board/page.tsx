@@ -6,6 +6,7 @@ import { MY_WORK_VIEWS, getBoardView, getMyWork, type BoardFilter, type MyWorkVi
 import { PageHeader } from '@/components/layout/app-shell';
 import { EmptyState } from '@/components/ui/primitives';
 import { BoardColumn } from '@/components/board/board-column';
+import { BoardDndProvider } from '@/components/board/board-dnd';
 import { BoardFilters } from '@/components/board/board-filters';
 import { InitiativeSheetHost } from '@/components/initiative/initiative-sheet-host';
 import { NewInitiativeButton } from '@/components/initiative/new-initiative-dialog';
@@ -20,6 +21,7 @@ interface BoardSearchParams {
   estado?: string;
   q?: string;
   vista?: string;
+  tab?: string;
 }
 
 /** Vista 1 — Tablero de flujo (Kanban de iniciativas). */
@@ -99,14 +101,16 @@ export default async function BoardPage({ searchParams }: { searchParams: Promis
       ) : null}
 
       <div className="scrollbar-slim flex-1 snap-x snap-proximity overflow-x-auto scroll-px-4 px-4 pb-6 pt-3 sm:px-6">
-        <div className="flex h-full min-w-max gap-3">
-          {columns.map((column) => (
-            <BoardColumn key={column.stage.id} column={column} basePath="/board" query={queryString} />
-          ))}
-        </div>
+        <BoardDndProvider basePath="/board" query={queryString}>
+          <div className="flex h-full min-w-max gap-3">
+            {columns.map((column) => (
+              <BoardColumn key={column.stage.id} column={column} basePath="/board" query={queryString} />
+            ))}
+          </div>
+        </BoardDndProvider>
       </div>
 
-      <InitiativeSheetHost initiativeId={params.iniciativa} session={session} />
+      <InitiativeSheetHost initiativeId={params.iniciativa} session={session} tab={params.tab} />
     </>
   );
 }

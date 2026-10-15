@@ -3,6 +3,8 @@ import type { Route } from 'next';
 import { requireSession } from '@/lib/session';
 import { HELP_STATUS_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
+import { getNotificationSettingsView } from '@/server/services/notification-settings';
+import { NotificationPreferences } from '@/components/notifications/notification-preferences';
 import { getNotifications, type NotificationView } from '@/server/services/views';
 import { PageHeader } from '@/components/layout/app-shell';
 import { MarkNotificationsSeen } from '@/components/layout/mark-notifications-seen';
@@ -25,7 +27,11 @@ export default async function NotificationsPage({
 }) {
   const session = await requireSession();
   const params = await searchParams;
-  const { received, sent } = await getNotifications(getDataStore(), session);
+  const store = getDataStore();
+  const [{ received, sent }, settings] = await Promise.all([
+    getNotifications(store, session),
+    getNotificationSettingsView(store, session),
+  ]);
 
   return (
     <>
@@ -37,6 +43,8 @@ export default async function NotificationsPage({
 
       <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">
         <div className="mx-auto max-w-3xl space-y-6">
+          <NotificationPreferences settings={settings} />
+
           <section className="space-y-2">
             <SectionLabel>Recibidas · {received.length} pendientes</SectionLabel>
             {received.length === 0 ? (

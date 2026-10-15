@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/primitives';
 import { PriorityBadge, SleClock, StopBanner } from '@/components/shared/signals';
 import { InfoHint } from '@/components/help/info-hint';
 import { formatDateTime } from '@/lib/utils';
+import type { PersonalStepView } from '@/server/services/personal-steps';
 import { GeneralTab } from './general-tab';
 import { GateTab } from './gate-tab';
 import { DependenciesTab } from './dependencies-tab';
@@ -42,10 +43,14 @@ export function InitiativeSheet({
   detail,
   session,
   capabilities,
+  defaultTab,
+  personalSteps,
 }: {
   detail: InitiativeDetailView;
   session: SessionContext;
   capabilities: InitiativeCapabilities;
+  defaultTab?: string;
+  personalSteps: PersonalStepView[];
 }) {
   const router = useRouter();
   const pathname = usePathname();
@@ -56,6 +61,7 @@ export function InitiativeSheet({
     if (open) return;
     const next = new URLSearchParams(searchParams.toString());
     next.delete('iniciativa');
+    next.delete('tab');
     const queryString = next.toString();
     router.push((queryString ? `${pathname}?${queryString}` : pathname) as Route, { scroll: false });
   };
@@ -117,7 +123,7 @@ export function InitiativeSheet({
         ) : null}
 
         <SheetBody className="pt-4">
-          <Tabs defaultValue="general">
+          <Tabs defaultValue={["general", "gate", "dependencies", "audit"].includes(defaultTab ?? "") ? defaultTab : "general"}>
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="gate">
@@ -145,7 +151,7 @@ export function InitiativeSheet({
             </TabsContent>
 
             <TabsContent value="gate">
-              <GateTab detail={detail} session={session} capabilities={capabilities} />
+              <GateTab detail={detail} session={session} capabilities={capabilities} personalSteps={personalSteps} />
             </TabsContent>
 
             <TabsContent value="dependencies">

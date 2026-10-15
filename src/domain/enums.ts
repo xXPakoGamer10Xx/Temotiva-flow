@@ -85,8 +85,18 @@ export const ACTION_TYPES = [
   'ACCESS_ANONYMIZED',
   'PROFILE_UPDATED',
   'SYSTEM_SETTINGS_UPDATED',
+  'FEEDBACK_CREATED',
+  'FEEDBACK_STATUS_CHANGED',
+  'NOTIFICATION_SETTINGS_CHANGED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
+
+/** A qué se refiere un comentario de feedback: la app, la web o la plataforma en sí. */
+export const FEEDBACK_CATEGORIES = ['APP', 'WEB', 'PLATFORM'] as const;
+export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
+
+export const FEEDBACK_STATUSES = ['PENDING', 'IN_PROGRESS', 'DONE'] as const;
+export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
 
 export const LINK_KINDS = ['FIGMA', 'NOTION', 'REPO', 'OTHER'] as const;
 export type LinkKind = (typeof LINK_KINDS)[number];

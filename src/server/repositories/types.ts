@@ -3,12 +3,16 @@ import type {
   Attachment,
   ChecklistValue,
   Dependency,
+  DepartmentNotificationSetting,
+  FeedbackItem,
   Initiative,
+  NotificationPref,
+  PersonalStep,
   StageChecklistItem,
   User,
   WorkflowStage,
 } from '@/domain/types';
-import type { StageKey } from '@/domain/enums';
+import type { FeedbackStatus, StageKey } from '@/domain/enums';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -71,6 +75,29 @@ export interface DataStore {
   insertAttachment(attachment: Attachment): Promise<Attachment>;
   /** Solo la baja lógica: el resto de la fila es inmutable. */
   markAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<Attachment>;
+
+  // --- Feedback del equipo ----------------------------------------------------
+  listFeedback(): Promise<FeedbackItem[]>;
+  feedbackById(id: string): Promise<FeedbackItem | null>;
+  insertFeedback(item: FeedbackItem): Promise<FeedbackItem>;
+  updateFeedbackStatus(id: string, status: FeedbackStatus, updatedBy: string, updatedAt: string): Promise<FeedbackItem>;
+
+  // --- Pasos propios (privados) -------------------------------------------------
+  /** Siempre acotado a una persona: nadie lista los pasos de otra. */
+  listPersonalSteps(initiativeId: string, userId: string): Promise<PersonalStep[]>;
+  personalStepById(id: string): Promise<PersonalStep | null>;
+  insertPersonalStep(step: PersonalStep): Promise<PersonalStep>;
+  setPersonalStepDone(id: string, isDone: boolean): Promise<PersonalStep>;
+  /** Son notas privadas, no entidades del flujo: aquí sí se borran de verdad. */
+  deletePersonalStep(id: string): Promise<void>;
+
+  // --- Preferencias de notificación -------------------------------------------
+  notificationPrefByUser(userId: string): Promise<NotificationPref | null>;
+  /** Inserta o reemplaza la preferencia de esa persona. */
+  setNotificationPref(pref: NotificationPref): Promise<NotificationPref>;
+  listDepartmentNotificationSettings(): Promise<DepartmentNotificationSetting[]>;
+  /** Inserta o reemplaza el ajuste de esa área. */
+  setDepartmentNotificationSetting(setting: DepartmentNotificationSetting): Promise<DepartmentNotificationSetting>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

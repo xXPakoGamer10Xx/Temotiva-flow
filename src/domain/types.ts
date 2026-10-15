@@ -1,6 +1,8 @@
 import type {
   ActionType,
   Department,
+  FeedbackCategory,
+  FeedbackStatus,
   HelpStatus,
   HelpType,
   LinkKind,
@@ -138,6 +140,8 @@ export interface Initiative {
    * omiten fases futuras, con motivo y evento `STAGE_SKIPPED` en la caja negra.
    */
   skippedStageIds: number[];
+  /** Tiempo estimado opcional, en días. Orientativo: no entra en el SLE. */
+  estimatedDurationDays?: number | null;
   stageEnteredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -167,6 +171,48 @@ export interface Attachment {
   isRemoved: boolean;
   removedBy: string | null;
   removedAt: string | null;
+}
+
+/** Tabla `feedback_items` (EXTENSIÓN V1): comentarios del equipo sobre la app, la web o la plataforma. */
+export interface FeedbackItem {
+  id: string;
+  category: FeedbackCategory;
+  message: string;
+  status: FeedbackStatus;
+  createdBy: string;
+  createdAt: string;
+  updatedBy: string | null;
+  updatedAt: string | null;
+}
+
+/** Tabla `notification_prefs` (EXTENSIÓN V1): si un responsable quiere recibir las notificaciones. Sin fila = sí. */
+export interface NotificationPref {
+  userId: string;
+  enabled: boolean;
+}
+
+/** Tabla `department_notification_settings` (EXTENSIÓN V1): si el equipo de un área recibe las notificaciones de esa área. Sin fila = sí. */
+export interface DepartmentNotificationSetting {
+  department: Department;
+  teamEnabled: boolean;
+  updatedBy: string;
+  updatedAt: string;
+}
+
+/**
+ * Tabla `personal_steps` (EXTENSIÓN V1): paso propio que una persona añade a la
+ * ruta de una iniciativa. Es privado: solo lo ve quien lo creó, y no interviene
+ * en la compuerta, el SLE ni el WIP.
+ */
+export interface PersonalStep {
+  id: string;
+  initiativeId: string;
+  userId: string;
+  title: string;
+  /** Fase tras la que se muestra en la ruta de esa persona. */
+  afterStageId: number;
+  isDone: boolean;
+  createdAt: string;
 }
 
 /** Tabla `initiative_dependencies` — solicitudes de ayuda 🆘. */

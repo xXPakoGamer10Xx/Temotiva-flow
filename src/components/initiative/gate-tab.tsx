@@ -16,6 +16,7 @@ import { Dialog, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogTi
 import { cn, formatDateTime } from '@/lib/utils';
 import type { InitiativeCapabilities } from './initiative-sheet';
 import { InfoHint } from '@/components/help/info-hint';
+import type { PersonalStepView } from '@/server/services/personal-steps';
 import { RouteStepper } from './route-stepper';
 
 /**
@@ -29,10 +30,12 @@ export function GateTab({
   detail,
   session,
   capabilities,
+  personalSteps,
 }: {
   detail: InitiativeDetailView;
   session: SessionContext;
   capabilities: InitiativeCapabilities;
+  personalSteps: PersonalStepView[];
 }) {
   const { card, gate, nextStage } = detail;
   const skippedAhead = nextStage
@@ -81,7 +84,13 @@ export function GateTab({
         <InfoHint term="gate" />
       </div>
 
-      <RouteStepper initiativeId={card.id} route={detail.route} session={session} disabled={card.isArchived} />
+      <RouteStepper
+        initiativeId={card.id}
+        route={detail.route}
+        session={session}
+        disabled={card.isArchived}
+        personalSteps={personalSteps}
+      />
 
       <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
         {gate.items.map((item) => (

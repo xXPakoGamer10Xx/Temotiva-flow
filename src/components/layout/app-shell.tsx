@@ -52,6 +52,7 @@ export async function AppShell({
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
     { href: '/notifications', label: 'Notificaciones', icon: 'notifications', badge: unseenCount },
+    { href: '/feedback', label: 'Feedback', icon: 'feedback', shortcut: 'G F' },
     { href: '/ayuda', label: 'Ayuda', icon: 'help', shortcut: 'G H' },
     // Los responsables también gestionan personas, solo que de sus áreas.
     ...(canManagePeople(session)
