@@ -124,7 +124,7 @@ export function Sidebar({
         </button>
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-2">
+      <nav className="scrollbar-slim min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2">
         {links.map((link) => {
           const Icon = ICONS[link.icon];
           const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
