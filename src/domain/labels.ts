@@ -134,6 +134,10 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   FEEDBACK_CREATED: 'Feedback enviado',
   FEEDBACK_STATUS_CHANGED: 'Estado de feedback cambiado',
   NOTIFICATION_SETTINGS_CHANGED: 'Preferencias de notificación cambiadas',
+  DOCUMENT_UPLOADED: 'Documento subido a la biblioteca',
+  DOCUMENT_SHARED: 'Documento compartido',
+  DOCUMENT_UNSHARED: 'Acceso a documento retirado',
+  DOCUMENT_REMOVED: 'Documento de la biblioteca retirado',
 };
 
 export const FEEDBACK_CATEGORY_LABELS: Record<FeedbackCategory, string> = {

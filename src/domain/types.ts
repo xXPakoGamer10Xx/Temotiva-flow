@@ -1,6 +1,7 @@
 import type {
   ActionType,
   Department,
+  DocumentShareTarget,
   FeedbackCategory,
   FeedbackStatus,
   HelpStatus,
@@ -171,6 +172,38 @@ export interface Attachment {
   isRemoved: boolean;
   removedBy: string | null;
   removedAt: string | null;
+}
+
+/** Tabla `documents`: biblioteca de documentos por área, ajena a las iniciativas. */
+export interface LibraryDocument {
+  id: string;
+  fileName: string;
+  description: string;
+  contentType: string;
+  sizeBytes: number;
+  /** Pathname en el almacenamiento privado; nunca una URL pública. */
+  storageKey: string;
+  /** Área dueña: sus miembros lo ven siempre. */
+  department: Department;
+  uploadedBy: string;
+  uploadedAt: string;
+  /** Baja lógica: el archivo y la fila se conservan (AGENTS.md §5.8). */
+  isRemoved: boolean;
+  removedBy: string | null;
+  removedAt: string | null;
+}
+
+/** Tabla `document_shares`: a quién más se le abre un documento. */
+export interface DocumentShare {
+  id: string;
+  documentId: string;
+  targetType: DocumentShareTarget;
+  /** Solo con `USER`. */
+  targetUserId: string | null;
+  /** Solo con `DEPARTMENT`. */
+  targetDepartment: Department | null;
+  sharedBy: string;
+  sharedAt: string;
 }
 
 /** Imagen adjunta a un feedback (captura de pantalla, foto). Se guarda en el almacén privado. */

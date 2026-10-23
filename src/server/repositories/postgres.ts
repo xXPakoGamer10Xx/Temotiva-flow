@@ -3,6 +3,8 @@ import { Pool, type PoolConfig } from 'pg';
 import type {
   ActivityLogEntry,
   Attachment,
+  DocumentShare,
+  LibraryDocument,
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
@@ -609,6 +611,88 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  async listDocuments(): Promise<LibraryDocument[]> {
+    const res = await this.pool.query(
+      `SELECT id, file_name, description, content_type, size_bytes, storage_key, department, uploaded_by,
+              uploaded_at, is_removed, removed_by, removed_at
+       FROM documents ORDER BY uploaded_at DESC`,
+    );
+    return res.rows.map((r) => this.mapDocument(r));
+  }
+
+  async documentById(id: string): Promise<LibraryDocument | null> {
+    const res = await this.pool.query(
+      `SELECT id, file_name, description, content_type, size_bytes, storage_key, department, uploaded_by,
+              uploaded_at, is_removed, removed_by, removed_at
+       FROM documents WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDocument(res.rows[0]);
+  }
+
+  async insertDocument(document: LibraryDocument): Promise<LibraryDocument> {
+    await this.pool.query(
+      `INSERT INTO documents (
+        id, file_name, description, content_type, size_bytes, storage_key, department, uploaded_by, uploaded_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`,
+      [
+        document.id,
+        document.fileName,
+        document.description,
+        document.contentType,
+        document.sizeBytes,
+        document.storageKey,
+        document.department,
+        document.uploadedBy,
+        document.uploadedAt,
+      ],
+    );
+    return document;
+  }
+
+  async markDocumentRemoved(id: string, removedBy: string, removedAt: string): Promise<LibraryDocument> {
+    await this.pool.query(`UPDATE documents SET is_removed = TRUE, removed_by = $2, removed_at = $3 WHERE id = $1`, [
+      id,
+      removedBy,
+      removedAt,
+    ]);
+    const updated = await this.documentById(id);
+    if (!updated) throw new Error(`Documento no encontrado: ${id}`);
+    return updated;
+  }
+
+  async listDocumentShares(documentId?: string): Promise<DocumentShare[]> {
+    const res = await this.pool.query(
+      `SELECT id, document_id, target_type, target_user_id, target_department, shared_by, shared_at
+       FROM document_shares
+       ${documentId ? 'WHERE document_id = $1' : ''}
+       ORDER BY shared_at ASC`,
+      documentId ? [documentId] : [],
+    );
+    return res.rows.map((r) => ({
+      id: String(r.id),
+      documentId: String(r.document_id),
+      targetType: String(r.target_type) as DocumentShare['targetType'],
+      targetUserId: r.target_user_id ? String(r.target_user_id) : null,
+      targetDepartment: r.target_department ? (String(r.target_department) as DocumentShare['targetDepartment']) : null,
+      sharedBy: String(r.shared_by),
+      sharedAt: toIso(r.shared_at),
+    }));
+  }
+
+  async insertDocumentShare(share: DocumentShare): Promise<DocumentShare> {
+    await this.pool.query(
+      `INSERT INTO document_shares (id, document_id, target_type, target_user_id, target_department, shared_by, shared_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [share.id, share.documentId, share.targetType, share.targetUserId, share.targetDepartment, share.sharedBy, share.sharedAt],
+    );
+    return share;
+  }
+
+  async deleteDocumentShare(id: string): Promise<void> {
+    await this.pool.query(`DELETE FROM document_shares WHERE id = $1`, [id]);
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -961,6 +1045,23 @@ export class PostgresDataStore implements DataStore {
       contentType: String(r.content_type),
       sizeBytes: Number(r.size_bytes),
       storageKey: String(r.storage_key),
+      uploadedBy: String(r.uploaded_by),
+      uploadedAt: toIso(r.uploaded_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
+    };
+  }
+
+  private mapDocument(r: Record<string, unknown>): LibraryDocument {
+    return {
+      id: String(r.id),
+      fileName: String(r.file_name),
+      description: String(r.description ?? ''),
+      contentType: String(r.content_type),
+      sizeBytes: Number(r.size_bytes),
+      storageKey: String(r.storage_key),
+      department: String(r.department) as LibraryDocument['department'],
       uploadedBy: String(r.uploaded_by),
       uploadedAt: toIso(r.uploaded_at),
       isRemoved: Boolean(r.is_removed),

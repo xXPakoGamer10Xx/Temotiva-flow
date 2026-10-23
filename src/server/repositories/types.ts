@@ -4,9 +4,11 @@ import type {
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
+  DocumentShare,
   FeedbackImage,
   FeedbackItem,
   Initiative,
+  LibraryDocument,
   NotificationPref,
   PersonalStep,
   StageChecklistItem,
@@ -76,6 +78,15 @@ export interface DataStore {
   insertAttachment(attachment: Attachment): Promise<Attachment>;
   /** Solo la baja lógica: el resto de la fila es inmutable. */
   markAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<Attachment>;
+
+  // --- Biblioteca de documentos -------------------------------------------------
+  listDocuments(): Promise<LibraryDocument[]>;
+  documentById(id: string): Promise<LibraryDocument | null>;
+  insertDocument(document: LibraryDocument): Promise<LibraryDocument>;
+  markDocumentRemoved(id: string, removedBy: string, removedAt: string): Promise<LibraryDocument>;
+  listDocumentShares(documentId?: string): Promise<DocumentShare[]>;
+  insertDocumentShare(share: DocumentShare): Promise<DocumentShare>;
+  deleteDocumentShare(id: string): Promise<void>;
 
   // --- Feedback del equipo ----------------------------------------------------
   listFeedback(): Promise<FeedbackItem[]>;

@@ -3,6 +3,7 @@ import type {
   ActivityLogEntry,
   Attachment,
   DepartmentNotificationSetting,
+  DocumentShare,
   FeedbackImage,
   FeedbackItem,
   NotificationPref,
@@ -10,6 +11,7 @@ import type {
   ChecklistValue,
   Dependency,
   Initiative,
+  LibraryDocument,
   StageChecklistItem,
   User,
   WorkflowStage,
@@ -39,6 +41,8 @@ export class InMemoryDataStore implements DataStore {
   private checklistValues = new Map<string, ChecklistValue>();
   private dependencies = new Map<string, Dependency>();
   private attachments = new Map<string, Attachment>();
+  private documents = new Map<string, LibraryDocument>();
+  private documentShares = new Map<string, DocumentShare>();
   private feedback = new Map<string, FeedbackItem>();
   private personalSteps = new Map<string, PersonalStep>();
   private notificationPrefs = new Map<string, NotificationPref>();
@@ -64,6 +68,8 @@ export class InMemoryDataStore implements DataStore {
     );
     this.dependencies = new Map(data.dependencies.map((dependency) => [dependency.id, clone(dependency)]));
     this.attachments = new Map((data.attachments ?? []).map((attachment) => [attachment.id, clone(attachment)]));
+    this.documents = new Map((data.documents ?? []).map((document) => [document.id, clone(document)]));
+    this.documentShares = new Map((data.documentShares ?? []).map((share) => [share.id, clone(share)]));
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
@@ -83,6 +89,8 @@ export class InMemoryDataStore implements DataStore {
       checklistValues: [...this.checklistValues.values()].map(clone),
       dependencies: [...this.dependencies.values()].map(clone),
       attachments: [...this.attachments.values()].map(clone),
+      documents: [...this.documents.values()].map(clone),
+      documentShares: [...this.documentShares.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
       notificationPrefs: [...this.notificationPrefs.values()].map(clone),
@@ -298,6 +306,48 @@ export class InMemoryDataStore implements DataStore {
     this.attachments.set(id, updated);
     this.touched();
     return clone(updated);
+  }
+
+  async listDocuments(): Promise<LibraryDocument[]> {
+    return [...this.documents.values()].sort((a, b) => b.uploadedAt.localeCompare(a.uploadedAt)).map(clone);
+  }
+
+  async documentById(id: string): Promise<LibraryDocument | null> {
+    const document = this.documents.get(id);
+    return document ? clone(document) : null;
+  }
+
+  async insertDocument(document: LibraryDocument): Promise<LibraryDocument> {
+    this.documents.set(document.id, clone(document));
+    this.touched();
+    return clone(document);
+  }
+
+  async markDocumentRemoved(id: string, removedBy: string, removedAt: string): Promise<LibraryDocument> {
+    const current = this.documents.get(id);
+    if (!current) throw new Error(`Documento no encontrado: ${id}`);
+    const updated: LibraryDocument = { ...current, isRemoved: true, removedBy, removedAt };
+    this.documents.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async listDocumentShares(documentId?: string): Promise<DocumentShare[]> {
+    return [...this.documentShares.values()]
+      .filter((share) => !documentId || share.documentId === documentId)
+      .sort((a, b) => a.sharedAt.localeCompare(b.sharedAt))
+      .map(clone);
+  }
+
+  async insertDocumentShare(share: DocumentShare): Promise<DocumentShare> {
+    this.documentShares.set(share.id, clone(share));
+    this.touched();
+    return clone(share);
+  }
+
+  async deleteDocumentShare(id: string): Promise<void> {
+    this.documentShares.delete(id);
+    this.touched();
   }
 
   async listFeedback(): Promise<FeedbackItem[]> {

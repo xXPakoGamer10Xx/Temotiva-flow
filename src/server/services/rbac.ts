@@ -1,5 +1,5 @@
 import type { Department, UserRole } from '@/domain/enums';
-import type { Attachment, Initiative, SessionContext, StageChecklistItem, User } from '@/domain/types';
+import type { Attachment, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -64,6 +64,16 @@ export function canChangePriority(session: SessionContext, initiative: Initiativ
  */
 export function canSkipStage(session: SessionContext, stage: { defaultOwnerDepartment: Department }): boolean {
   return isExecutive(session) || isLeadOf(session, stage.defaultOwnerDepartment);
+}
+
+/** Compartir un documento de la biblioteca: el LEAD del área dueña o Dirección. */
+export function canShareDocument(session: SessionContext, document: LibraryDocument): boolean {
+  return isExecutive(session) || isLeadOf(session, document.department);
+}
+
+/** Retirar un documento de la biblioteca: quien lo subió, el LEAD del área dueña o Dirección. */
+export function canRemoveLibraryDocument(session: SessionContext, document: LibraryDocument): boolean {
+  return document.uploadedBy === session.userId || canShareDocument(session, document);
 }
 
 /** Retirar un documento: quien lo subió, el LEAD del área propietaria o Dirección. */

@@ -11,6 +11,7 @@ import {
   CornerDownLeft,
   Inbox,
   KanbanSquare,
+  FolderOpen,
   MessageSquarePlus,
   Moon,
   Plus,
@@ -177,6 +178,16 @@ export function CommandCenter({
     ];
 
     views.push({
+      id: 'go-documents',
+      label: 'Documentos',
+      hint: 'G O',
+      group: 'Ir a',
+      icon: <FolderOpen className="size-3.5" />,
+      keywords: 'archivos biblioteca pdf word subir compartir material',
+      run: () => go('/documentos'),
+    });
+
+    views.push({
       id: 'go-feedback',
       label: 'Feedback',
       hint: 'G F',
@@ -314,7 +325,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();

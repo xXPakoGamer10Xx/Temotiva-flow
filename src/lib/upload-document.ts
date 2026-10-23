@@ -1,0 +1,24 @@
+import { checkDocumentFile } from '@/domain/document-files';
+import type { Department } from '@/domain/enums';
+
+/** Sube un documento a la biblioteca. Devuelve `null` si fue bien o el mensaje de error. */
+export async function uploadLibraryDocument(input: {
+  file: File;
+  department: Department;
+  description: string;
+}): Promise<string | null> {
+  const invalid = checkDocumentFile(input.file);
+  if (invalid) return invalid;
+  try {
+    const body = new FormData();
+    body.set('file', input.file);
+    body.set('department', input.department);
+    body.set('description', input.description);
+    const response = await fetch('/api/documents', { method: 'POST', body });
+    const result = (await response.json().catch(() => null)) as { ok: boolean; message?: string } | null;
+    if (!response.ok || !result?.ok) return result?.message ?? 'No se pudo subir el documento. Inténtalo de nuevo.';
+    return null;
+  } catch {
+    return 'No se pudo subir el documento. Comprueba la conexión.';
+  }
+}

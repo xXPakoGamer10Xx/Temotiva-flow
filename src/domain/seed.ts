@@ -4,8 +4,10 @@ import type {
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
+  DocumentShare,
   FeedbackItem,
   Initiative,
+  LibraryDocument,
   NotificationPref,
   PersonalStep,
   StageChecklistItem,
@@ -37,6 +39,9 @@ export interface SeedData {
   activityLog: ActivityLogEntry[];
   /** Opcional: las semillas y snapshots anteriores a los adjuntos no lo traen. */
   attachments?: Attachment[];
+  /** Opcionales: las semillas y snapshots anteriores a la biblioteca de documentos no los traen. */
+  documents?: LibraryDocument[];
+  documentShares?: DocumentShare[];
   /** Opcional: las semillas y snapshots anteriores al feedback no lo traen. */
   feedback?: FeedbackItem[];
   /** Opcionales: sin filas, todo el mundo recibe sus notificaciones (comportamiento previo). */

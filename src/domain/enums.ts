@@ -88,12 +88,23 @@ export const ACTION_TYPES = [
   'FEEDBACK_CREATED',
   'FEEDBACK_STATUS_CHANGED',
   'NOTIFICATION_SETTINGS_CHANGED',
+  'DOCUMENT_UPLOADED',
+  'DOCUMENT_SHARED',
+  'DOCUMENT_UNSHARED',
+  'DOCUMENT_REMOVED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
 /** A qué se refiere un comentario de feedback: la app, la web o la plataforma en sí. */
 export const FEEDBACK_CATEGORIES = ['APP', 'WEB', 'PLATFORM'] as const;
 export type FeedbackCategory = (typeof FEEDBACK_CATEGORIES)[number];
+
+/**
+ * A quién alcanza un documento compartido: una persona, un área entera, todos
+ * los responsables de área (LEAD) o toda la empresa.
+ */
+export const DOCUMENT_SHARE_TARGETS = ['USER', 'DEPARTMENT', 'LEADS', 'ALL'] as const;
+export type DocumentShareTarget = (typeof DOCUMENT_SHARE_TARGETS)[number];
 
 export const FEEDBACK_STATUSES = ['PENDING', 'IN_PROGRESS', 'DONE'] as const;
 export type FeedbackStatus = (typeof FEEDBACK_STATUSES)[number];
