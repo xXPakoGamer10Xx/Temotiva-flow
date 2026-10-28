@@ -9,6 +9,7 @@ import type {
   PriorityLevel,
   PriorityReason,
   StopReason,
+  TaskStatus,
   UserRole,
 } from './enums';
 
@@ -138,6 +139,18 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   DOCUMENT_SHARED: 'Documento compartido',
   DOCUMENT_UNSHARED: 'Acceso a documento retirado',
   DOCUMENT_REMOVED: 'Documento de la biblioteca retirado',
+  LINK_ADDED: 'Enlace de documento añadido',
+  LINK_REMOVED: 'Enlace de documento retirado',
+  TASK_CREATED: 'Tarea de área creada',
+  TASK_MOVED: 'Tarea de área movida',
+  TASK_ASSIGNED: 'Tarea de área asignada',
+  TASK_REMOVED: 'Tarea de área retirada',
+};
+
+export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
+  TODO: 'Por hacer',
+  DOING: 'En curso',
+  DONE: 'Hecha',
 };
 
 export const FEEDBACK_CATEGORY_LABELS: Record<FeedbackCategory, string> = {

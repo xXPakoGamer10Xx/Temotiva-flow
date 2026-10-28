@@ -48,6 +48,7 @@ export async function AppShell({
   const links: SidebarLink[] = [
     // Lo primero: lo que espera de mí. El badge cuenta solo eso, no lo asignado.
     { href: '/mi-trabajo', label: 'Mi trabajo', icon: 'mywork', shortcut: 'G M', badge: myWork.waiting.length },
+    { href: '/tareas', label: 'Tareas', icon: 'tasks', shortcut: 'G T' },
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },

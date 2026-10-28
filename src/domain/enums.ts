@@ -92,8 +92,18 @@ export const ACTION_TYPES = [
   'DOCUMENT_SHARED',
   'DOCUMENT_UNSHARED',
   'DOCUMENT_REMOVED',
+  'LINK_ADDED',
+  'LINK_REMOVED',
+  'TASK_CREATED',
+  'TASK_MOVED',
+  'TASK_ASSIGNED',
+  'TASK_REMOVED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
+
+/** Estados de una tarea de área: por hacer, en curso, hecha. */
+export const TASK_STATUSES = ['TODO', 'DOING', 'DONE'] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
 
 /** A qué se refiere un comentario de feedback: la app, la web o la plataforma en sí. */
 export const FEEDBACK_CATEGORIES = ['APP', 'WEB', 'PLATFORM'] as const;

@@ -2,7 +2,9 @@ import 'server-only';
 import { Pool, type PoolConfig } from 'pg';
 import type {
   ActivityLogEntry,
+  AreaLink,
   Attachment,
+  DeptTask,
   DocumentShare,
   LibraryDocument,
   ChecklistValue,
@@ -693,6 +695,109 @@ export class PostgresDataStore implements DataStore {
     await this.pool.query(`DELETE FROM document_shares WHERE id = $1`, [id]);
   }
 
+  async listAreaLinks(): Promise<AreaLink[]> {
+    const res = await this.pool.query(
+      `SELECT id, title, url, department, created_by, created_at, is_removed, removed_by, removed_at
+       FROM area_links ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapAreaLink(r));
+  }
+
+  async areaLinkById(id: string): Promise<AreaLink | null> {
+    const res = await this.pool.query(
+      `SELECT id, title, url, department, created_by, created_at, is_removed, removed_by, removed_at
+       FROM area_links WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapAreaLink(res.rows[0]);
+  }
+
+  async insertAreaLink(link: AreaLink): Promise<AreaLink> {
+    await this.pool.query(
+      `INSERT INTO area_links (id, title, url, department, created_by, created_at)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [link.id, link.title, link.url, link.department, link.createdBy, link.createdAt],
+    );
+    return link;
+  }
+
+  async markAreaLinkRemoved(id: string, removedBy: string, removedAt: string): Promise<AreaLink> {
+    await this.pool.query(`UPDATE area_links SET is_removed = TRUE, removed_by = $2, removed_at = $3 WHERE id = $1`, [
+      id,
+      removedBy,
+      removedAt,
+    ]);
+    const updated = await this.areaLinkById(id);
+    if (!updated) throw new Error(`Enlace no encontrado: ${id}`);
+    return updated;
+  }
+
+  async listDeptTasks(): Promise<DeptTask[]> {
+    const res = await this.pool.query(
+      `SELECT id, title, description, department, status, assignee_id, initiative_id, to_char(due_date, 'YYYY-MM-DD') AS due_date, created_by,
+              created_at, updated_at, is_archived
+       FROM dept_tasks ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapDeptTask(r));
+  }
+
+  async deptTaskById(id: string): Promise<DeptTask | null> {
+    const res = await this.pool.query(
+      `SELECT id, title, description, department, status, assignee_id, initiative_id, to_char(due_date, 'YYYY-MM-DD') AS due_date, created_by,
+              created_at, updated_at, is_archived
+       FROM dept_tasks WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDeptTask(res.rows[0]);
+  }
+
+  async insertDeptTask(task: DeptTask): Promise<DeptTask> {
+    await this.pool.query(
+      `INSERT INTO dept_tasks (
+        id, title, description, department, status, assignee_id, initiative_id, due_date, created_by, created_at, updated_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        task.id,
+        task.title,
+        task.description,
+        task.department,
+        task.status,
+        task.assigneeId,
+        task.initiativeId,
+        task.dueDate,
+        task.createdBy,
+        task.createdAt,
+        task.updatedAt,
+      ],
+    );
+    return task;
+  }
+
+  async updateDeptTask(
+    id: string,
+    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
+  ): Promise<DeptTask> {
+    await this.pool.query(
+      `UPDATE dept_tasks SET
+         status = COALESCE($2, status),
+         assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
+         is_archived = COALESCE($5, is_archived),
+         updated_at = COALESCE($6, updated_at)
+       WHERE id = $1`,
+      [
+        id,
+        patch.status ?? null,
+        patch.assigneeId !== undefined,
+        patch.assigneeId ?? null,
+        patch.isArchived ?? null,
+        patch.updatedAt ?? null,
+      ],
+    );
+    const updated = await this.deptTaskById(id);
+    if (!updated) throw new Error(`Tarea no encontrada: ${id}`);
+    return updated;
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -1067,6 +1172,37 @@ export class PostgresDataStore implements DataStore {
       isRemoved: Boolean(r.is_removed),
       removedBy: r.removed_by ? String(r.removed_by) : null,
       removedAt: toNullableIso(r.removed_at),
+    };
+  }
+
+  private mapAreaLink(r: Record<string, unknown>): AreaLink {
+    return {
+      id: String(r.id),
+      title: String(r.title),
+      url: String(r.url),
+      department: String(r.department) as AreaLink['department'],
+      createdBy: String(r.created_by),
+      createdAt: toIso(r.created_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
+    };
+  }
+
+  private mapDeptTask(r: Record<string, unknown>): DeptTask {
+    return {
+      id: String(r.id),
+      title: String(r.title),
+      description: String(r.description ?? ''),
+      department: String(r.department) as DeptTask['department'],
+      status: String(r.status) as DeptTask['status'],
+      assigneeId: r.assignee_id ? String(r.assignee_id) : null,
+      initiativeId: r.initiative_id ? String(r.initiative_id) : null,
+      dueDate: r.due_date ? String(r.due_date) : null,
+      createdBy: String(r.created_by),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+      isArchived: Boolean(r.is_archived),
     };
   }
 

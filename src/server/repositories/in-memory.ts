@@ -1,7 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type {
   ActivityLogEntry,
+  AreaLink,
   Attachment,
+  DeptTask,
   DepartmentNotificationSetting,
   DocumentShare,
   FeedbackImage,
@@ -45,6 +47,8 @@ export class InMemoryDataStore implements DataStore {
   private documentShares = new Map<string, DocumentShare>();
   private feedback = new Map<string, FeedbackItem>();
   private personalSteps = new Map<string, PersonalStep>();
+  private areaLinks = new Map<string, AreaLink>();
+  private deptTasks = new Map<string, DeptTask>();
   private notificationPrefs = new Map<string, NotificationPref>();
   private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
   private activityLog: ActivityLogEntry[] = [];
@@ -70,6 +74,8 @@ export class InMemoryDataStore implements DataStore {
     this.attachments = new Map((data.attachments ?? []).map((attachment) => [attachment.id, clone(attachment)]));
     this.documents = new Map((data.documents ?? []).map((document) => [document.id, clone(document)]));
     this.documentShares = new Map((data.documentShares ?? []).map((share) => [share.id, clone(share)]));
+    this.areaLinks = new Map((data.areaLinks ?? []).map((link) => [link.id, clone(link)]));
+    this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
@@ -91,6 +97,8 @@ export class InMemoryDataStore implements DataStore {
       attachments: [...this.attachments.values()].map(clone),
       documents: [...this.documents.values()].map(clone),
       documentShares: [...this.documentShares.values()].map(clone),
+      areaLinks: [...this.areaLinks.values()].map(clone),
+      deptTasks: [...this.deptTasks.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
       notificationPrefs: [...this.notificationPrefs.values()].map(clone),
@@ -328,6 +336,57 @@ export class InMemoryDataStore implements DataStore {
     if (!current) throw new Error(`Documento no encontrado: ${id}`);
     const updated: LibraryDocument = { ...current, isRemoved: true, removedBy, removedAt };
     this.documents.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async listAreaLinks(): Promise<AreaLink[]> {
+    return [...this.areaLinks.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone);
+  }
+
+  async areaLinkById(id: string): Promise<AreaLink | null> {
+    const link = this.areaLinks.get(id);
+    return link ? clone(link) : null;
+  }
+
+  async insertAreaLink(link: AreaLink): Promise<AreaLink> {
+    this.areaLinks.set(link.id, clone(link));
+    this.touched();
+    return clone(link);
+  }
+
+  async markAreaLinkRemoved(id: string, removedBy: string, removedAt: string): Promise<AreaLink> {
+    const current = this.areaLinks.get(id);
+    if (!current) throw new Error(`Enlace no encontrado: ${id}`);
+    const updated: AreaLink = { ...current, isRemoved: true, removedBy, removedAt };
+    this.areaLinks.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async listDeptTasks(): Promise<DeptTask[]> {
+    return [...this.deptTasks.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone);
+  }
+
+  async deptTaskById(id: string): Promise<DeptTask | null> {
+    const task = this.deptTasks.get(id);
+    return task ? clone(task) : null;
+  }
+
+  async insertDeptTask(task: DeptTask): Promise<DeptTask> {
+    this.deptTasks.set(task.id, clone(task));
+    this.touched();
+    return clone(task);
+  }
+
+  async updateDeptTask(
+    id: string,
+    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
+  ): Promise<DeptTask> {
+    const current = this.deptTasks.get(id);
+    if (!current) throw new Error(`Tarea no encontrada: ${id}`);
+    const updated: DeptTask = { ...current, ...patch };
+    this.deptTasks.set(id, updated);
     this.touched();
     return clone(updated);
   }

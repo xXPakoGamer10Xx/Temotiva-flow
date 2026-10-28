@@ -5,6 +5,7 @@ import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import type { Route } from 'next';
 import {
+  ListTodo,
   Archive,
   Bell,
   CircleHelp,
@@ -178,12 +179,22 @@ export function CommandCenter({
     ];
 
     views.push({
+      id: 'go-tasks',
+      label: 'Tareas del área',
+      hint: 'G T',
+      group: 'Ir a',
+      icon: <ListTodo className="size-3.5" />,
+      keywords: 'tareas pendientes equipo supervisor asignar por hacer en curso hecha',
+      run: () => go('/tareas'),
+    });
+
+    views.push({
       id: 'go-documents',
       label: 'Documentos',
       hint: 'G O',
       group: 'Ir a',
       icon: <FolderOpen className="size-3.5" />,
-      keywords: 'archivos biblioteca pdf word subir compartir material',
+      keywords: 'archivos biblioteca pdf word subir compartir material enlaces google docs drive links',
       run: () => go('/documentos'),
     });
 
@@ -325,7 +336,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();

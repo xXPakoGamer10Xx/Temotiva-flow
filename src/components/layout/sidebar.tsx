@@ -9,6 +9,7 @@ import {
   CircleHelp,
   Inbox,
   KanbanSquare,
+  ListTodo,
   LogOut,
   FolderOpen,
   MessageSquarePlus,
@@ -40,7 +41,7 @@ import { cn } from '@/lib/utils';
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'documents' | 'feedback' | 'team' | 'help';
+  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'tasks' | 'documents' | 'feedback' | 'team' | 'help';
   badge?: number;
   shortcut?: string;
 }
@@ -51,6 +52,7 @@ const ICONS = {
   radar: Radar,
   executive: TrendingUp,
   notifications: Bell,
+  tasks: ListTodo,
   documents: FolderOpen,
   feedback: MessageSquarePlus,
   team: ShieldCheck,

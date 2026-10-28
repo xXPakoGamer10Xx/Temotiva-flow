@@ -1,6 +1,8 @@
 import type {
   ActivityLogEntry,
+  AreaLink,
   Attachment,
+  DeptTask,
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
@@ -87,6 +89,23 @@ export interface DataStore {
   listDocumentShares(documentId?: string): Promise<DocumentShare[]>;
   insertDocumentShare(share: DocumentShare): Promise<DocumentShare>;
   deleteDocumentShare(id: string): Promise<void>;
+
+  // --- Enlaces de documentos por área ---------------------------------------------
+  /** Incluye los retirados: quien pinta decide si los muestra. */
+  listAreaLinks(): Promise<AreaLink[]>;
+  areaLinkById(id: string): Promise<AreaLink | null>;
+  insertAreaLink(link: AreaLink): Promise<AreaLink>;
+  markAreaLinkRemoved(id: string, removedBy: string, removedAt: string): Promise<AreaLink>;
+
+  // --- Tareas de área ---------------------------------------------------------------
+  /** Incluye las archivadas: quien pinta decide si las muestra. */
+  listDeptTasks(): Promise<DeptTask[]>;
+  deptTaskById(id: string): Promise<DeptTask | null>;
+  insertDeptTask(task: DeptTask): Promise<DeptTask>;
+  updateDeptTask(
+    id: string,
+    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
+  ): Promise<DeptTask>;
 
   // --- Feedback del equipo ----------------------------------------------------
   listFeedback(): Promise<FeedbackItem[]>;

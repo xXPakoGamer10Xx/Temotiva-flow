@@ -1,5 +1,5 @@
 import type { Department, UserRole } from '@/domain/enums';
-import type { Attachment, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
+import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -74,6 +74,26 @@ export function canShareDocument(session: SessionContext, document: LibraryDocum
 /** Retirar un documento de la biblioteca: quien lo subió, el LEAD del área dueña o Dirección. */
 export function canRemoveLibraryDocument(session: SessionContext, document: LibraryDocument): boolean {
   return document.uploadedBy === session.userId || canShareDocument(session, document);
+}
+
+/** Ver o añadir enlaces y tareas de un área: sus miembros o Dirección. */
+export function canWorkInArea(session: SessionContext, department: Department): boolean {
+  return isExecutive(session) || belongsTo(session, department);
+}
+
+/** Retirar un enlace: quien lo añadió, el LEAD del área dueña o Dirección. */
+export function canRemoveAreaLink(session: SessionContext, link: AreaLink): boolean {
+  return link.createdBy === session.userId || isExecutive(session) || isLeadOf(session, link.department);
+}
+
+/** Crear, asignar o retirar tareas de un área: su LEAD o Dirección. */
+export function canManageDeptTasks(session: SessionContext, department: Department): boolean {
+  return isExecutive(session) || isLeadOf(session, department);
+}
+
+/** Mover una tarea de estado: cualquier miembro del área de la tarea o Dirección. */
+export function canMoveDeptTask(session: SessionContext, task: DeptTask): boolean {
+  return canWorkInArea(session, task.department);
 }
 
 /** Retirar un documento: quien lo subió, el LEAD del área propietaria o Dirección. */

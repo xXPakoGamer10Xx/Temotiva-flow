@@ -1,9 +1,11 @@
 import type {
   ActivityLogEntry,
+  AreaLink,
   Attachment,
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
+  DeptTask,
   DocumentShare,
   FeedbackItem,
   Initiative,
@@ -42,6 +44,9 @@ export interface SeedData {
   /** Opcionales: las semillas y snapshots anteriores a la biblioteca de documentos no los traen. */
   documents?: LibraryDocument[];
   documentShares?: DocumentShare[];
+  /** Opcionales: las semillas y snapshots anteriores a enlaces y tareas no los traen. */
+  areaLinks?: AreaLink[];
+  deptTasks?: DeptTask[];
   /** Opcional: las semillas y snapshots anteriores al feedback no lo traen. */
   feedback?: FeedbackItem[];
   /** Opcionales: sin filas, todo el mundo recibe sus notificaciones (comportamiento previo). */

@@ -26,6 +26,18 @@ export const AT_RISK_RATIO = 0.75;
 /** Biblioteca de documentos. */
 export const MAX_DOCUMENT_DESCRIPTION = 300;
 
+/** Enlaces a documentos externos (Google Docs, Drive...). */
+export const MIN_LINK_TITLE = 3;
+export const MAX_LINK_TITLE = 120;
+export const MAX_LINK_URL = 500;
+/** Solo se aceptan enlaces https a estos hosts. */
+export const ALLOWED_LINK_HOSTS = ['docs.google.com', 'drive.google.com', 'sheets.google.com', 'slides.google.com'] as const;
+
+/** Tareas de área. */
+export const MIN_TASK_TITLE = 3;
+export const MAX_TASK_TITLE = 120;
+export const MAX_TASK_DESCRIPTION = 500;
+
 /** Pasos propios (privados) de una persona en una iniciativa. */
 export const MIN_PERSONAL_STEP_TITLE = 2;
 export const MAX_PERSONAL_STEP_TITLE = 80;

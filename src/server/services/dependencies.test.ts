@@ -171,6 +171,27 @@ describe('dependencias y estado de parada', () => {
     ).rejects.toThrow(/Psicología|abrió/i);
   });
 
+  it('quien abrió la solicitud no puede resolverla, solo retirarla', async () => {
+    const { store } = makeTestStore();
+    const owner = makeSession('LEGAL', 'LEAD');
+    const { dependency } = await createDependency(store, owner, {
+      initiativeId: 'TEMO-500',
+      targetDepartment: 'PSYCHOLOGY',
+      helpType: 'DECISION',
+      description: 'Necesito que Psicología decida el enfoque.',
+      isBlocking: true,
+      now: TEST_NOW,
+    });
+
+    await expect(
+      resolveDependency(store, owner, { dependencyId: dependency.id, resolutionNotes: 'Ya está', now: TEST_NOW }),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    expect((await store.initiativeById('TEMO-500'))?.isBlocked).toBe(true);
+
+    await rejectDependency(store, owner, { dependencyId: dependency.id, resolutionNotes: 'Retirada', now: TEST_NOW });
+    expect((await store.dependencyById(dependency.id))?.status).toBe('REJECTED');
+  });
+
   it('exige una respuesta escrita al cerrar', async () => {
     const { store } = makeTestStore();
     const owner = makeSession('LEGAL', 'MEMBER');

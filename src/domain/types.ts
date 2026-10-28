@@ -11,6 +11,7 @@ import type {
   PriorityReason,
   StageKey,
   StopReason,
+  TaskStatus,
   UserRole,
 } from './enums';
 
@@ -191,6 +192,38 @@ export interface LibraryDocument {
   isRemoved: boolean;
   removedBy: string | null;
   removedAt: string | null;
+}
+
+/** Tabla `area_links`: enlace (título + URL de Google Docs/Drive) que un área guarda como documento. */
+export interface AreaLink {
+  id: string;
+  title: string;
+  url: string;
+  department: Department;
+  createdBy: string;
+  createdAt: string;
+  /** Baja lógica (AGENTS.md §5.8). */
+  isRemoved: boolean;
+  removedBy: string | null;
+  removedAt: string | null;
+}
+
+/** Tabla `dept_tasks`: tarea que el LEAD de un área crea para su equipo. */
+export interface DeptTask {
+  id: string;
+  title: string;
+  description: string;
+  department: Department;
+  status: TaskStatus;
+  assigneeId: string | null;
+  /** Iniciativa TEMO-XXX opcional a la que se vincula. */
+  initiativeId: string | null;
+  dueDate: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Baja lógica (AGENTS.md §5.8). */
+  isArchived: boolean;
 }
 
 /** Tabla `document_shares`: a quién más se le abre un documento. */

@@ -116,17 +116,23 @@ async function loadDependency(store: DataStore, dependencyId: string): Promise<D
 }
 
 /**
- * Puede cerrar una solicitud el departamento destinatario (es quien responde),
- * Dirección, o quien la abrió si decide retirarla.
+ * Resolver o rechazar es responder, y responde el departamento destinatario o
+ * Dirección. Quien la abrió no puede darse por atendido a sí mismo: solo puede
+ * retirarla (cierre `REJECTED`), nunca marcarla como resuelta.
  */
-function assertCanClose(session: SessionContext, dependency: Dependency): void {
+function assertCanClose(
+  session: SessionContext,
+  dependency: Dependency,
+  status: 'RESOLVED' | 'REJECTED',
+): void {
   const isTarget = belongsTo(session, dependency.targetDepartment);
-  const isRequester = session.userId === dependency.requestedBy;
-  if (session.role !== 'EXECUTIVE' && !isTarget && !isRequester) {
-    throw forbidden(
-      `Solo ${DEPARTMENT_LABELS[dependency.targetDepartment]} o quien abrió la solicitud pueden cerrarla.`,
-    );
-  }
+  if (session.role === 'EXECUTIVE' || isTarget) return;
+  if (status === 'REJECTED' && session.userId === dependency.requestedBy) return;
+  throw forbidden(
+    status === 'RESOLVED'
+      ? `Solo ${DEPARTMENT_LABELS[dependency.targetDepartment]} puede resolver esta solicitud; quien la abrió solo puede retirarla.`
+      : `Solo ${DEPARTMENT_LABELS[dependency.targetDepartment]} o quien abrió la solicitud pueden cerrarla.`,
+  );
 }
 
 export interface CloseDependencyInput {
@@ -143,7 +149,7 @@ async function closeDependency(
 ): Promise<{ dependency: Dependency; initiative: Initiative }> {
   const now = input.now ?? new Date();
   const dependency = await loadDependency(store, input.dependencyId);
-  assertCanClose(session, dependency);
+  assertCanClose(session, dependency, status);
 
   if (dependency.status !== 'PENDING') {
     throw invalidState('Esta solicitud ya estaba cerrada.');

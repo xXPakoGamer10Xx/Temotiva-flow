@@ -169,11 +169,11 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
   const reject = useAction(rejectDependencyAction, { success: 'Dependencia rechazada' });
   const [notes, setNotes] = React.useState('');
 
-  const canClose =
-    dependency.status === 'PENDING' &&
-    (session.role === 'EXECUTIVE' ||
-      session.departments.includes(dependency.targetDepartment) ||
-      session.userId === dependency.requestedBy?.id);
+  // Responde (resolver o rechazar) el área destinataria o Dirección; quien la
+  // abrió solo puede retirarla, nunca darla por resuelta.
+  const canAnswer = session.role === 'EXECUTIVE' || session.departments.includes(dependency.targetDepartment);
+  const canWithdraw = !canAnswer && session.userId === dependency.requestedBy?.id;
+  const canClose = dependency.status === 'PENDING' && (canAnswer || canWithdraw);
 
   return (
     <li className="space-y-2 rounded-lg border border-border p-3">
@@ -209,18 +209,24 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
             aria-label="Respuesta del departamento"
             value={notes}
             onChange={(event) => setNotes(event.target.value)}
-            placeholder={`Respuesta del departamento (mínimo ${MIN_RESOLUTION_NOTES} caracteres)`}
+            placeholder={
+              canAnswer
+                ? `Respuesta del departamento (mínimo ${MIN_RESOLUTION_NOTES} caracteres)`
+                : `Motivo para retirar la solicitud (mínimo ${MIN_RESOLUTION_NOTES} caracteres)`
+            }
           />
           <ActionError message={resolve.error ?? reject.error} />
           <div className="flex gap-2">
-            <Button
-              size="sm"
-              disabled={resolve.isPending}
-              onClick={() => resolve.run({ dependencyId: dependency.id, resolutionNotes: notes })}
-            >
-              <CheckCircle2 className="size-3.5" />
-              Resolver y cerrar
-            </Button>
+            {canAnswer ? (
+              <Button
+                size="sm"
+                disabled={resolve.isPending}
+                onClick={() => resolve.run({ dependencyId: dependency.id, resolutionNotes: notes })}
+              >
+                <CheckCircle2 className="size-3.5" />
+                Resolver y cerrar
+              </Button>
+            ) : null}
             <Button
               size="sm"
               variant="outline"
@@ -228,7 +234,7 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
               onClick={() => reject.run({ dependencyId: dependency.id, resolutionNotes: notes })}
             >
               <XCircle className="size-3.5" />
-              Rechazar
+              {canAnswer ? 'Rechazar' : 'Retirar solicitud'}
             </Button>
           </div>
           {dependency.isBlocking ? (
