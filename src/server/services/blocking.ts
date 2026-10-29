@@ -74,6 +74,12 @@ function effectiveCause(initiative: Initiative, blockingDependencies: Dependency
 
 interface RecomputeOptions {
   now?: Date;
+  /**
+   * Cambio de la causa manual que viaja en la misma escritura que el estado
+   * efectivo: la BD exige `manual_stop_reason IS NULL OR is_blocked` en cada
+   * sentencia, así que no puede guardarse antes que `is_blocked`.
+   */
+  manualStop?: { reason: StopReason; description: string } | null;
   /** Contexto del evento que disparó el recálculo, para el registro. */
   trigger?: { dependencyId?: string; automatic?: boolean; note?: string };
 }
@@ -92,7 +98,16 @@ export async function recomputeBlockState(
   options: RecomputeOptions = {},
 ): Promise<Initiative> {
   const now = options.now ?? new Date();
-  const initiative = await loadInitiative(store, initiativeId);
+  const stored = await loadInitiative(store, initiativeId);
+
+  const manualPatch =
+    options.manualStop === undefined
+      ? {}
+      : {
+          manualStopReason: options.manualStop?.reason ?? null,
+          manualStopDescription: options.manualStop?.description ?? null,
+        };
+  const initiative: Initiative = { ...stored, ...manualPatch };
 
   const dependencies = await store.listDependencies(initiativeId);
   const blocking = dependencies.filter((dependency) => dependency.isBlocking && dependency.status === 'PENDING');
@@ -102,6 +117,7 @@ export async function recomputeBlockState(
   // --- Entra en parada -------------------------------------------------------
   if (shouldBlock && !initiative.isBlocked) {
     const updated = await store.updateInitiative(initiative.id, {
+      ...manualPatch,
       isBlocked: true,
       stopReason: cause.reason,
       blockedDescription: cause.description,
@@ -132,12 +148,15 @@ export async function recomputeBlockState(
   // --- Sigue en parada: solo puede cambiar la causa efectiva ------------------
   if (shouldBlock && initiative.isBlocked) {
     if (cause.reason === initiative.stopReason && cause.description === initiative.blockedDescription) {
-      return initiative;
+      return options.manualStop === undefined
+        ? initiative
+        : store.updateInitiative(initiative.id, { ...manualPatch, updatedAt: now.toISOString() });
     }
     // Cambia el motivo visible (p. ej. se resolvió la dependencia que la causaba
     // y toma el relevo otra), pero la parada nunca se interrumpió: no se emite
     // un nuevo BLOCKED_SET ni se reinicia el reloj.
     return store.updateInitiative(initiative.id, {
+      ...manualPatch,
       stopReason: cause.reason,
       blockedDescription: cause.description,
       updatedAt: now.toISOString(),
@@ -149,6 +168,7 @@ export async function recomputeBlockState(
     const blockedMsInStage = consolidateBlockedTime(initiative, now);
 
     const updated = await store.updateInitiative(initiative.id, {
+      ...manualPatch,
       isBlocked: false,
       stopReason: null,
       blockedDescription: null,
@@ -177,7 +197,7 @@ export async function recomputeBlockState(
     return updated;
   }
 
-  return initiative;
+  return stored;
 }
 
 export interface SetManualStopInput {
@@ -202,13 +222,10 @@ export async function setManualStop(
     `La parada la declara ${DEPARTMENT_LABELS[initiative.ownerDepartment]}, que es quien tiene el trabajo, o Dirección.`,
   );
 
-  await store.updateInitiative(initiative.id, {
-    manualStopReason: input.stopReason,
-    manualStopDescription: input.description,
-    updatedAt: now.toISOString(),
+  return recomputeBlockState(store, session, initiative.id, {
+    now,
+    manualStop: { reason: input.stopReason, description: input.description },
   });
-
-  return recomputeBlockState(store, session, initiative.id, { now });
 }
 
 /**
@@ -230,14 +247,9 @@ export async function clearManualStop(
     `La parada la levanta ${DEPARTMENT_LABELS[initiative.ownerDepartment]} o Dirección.`,
   );
 
-  await store.updateInitiative(initiative.id, {
-    manualStopReason: null,
-    manualStopDescription: null,
-    updatedAt: now.toISOString(),
-  });
-
   return recomputeBlockState(store, session, initiative.id, {
     now,
+    manualStop: null,
     trigger: { note: input.note },
   });
 }
