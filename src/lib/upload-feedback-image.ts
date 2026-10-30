@@ -1,3 +1,4 @@
+import { isUploadOk, uploadErrorMessage } from '@/lib/upload-response';
 import { MAX_FEEDBACK_IMAGE_BYTES } from '@/domain/rules';
 
 const IMAGE_EXTENSION = /\.(png|jpe?g|webp|gif)$/i;
@@ -18,8 +19,7 @@ export async function uploadFeedbackImage(feedbackId: string, file: File): Promi
     const body = new FormData();
     body.set('file', file);
     const response = await fetch(`/api/feedback/${feedbackId}/images`, { method: 'POST', body });
-    const result = (await response.json().catch(() => null)) as { ok: boolean; message?: string } | null;
-    if (!response.ok || !result?.ok) return result?.message ?? 'No se pudo subir la imagen. Inténtalo de nuevo.';
+    if (!(await isUploadOk(response))) return uploadErrorMessage(response, 'No se pudo subir la imagen.');
     return null;
   } catch {
     return 'No se pudo subir la imagen. Comprueba la conexión.';

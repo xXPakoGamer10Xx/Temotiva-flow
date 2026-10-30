@@ -1,3 +1,4 @@
+import { isUploadOk, uploadErrorMessage } from '@/lib/upload-response';
 import { checkDocumentFile } from '@/domain/document-files';
 import type { Department } from '@/domain/enums';
 
@@ -15,8 +16,7 @@ export async function uploadLibraryDocument(input: {
     body.set('department', input.department);
     body.set('description', input.description);
     const response = await fetch('/api/documents', { method: 'POST', body });
-    const result = (await response.json().catch(() => null)) as { ok: boolean; message?: string } | null;
-    if (!response.ok || !result?.ok) return result?.message ?? 'No se pudo subir el documento. Inténtalo de nuevo.';
+    if (!(await isUploadOk(response))) return uploadErrorMessage(response, 'No se pudo subir el documento.');
     return null;
   } catch {
     return 'No se pudo subir el documento. Comprueba la conexión.';

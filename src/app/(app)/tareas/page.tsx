@@ -21,7 +21,7 @@ export default async function TasksPage() {
         title="Tareas"
         description="Lo que el responsable de tu área reparte al equipo. Muévelas de columna según avances."
       />
-      <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">
+      <div className="scrollbar-slim min-h-0 flex-1 overflow-y-auto px-4 py-4 sm:px-6">
         <TasksBoard {...view} myUserId={session.userId} />
       </div>
     </>

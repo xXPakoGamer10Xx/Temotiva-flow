@@ -29,6 +29,9 @@ import { formatDate } from '@/lib/utils';
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10);
 
+/** Las hechas solo se acumulan: se muestran las más recientes y el resto bajo demanda. */
+const DONE_VISIBLE = 8;
+
 export function TasksBoard({
   tasks,
   manageableDepartments,
@@ -46,7 +49,7 @@ export function TasksBoard({
   );
 
   return (
-    <div className="space-y-4">
+    <div className="flex min-h-full flex-col gap-4 md:h-full">
       <div className="flex flex-wrap items-center gap-2">
         <SectionLabel className="mr-auto">Tareas ({visible.length})</SectionLabel>
         <label className="flex items-center gap-1.5 text-xs text-fg-muted">
@@ -82,7 +85,7 @@ export function TasksBoard({
           }
         />
       ) : (
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:min-h-0 md:flex-1 md:grid-cols-3 md:grid-rows-1">
           {TASK_STATUSES.map((status) => (
             <Column key={status} status={status} tasks={visible.filter((task) => task.status === status)} people={people} myUserId={myUserId} />
           ))}
@@ -114,6 +117,10 @@ function Column({
 }) {
   const move = useAction(moveDeptTaskAction);
   const [over, setOver] = React.useState(false);
+  const [showAll, setShowAll] = React.useState(false);
+
+  const capped = status === 'DONE' && !showAll && tasks.length > DONE_VISIBLE;
+  const shown = capped ? tasks.slice(0, DONE_VISIBLE) : tasks;
 
   return (
     <section
@@ -129,17 +136,24 @@ function Column({
         const taskId = event.dataTransfer.getData('text/plain');
         if (taskId) move.run({ taskId, status });
       }}
-      className={`min-h-32 space-y-2 rounded-lg border bg-surface-2 p-2 transition-colors ${over ? 'border-accent' : 'border-border'}`}
+      className={`flex min-h-32 flex-col gap-2 rounded-lg border bg-surface-2 p-2 transition-colors md:min-h-0 ${over ? 'border-accent' : 'border-border'}`}
     >
       <div className="flex items-center gap-2 px-1">
         <SectionLabel className="mr-auto">{TASK_STATUS_LABELS[status]}</SectionLabel>
         <span className="text-xs tabular-nums text-fg-subtle">{tasks.length}</span>
       </div>
       <ActionError message={move.error} />
-      <ul className="space-y-2">
-        {tasks.map((task) => (
+      <ul className="scrollbar-slim min-h-0 space-y-2 md:flex-1 md:overflow-y-auto">
+        {shown.map((task) => (
           <TaskCard key={task.id} task={task} people={people} myUserId={myUserId} />
         ))}
+        {capped ? (
+          <li>
+            <Button variant="ghost" size="sm" className="w-full" onClick={() => setShowAll(true)}>
+              Ver las {tasks.length - DONE_VISIBLE} anteriores
+            </Button>
+          </li>
+        ) : null}
       </ul>
     </section>
   );
