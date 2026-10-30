@@ -145,6 +145,8 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   TASK_MOVED: 'Tarea de área movida',
   TASK_ASSIGNED: 'Tarea de área asignada',
   TASK_REMOVED: 'Tarea de área retirada',
+  API_TOKEN_CREATED: 'Token de acceso para IA creado',
+  API_TOKEN_REVOKED: 'Token de acceso para IA revocado',
 };
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {

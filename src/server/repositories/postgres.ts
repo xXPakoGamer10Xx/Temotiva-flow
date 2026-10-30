@@ -3,6 +3,7 @@ import { Pool, type PoolConfig } from 'pg';
 import type {
   ActivityLogEntry,
   AreaLink,
+  ApiToken,
   Attachment,
   DeptTask,
   DocumentShare,
@@ -695,6 +696,53 @@ export class PostgresDataStore implements DataStore {
     await this.pool.query(`DELETE FROM document_shares WHERE id = $1`, [id]);
   }
 
+  async listApiTokens(userId: string): Promise<ApiToken[]> {
+    const res = await this.pool.query(
+      `SELECT id, user_id, name, token_hash, token_prefix, created_at, expires_at, last_used_at, revoked_at
+       FROM api_tokens WHERE user_id = $1 ORDER BY created_at DESC`,
+      [userId],
+    );
+    return res.rows.map((r) => this.mapApiToken(r));
+  }
+
+  async apiTokenById(id: string): Promise<ApiToken | null> {
+    const res = await this.pool.query(
+      `SELECT id, user_id, name, token_hash, token_prefix, created_at, expires_at, last_used_at, revoked_at
+       FROM api_tokens WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapApiToken(res.rows[0]);
+  }
+
+  async apiTokenByHash(tokenHash: string): Promise<ApiToken | null> {
+    const res = await this.pool.query(
+      `SELECT id, user_id, name, token_hash, token_prefix, created_at, expires_at, last_used_at, revoked_at
+       FROM api_tokens WHERE token_hash = $1`,
+      [tokenHash],
+    );
+    return res.rows.length === 0 ? null : this.mapApiToken(res.rows[0]);
+  }
+
+  async insertApiToken(token: ApiToken): Promise<ApiToken> {
+    await this.pool.query(
+      `INSERT INTO api_tokens (id, user_id, name, token_hash, token_prefix, created_at, expires_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+      [token.id, token.userId, token.name, token.tokenHash, token.tokenPrefix, token.createdAt, token.expiresAt],
+    );
+    return token;
+  }
+
+  async revokeApiToken(id: string, revokedAt: string): Promise<ApiToken> {
+    await this.pool.query(`UPDATE api_tokens SET revoked_at = COALESCE(revoked_at, $2) WHERE id = $1`, [id, revokedAt]);
+    const updated = await this.apiTokenById(id);
+    if (!updated) throw new Error(`Token no encontrado: ${id}`);
+    return updated;
+  }
+
+  async touchApiToken(id: string, usedAt: string): Promise<void> {
+    await this.pool.query(`UPDATE api_tokens SET last_used_at = $2 WHERE id = $1`, [id, usedAt]);
+  }
+
   async listAreaLinks(): Promise<AreaLink[]> {
     const res = await this.pool.query(
       `SELECT id, title, url, department, created_by, created_at, is_removed, removed_by, removed_at
@@ -1172,6 +1220,20 @@ export class PostgresDataStore implements DataStore {
       isRemoved: Boolean(r.is_removed),
       removedBy: r.removed_by ? String(r.removed_by) : null,
       removedAt: toNullableIso(r.removed_at),
+    };
+  }
+
+  private mapApiToken(r: Record<string, unknown>): ApiToken {
+    return {
+      id: String(r.id),
+      userId: String(r.user_id),
+      name: String(r.name),
+      tokenHash: String(r.token_hash),
+      tokenPrefix: String(r.token_prefix),
+      createdAt: toIso(r.created_at),
+      expiresAt: toIso(r.expires_at),
+      lastUsedAt: toNullableIso(r.last_used_at),
+      revokedAt: toNullableIso(r.revoked_at),
     };
   }
 

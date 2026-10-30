@@ -1,5 +1,6 @@
 import type {
   ActivityLogEntry,
+  ApiToken,
   AreaLink,
   Attachment,
   DeptTask,
@@ -106,6 +107,16 @@ export interface DataStore {
     id: string,
     patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
   ): Promise<DeptTask>;
+
+  // --- Tokens de acceso para IA (MCP) -------------------------------------------
+  /** Incluye revocados y caducados: quien pinta decide qué muestra. */
+  listApiTokens(userId: string): Promise<ApiToken[]>;
+  apiTokenById(id: string): Promise<ApiToken | null>;
+  apiTokenByHash(tokenHash: string): Promise<ApiToken | null>;
+  insertApiToken(token: ApiToken): Promise<ApiToken>;
+  /** Solo la baja lógica: la fila no se borra. */
+  revokeApiToken(id: string, revokedAt: string): Promise<ApiToken>;
+  touchApiToken(id: string, usedAt: string): Promise<void>;
 
   // --- Feedback del equipo ----------------------------------------------------
   listFeedback(): Promise<FeedbackItem[]>;

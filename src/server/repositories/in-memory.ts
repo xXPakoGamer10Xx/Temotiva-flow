@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type {
   ActivityLogEntry,
   AreaLink,
+  ApiToken,
   Attachment,
   DeptTask,
   DepartmentNotificationSetting,
@@ -48,6 +49,7 @@ export class InMemoryDataStore implements DataStore {
   private feedback = new Map<string, FeedbackItem>();
   private personalSteps = new Map<string, PersonalStep>();
   private areaLinks = new Map<string, AreaLink>();
+  private apiTokens = new Map<string, ApiToken>();
   private deptTasks = new Map<string, DeptTask>();
   private notificationPrefs = new Map<string, NotificationPref>();
   private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
@@ -75,6 +77,7 @@ export class InMemoryDataStore implements DataStore {
     this.documents = new Map((data.documents ?? []).map((document) => [document.id, clone(document)]));
     this.documentShares = new Map((data.documentShares ?? []).map((share) => [share.id, clone(share)]));
     this.areaLinks = new Map((data.areaLinks ?? []).map((link) => [link.id, clone(link)]));
+    this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
     this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
@@ -98,6 +101,7 @@ export class InMemoryDataStore implements DataStore {
       documents: [...this.documents.values()].map(clone),
       documentShares: [...this.documentShares.values()].map(clone),
       areaLinks: [...this.areaLinks.values()].map(clone),
+      apiTokens: [...this.apiTokens.values()].map(clone),
       deptTasks: [...this.deptTasks.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
@@ -338,6 +342,45 @@ export class InMemoryDataStore implements DataStore {
     this.documents.set(id, updated);
     this.touched();
     return clone(updated);
+  }
+
+  async listApiTokens(userId: string): Promise<ApiToken[]> {
+    return [...this.apiTokens.values()]
+      .filter((token) => token.userId === userId)
+      .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
+      .map(clone);
+  }
+
+  async apiTokenById(id: string): Promise<ApiToken | null> {
+    const token = this.apiTokens.get(id);
+    return token ? clone(token) : null;
+  }
+
+  async apiTokenByHash(tokenHash: string): Promise<ApiToken | null> {
+    const token = [...this.apiTokens.values()].find((candidate) => candidate.tokenHash === tokenHash);
+    return token ? clone(token) : null;
+  }
+
+  async insertApiToken(token: ApiToken): Promise<ApiToken> {
+    this.apiTokens.set(token.id, clone(token));
+    this.touched();
+    return clone(token);
+  }
+
+  async revokeApiToken(id: string, revokedAt: string): Promise<ApiToken> {
+    const current = this.apiTokens.get(id);
+    if (!current) throw new Error(`Token no encontrado: ${id}`);
+    const updated: ApiToken = { ...current, revokedAt: current.revokedAt ?? revokedAt };
+    this.apiTokens.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async touchApiToken(id: string, usedAt: string): Promise<void> {
+    const current = this.apiTokens.get(id);
+    if (!current) return;
+    this.apiTokens.set(id, { ...current, lastUsedAt: usedAt });
+    this.touched();
   }
 
   async listAreaLinks(): Promise<AreaLink[]> {

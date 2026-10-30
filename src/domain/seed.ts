@@ -1,6 +1,7 @@
 import type {
   ActivityLogEntry,
   AreaLink,
+  ApiToken,
   Attachment,
   ChecklistValue,
   Dependency,
@@ -49,6 +50,8 @@ export interface SeedData {
   deptTasks?: DeptTask[];
   /** Opcional: las semillas y snapshots anteriores al feedback no lo traen. */
   feedback?: FeedbackItem[];
+  /** Opcional: las semillas y snapshots anteriores a los tokens de IA no lo traen. */
+  apiTokens?: ApiToken[];
   /** Opcionales: sin filas, todo el mundo recibe sus notificaciones (comportamiento previo). */
   personalSteps?: PersonalStep[];
   notificationPrefs?: NotificationPref[];

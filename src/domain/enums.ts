@@ -98,6 +98,8 @@ export const ACTION_TYPES = [
   'TASK_MOVED',
   'TASK_ASSIGNED',
   'TASK_REMOVED',
+  'API_TOKEN_CREATED',
+  'API_TOKEN_REVOKED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 

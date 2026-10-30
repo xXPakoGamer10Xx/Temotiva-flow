@@ -208,6 +208,24 @@ export interface AreaLink {
   removedAt: string | null;
 }
 
+/**
+ * Tabla `api_tokens`: credencial personal para que un cliente de IA (MCP) actúe
+ * como su dueña o dueño. Solo se guarda el hash SHA-256; el valor en claro se
+ * muestra una única vez al crearla.
+ */
+export interface ApiToken {
+  id: string;
+  userId: string;
+  name: string;
+  tokenHash: string;
+  /** Primeros caracteres, para reconocerla en la lista sin revelarla. */
+  tokenPrefix: string;
+  createdAt: string;
+  expiresAt: string;
+  lastUsedAt: string | null;
+  revokedAt: string | null;
+}
+
 /** Tabla `dept_tasks`: tarea que el LEAD de un área crea para su equipo. */
 export interface DeptTask {
   id: string;

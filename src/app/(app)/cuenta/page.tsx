@@ -4,6 +4,8 @@ import { DEPARTMENT_LABELS, USER_ROLE_LABELS } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { PageHeader } from '@/components/layout/app-shell';
 import { AccountForm } from '@/components/admin/account-form';
+import { ApiTokensCard, type ApiTokenRow } from '@/components/admin/api-tokens-card';
+import { MAX_API_TOKEN_DAYS, isApiTokenActive, isMcpEnabledFor } from '@/server/services/api-tokens';
 import { Badge, Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
 import { formatDate } from '@/lib/utils';
@@ -21,7 +23,19 @@ export const metadata = { title: 'Mi cuenta' };
  */
 export default async function AccountPage() {
   const session = await requireSession();
-  const profile = await getDataStore().userById(session.userId);
+  const store = getDataStore();
+  const profile = await store.userById(session.userId);
+  const now = new Date();
+  const showMcp = isMcpEnabledFor(session.email);
+  const tokens: ApiTokenRow[] = (showMcp ? await store.listApiTokens(session.userId) : []).map((token) => ({
+    id: token.id,
+    name: token.name,
+    prefix: token.tokenPrefix,
+    createdAt: token.createdAt,
+    expiresAt: token.expiresAt,
+    lastUsedAt: token.lastUsedAt,
+    status: token.revokedAt ? 'REVOKED' : isApiTokenActive(token, now) ? 'ACTIVE' : 'EXPIRED',
+  }));
 
   return (
     <>
@@ -80,6 +94,22 @@ export default async function AccountPage() {
               ) : null}
             </CardContent>
           </Card>
+
+          {showMcp ? (
+          <Card>
+            <CardHeader>
+              <CardTitle>Conectar una IA (MCP)</CardTitle>
+              <CardDescription>
+                Un token permite que una herramienta de IA consulte Temotiva Flow <strong>como tú</strong>, con tus
+                mismos permisos y solo en lectura. Trátalo como una contraseña: no lo compartas. Si dejas de tener
+                acceso, deja de funcionar al instante.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ApiTokensCard tokens={tokens} maxDays={MAX_API_TOKEN_DAYS} />
+            </CardContent>
+          </Card>
+          ) : null}
 
           <Card>
             <CardHeader>
