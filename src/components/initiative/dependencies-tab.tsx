@@ -168,6 +168,8 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
   const resolve = useAction(resolveDependencyAction, { success: 'Dependencia resuelta' });
   const reject = useAction(rejectDependencyAction, { success: 'Dependencia rechazada' });
   const [notes, setNotes] = React.useState('');
+  // Cerrar el cuadro de respuesta no toca la solicitud: solo descarta el borrador.
+  const [replying, setReplying] = React.useState(false);
 
   // Responde (resolver o rechazar) el área destinataria o Dirección; quien la
   // abrió solo puede retirarla, nunca darla por resuelta.
@@ -202,6 +204,15 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
           </p>
           <p className="mt-0.5 text-fg-muted">{dependency.resolutionNotes}</p>
         </div>
+      ) : canClose && !replying ? (
+        <div className="space-y-1">
+          <Button size="sm" variant="outline" onClick={() => setReplying(true)}>
+            {canAnswer ? 'Responder' : 'Retirar solicitud…'}
+          </Button>
+          <p className="text-xs text-fg-muted">
+            Pendiente de respuesta de {DEPARTMENT_LABELS[dependency.targetDepartment]}.
+          </p>
+        </div>
       ) : canClose ? (
         <div className="space-y-2">
           <Textarea
@@ -230,11 +241,27 @@ function DependencyRow({ dependency, session }: { dependency: DependencyView; se
             <Button
               size="sm"
               variant="outline"
+              disabled={resolve.isPending || reject.isPending}
+              title="Cierra este cuadro y descarta lo escrito; la solicitud sigue pendiente"
+              onClick={() => {
+                setNotes('');
+                setReplying(false);
+                resolve.setError(null);
+                reject.setError(null);
+              }}
+            >
+              Cancelar
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="ml-auto"
               disabled={reject.isPending}
+              title="Cierra la solicitud de forma definitiva"
               onClick={() => reject.run({ dependencyId: dependency.id, resolutionNotes: notes })}
             >
               <XCircle className="size-3.5" />
-              {canAnswer ? 'Rechazar' : 'Retirar solicitud'}
+              {canAnswer ? 'Rechazar solicitud' : 'Retirar solicitud'}
             </Button>
           </div>
           {dependency.isBlocking ? (
