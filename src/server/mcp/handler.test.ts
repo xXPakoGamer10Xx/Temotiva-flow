@@ -34,13 +34,60 @@ describe('servidor MCP', () => {
     expect(await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', method: 'notifications/initialized' })).toBeNull();
   });
 
-  it('todas las herramientas son de solo lectura y no exponen acciones críticas', async () => {
+  it('solo crear_tarea y asignar_tarea escriben y no se exponen acciones críticas', async () => {
     const s = setup();
     const res = await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const tools = (res?.result as { tools: { name: string; annotations: { readOnlyHint: boolean } }[] }).tools;
     expect(tools.length).toBe(MCP_TOOLS.length);
-    expect(tools.every((tool) => tool.annotations.readOnlyHint)).toBe(true);
-    expect(tools.map((tool) => tool.name).join(' ')).not.toMatch(/avanzar|override|alta|rol/);
+    const writers = tools.filter((tool) => !tool.annotations.readOnlyHint).map((tool) => tool.name);
+    expect(writers.sort()).toEqual(['asignar_tarea', 'crear_tarea']);
+    expect(tools.map((tool) => tool.name).join(' ')).not.toMatch(/avanzar|override|alta|rol|mover|retirar/);
+  });
+
+  describe('tareas de área', () => {
+    function leadSetup() {
+      const lead = makeUser({ departments: ['CYBER'], role: 'LEAD' });
+      const colleague = makeUser({ departments: ['CYBER'], role: 'MEMBER' });
+      const outsider = makeUser({ departments: ['PRODUCT'], role: 'MEMBER' });
+      const ctx = makeTestStore([makeInitiative({ id: 'TEMO-500' })], [lead, colleague, outsider]);
+      return { ...ctx, session: sessionOf(lead), colleague, outsider };
+    }
+    const parse = (res: Awaited<ReturnType<typeof call>>) =>
+      JSON.parse((res?.result as { content: { text: string }[] }).content[0]?.text ?? 'null');
+
+    it('el responsable del área crea una tarea, la asigna y la ve en `tareas`', async () => {
+      const s = leadSetup();
+      const created = await call(s, 'crear_tarea', { title: 'Revisar CSP', assigneeId: s.colleague.id });
+      expect((created?.result as { isError: boolean }).isError).toBe(false);
+      const { id } = parse(created);
+
+      const reassigned = await call(s, 'asignar_tarea', { taskId: id, assigneeId: null });
+      expect((reassigned?.result as { isError: boolean }).isError).toBe(false);
+
+      const view = parse(await call(s, 'tareas'));
+      expect(view.tasks).toHaveLength(1);
+      expect(view.tasks[0]).toMatchObject({ title: 'Revisar CSP', assigneeId: null, status: 'TODO' });
+      expect(view.people.map((person: { id: string }) => person.id)).toContain(s.colleague.id);
+    });
+
+    it('un miembro sin rol de responsable no puede crear tareas', async () => {
+      const s = leadSetup();
+      const member = { ...s, session: sessionOf(s.colleague) };
+      const res = await call(member, 'crear_tarea', { title: 'Intento sin permiso' });
+      expect((res?.result as { isError: boolean }).isError).toBe(true);
+      expect(JSON.stringify(res?.result)).toContain('Solo el responsable del área');
+      expect(parse(await call(s, 'tareas')).tasks).toHaveLength(0);
+    });
+
+    it('no asigna a alguien de otra área y valida los argumentos', async () => {
+      const s = leadSetup();
+      const wrongArea = await call(s, 'crear_tarea', { title: 'Tarea válida', assigneeId: s.outsider.id });
+      expect((wrongArea?.result as { isError: boolean }).isError).toBe(true);
+      const badDate = await call(s, 'crear_tarea', { title: 'Tarea válida', dueDate: '04/11/2026' });
+      expect((badDate?.result as { isError: boolean }).isError).toBe(true);
+      const badInitiative = await call(s, 'crear_tarea', { title: 'Tarea válida', initiativeId: 'hola' });
+      expect((badInitiative?.result as { isError: boolean }).isError).toBe(true);
+    });
   });
 
   it('quien_soy y ver_iniciativa responden con los datos de la sesión', async () => {
