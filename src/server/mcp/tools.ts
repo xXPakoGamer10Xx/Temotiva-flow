@@ -90,9 +90,26 @@ export const MCP_TOOLS: McpTool[] = [
   tool({
     name: 'tareas',
     description:
-      'Tareas de área que esta persona puede ver, con las áreas donde puede crear tareas y las personas a quienes puede asignarlas (con su id).',
+      'Personas a quienes esta persona puede asignar tareas (con su id), áreas donde puede crear tareas y tareas abiertas (las hechas solo se cuentan).',
     schema: noArgs,
-    run: ({ store, session }) => getTasksView(store, session),
+    run: async ({ store, session }) => {
+      const view = await getTasksView(store, session);
+      // Con muchas tareas la respuesta se corta en el límite del servidor y se
+      // perdía justo la lista de personas: va primero, y las hechas se resumen.
+      const open = view.tasks
+        .filter((task) => task.status !== 'DONE')
+        .map((task) => ({
+          ...task,
+          description: task.description.length > 160 ? `${task.description.slice(0, 160)}…` : task.description,
+        }));
+      return {
+        people: view.people,
+        manageableDepartments: view.manageableDepartments,
+        doneCount: view.tasks.length - open.length,
+        tasks: open,
+        initiatives: view.initiatives,
+      };
+    },
   }),
   tool({
     name: 'crear_tarea',

@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handleMcpMessage } from './handler';
 import { MCP_TOOLS } from './tools';
+import { moveDeptTask } from '@/server/services/dept-tasks';
 import { makeInitiative, makeTestStore, makeUser, sessionOf } from '@/server/services/test-utils';
 
 function setup() {
@@ -68,6 +69,22 @@ describe('servidor MCP', () => {
       expect(view.tasks).toHaveLength(1);
       expect(view.tasks[0]).toMatchObject({ title: 'Revisar CSP', assigneeId: null, status: 'TODO' });
       expect(view.people.map((person: { id: string }) => person.id)).toContain(s.colleague.id);
+    });
+
+    it('`tareas` pone a las personas primero y resume las tareas hechas', async () => {
+      const s = leadSetup();
+      const long = 'x'.repeat(400);
+      const open = parse(await call(s, 'crear_tarea', { title: 'Tarea abierta', description: long }));
+      const done = parse(await call(s, 'crear_tarea', { title: 'Tarea hecha' }));
+      await moveDeptTask(s.store, s.session, { taskId: done.id, status: 'DONE' });
+
+      const res = await call(s, 'tareas');
+      const text = (res?.result as { content: { text: string }[] }).content[0]?.text ?? '';
+      expect(text.indexOf('"people"')).toBeLessThan(text.indexOf('"tasks"'));
+      const view = parse(res);
+      expect(view.doneCount).toBe(1);
+      expect(view.tasks.map((task: { id: string }) => task.id)).toEqual([open.id]);
+      expect(view.tasks[0].description.length).toBeLessThan(long.length);
     });
 
     it('un miembro sin rol de responsable no puede crear tareas', async () => {
