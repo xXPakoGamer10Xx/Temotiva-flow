@@ -38,7 +38,9 @@ const toolsList = MCP_TOOLS.map((tool) => ({
   name: tool.name,
   description: tool.description,
   inputSchema: z.toJSONSchema(tool.schema, { io: 'input' }),
-  annotations: { readOnlyHint: true, openWorldHint: false },
+  annotations: tool.writes
+    ? { readOnlyHint: false, destructiveHint: false, openWorldHint: false }
+    : { readOnlyHint: true, openWorldHint: false },
 }));
 
 function textResult(text: string, isError = false) {
@@ -88,9 +90,9 @@ export async function handleMcpMessage(
         result: {
           protocolVersion: version,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: { name: 'temotiva-flow', version: '1.0.0' },
+          serverInfo: { name: 'temotiva-flow', version: '1.1.0' },
           instructions:
-            'Consulta iniciativas de Temotiva Flow con los permisos de la persona dueña del token. Solo lectura.',
+            'Consulta iniciativas de Temotiva Flow con los permisos de la persona dueña del token. Solo lectura, salvo crear y asignar tareas de área (crear_tarea, asignar_tarea), que siguen las mismas reglas de rol y área que la web.',
         },
       };
     }

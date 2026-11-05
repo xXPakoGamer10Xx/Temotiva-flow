@@ -1,22 +1,34 @@
 import { z } from 'zod';
+import { DEPARTMENTS } from '@/domain/enums';
 import type { SessionContext } from '@/domain/types';
 import { DEPARTMENT_LABELS, USER_ROLE_LABELS } from '@/domain/labels';
+import { MAX_TASK_DESCRIPTION, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
 import type { DataStore } from '@/server/repositories/types';
+import { assignDeptTask, createDeptTask, getTasksView } from '@/server/services/dept-tasks';
 import { MY_WORK_VIEWS, getBoardView, getInitiativeDetail, getMyWork, getNotifications, getRadarRows } from '@/server/services/views';
 
 /**
- * Herramientas del servidor MCP. V1 es solo lectura: reutilizan las mismas
- * vistas que pintan la interfaz, con la sesión de quien posee el token, así que
- * ven exactamente lo que esa persona vería entrando por la web.
+ * Herramientas del servidor MCP. Reutilizan las mismas vistas y servicios que
+ * la interfaz, con la sesión de quien posee el token, así que ven y pueden
+ * exactamente lo que esa persona vería y podría hacer entrando por la web.
+ *
+ * Casi todas son de solo lectura. Las únicas que escriben son `crear_tarea` y
+ * `asignar_tarea` (tareas de área): son de bajo riesgo, reversibles (baja
+ * lógica) y pasan por las mismas reglas de rol y área que la web (solo el LEAD
+ * del área o Dirección crean y asignan) y por la caja negra, con el usuario del
+ * token como autor.
  *
  * Quedan fuera a propósito avanzar fase, override, altas y cambios de rol: son
- * las acciones críticas y exigen confirmación humana en la interfaz.
+ * las acciones críticas y exigen confirmación humana en la interfaz. Mover o
+ * retirar tareas tampoco se expone.
  */
 
 export interface McpTool {
   name: string;
   description: string;
   schema: z.ZodType;
+  /** `true` si la herramienta modifica datos. Por defecto, solo lectura. */
+  writes: boolean;
   run(context: { store: DataStore; session: SessionContext; args: never }): Promise<unknown>;
 }
 
@@ -24,9 +36,10 @@ function tool<Schema extends z.ZodType>(definition: {
   name: string;
   description: string;
   schema: Schema;
+  writes?: boolean;
   run(context: { store: DataStore; session: SessionContext; args: z.infer<Schema> }): Promise<unknown>;
 }): McpTool {
-  return definition as unknown as McpTool;
+  return { writes: false, ...definition } as unknown as McpTool;
 }
 
 const noArgs = z.object({});
@@ -73,5 +86,44 @@ export const MCP_TOOLS: McpTool[] = [
     description: 'Solicitudes de ayuda pendientes dirigidas al área de esta persona y las que ella envió.',
     schema: noArgs,
     run: ({ store, session }) => getNotifications(store, session),
+  }),
+  tool({
+    name: 'tareas',
+    description:
+      'Tareas de área que esta persona puede ver, con las áreas donde puede crear tareas y las personas a quienes puede asignarlas (con su id).',
+    schema: noArgs,
+    run: ({ store, session }) => getTasksView(store, session),
+  }),
+  tool({
+    name: 'crear_tarea',
+    description:
+      'Crea una tarea de área en "Por hacer". Solo el responsable del área o Dirección pueden crearla. Para asignarla a alguien usa el id que devuelve `tareas`.',
+    writes: true,
+    schema: z.object({
+      title: z.string().trim().min(MIN_TASK_TITLE, 'Ponle un título a la tarea.').max(MAX_TASK_TITLE),
+      description: z.string().trim().max(MAX_TASK_DESCRIPTION).optional(),
+      department: z.enum(DEPARTMENTS).optional().describe('Área de la tarea; por defecto, la primera de esta persona'),
+      assigneeId: z.string().min(1).nullish().describe('Id de la persona (de `tareas`); debe ser del área'),
+      initiativeId: z.string().regex(/^TEMO-\d+$/, 'Usa el formato TEMO-123.').nullish(),
+      dueDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Usa el formato AAAA-MM-DD.').nullish(),
+    }),
+    run: async ({ store, session, args }) => {
+      const task = await createDeptTask(store, session, args);
+      return { id: task.id, title: task.title, department: task.department, assigneeId: task.assigneeId };
+    },
+  }),
+  tool({
+    name: 'asignar_tarea',
+    description:
+      'Asigna una tarea de área a una persona del área (o la desasigna con null). El responsable del área asigna a cualquiera; un miembro solo puede tomar una tarea libre.',
+    writes: true,
+    schema: z.object({
+      taskId: z.string().min(1).describe('Id de la tarea (de `tareas`)'),
+      assigneeId: z.string().min(1).nullable().describe('Id de la persona, o null para desasignar'),
+    }),
+    run: async ({ store, session, args }) => {
+      const task = await assignDeptTask(store, session, args);
+      return { id: task.id, title: task.title, assigneeId: task.assigneeId };
+    },
   }),
 ];
