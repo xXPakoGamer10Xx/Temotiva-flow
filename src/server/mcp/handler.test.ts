@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handleMcpMessage } from './handler';
 import { MCP_TOOLS } from './tools';
+import { moveDeptTask } from '@/server/services/dept-tasks';
 import { makeInitiative, makeTestStore, makeUser, sessionOf } from '@/server/services/test-utils';
 
 function setup() {
@@ -34,14 +35,14 @@ describe('servidor MCP', () => {
     expect(await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', method: 'notifications/initialized' })).toBeNull();
   });
 
-  it('solo crear_tarea y asignar_tarea escriben y no se exponen acciones críticas', async () => {
+  it('solo crear_tarea, asignar_tarea y mover_tarea escriben y no se exponen acciones críticas', async () => {
     const s = setup();
     const res = await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const tools = (res?.result as { tools: { name: string; annotations: { readOnlyHint: boolean } }[] }).tools;
     expect(tools.length).toBe(MCP_TOOLS.length);
     const writers = tools.filter((tool) => !tool.annotations.readOnlyHint).map((tool) => tool.name);
-    expect(writers.sort()).toEqual(['asignar_tarea', 'crear_tarea']);
-    expect(tools.map((tool) => tool.name).join(' ')).not.toMatch(/avanzar|override|alta|rol|mover|retirar/);
+    expect(writers.sort()).toEqual(['asignar_tarea', 'crear_tarea', 'mover_tarea']);
+    expect(tools.map((tool) => tool.name).join(' ')).not.toMatch(/avanzar|override|alta|rol|retirar/);
   });
 
   describe('tareas de área', () => {
@@ -68,6 +69,38 @@ describe('servidor MCP', () => {
       expect(view.tasks).toHaveLength(1);
       expect(view.tasks[0]).toMatchObject({ title: 'Revisar CSP', assigneeId: null, status: 'TODO' });
       expect(view.people.map((person: { id: string }) => person.id)).toContain(s.colleague.id);
+    });
+
+    it('`tareas` pone a las personas primero y resume las tareas hechas', async () => {
+      const s = leadSetup();
+      const long = 'x'.repeat(400);
+      const open = parse(await call(s, 'crear_tarea', { title: 'Tarea abierta', description: long }));
+      const done = parse(await call(s, 'crear_tarea', { title: 'Tarea hecha' }));
+      await moveDeptTask(s.store, s.session, { taskId: done.id, status: 'DONE' });
+
+      const res = await call(s, 'tareas');
+      const text = (res?.result as { content: { text: string }[] }).content[0]?.text ?? '';
+      expect(text.indexOf('"people"')).toBeLessThan(text.indexOf('"tasks"'));
+      const view = parse(res);
+      expect(view.doneCount).toBe(1);
+      expect(view.tasks.map((task: { id: string }) => task.id)).toEqual([open.id]);
+      expect(view.tasks[0].description.length).toBeLessThan(long.length);
+    });
+
+    it('el equipo del área mueve la tarea; quien es de otra área no puede', async () => {
+      const s = leadSetup();
+      const { id } = parse(await call(s, 'crear_tarea', { title: 'Tarea para mover' }));
+
+      const moved = await call(s, 'mover_tarea', { taskId: id, status: 'DONE' });
+      expect((moved?.result as { isError: boolean }).isError).toBe(false);
+      expect(parse(moved)).toMatchObject({ id, status: 'DONE' });
+      expect(parse(await call(s, 'tareas')).doneCount).toBe(1);
+
+      const stranger = { ...s, session: sessionOf(s.outsider) };
+      const denied = await call(stranger, 'mover_tarea', { taskId: id, status: 'TODO' });
+      expect((denied?.result as { isError: boolean }).isError).toBe(true);
+      const invalid = await call(s, 'mover_tarea', { taskId: id, status: 'HECHA' });
+      expect((invalid?.result as { isError: boolean }).isError).toBe(true);
     });
 
     it('un miembro sin rol de responsable no puede crear tareas', async () => {
