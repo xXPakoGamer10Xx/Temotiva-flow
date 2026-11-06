@@ -1,10 +1,10 @@
 import { z } from 'zod';
-import { DEPARTMENTS } from '@/domain/enums';
+import { DEPARTMENTS, TASK_STATUSES } from '@/domain/enums';
 import type { SessionContext } from '@/domain/types';
 import { DEPARTMENT_LABELS, USER_ROLE_LABELS } from '@/domain/labels';
 import { MAX_TASK_DESCRIPTION, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
 import type { DataStore } from '@/server/repositories/types';
-import { assignDeptTask, createDeptTask, getTasksView } from '@/server/services/dept-tasks';
+import { assignDeptTask, createDeptTask, getTasksView, moveDeptTask } from '@/server/services/dept-tasks';
 import { MY_WORK_VIEWS, getBoardView, getInitiativeDetail, getMyWork, getNotifications, getRadarRows } from '@/server/services/views';
 
 /**
@@ -12,15 +12,15 @@ import { MY_WORK_VIEWS, getBoardView, getInitiativeDetail, getMyWork, getNotific
  * la interfaz, con la sesión de quien posee el token, así que ven y pueden
  * exactamente lo que esa persona vería y podría hacer entrando por la web.
  *
- * Casi todas son de solo lectura. Las únicas que escriben son `crear_tarea` y
- * `asignar_tarea` (tareas de área): son de bajo riesgo, reversibles (baja
+ * Casi todas son de solo lectura. Las únicas que escriben son `crear_tarea`,
+ * `asignar_tarea` y `mover_tarea` (tareas de área): son de bajo riesgo, reversibles (baja
  * lógica) y pasan por las mismas reglas de rol y área que la web (solo el LEAD
  * del área o Dirección crean y asignan) y por la caja negra, con el usuario del
  * token como autor.
  *
  * Quedan fuera a propósito avanzar fase, override, altas y cambios de rol: son
- * las acciones críticas y exigen confirmación humana en la interfaz. Mover o
- * retirar tareas tampoco se expone.
+ * las acciones críticas y exigen confirmación humana en la interfaz. Retirar
+ * tareas tampoco se expone.
  */
 
 export interface McpTool {
@@ -141,6 +141,20 @@ export const MCP_TOOLS: McpTool[] = [
     run: async ({ store, session, args }) => {
       const task = await assignDeptTask(store, session, args);
       return { id: task.id, title: task.title, assigneeId: task.assigneeId };
+    },
+  }),
+  tool({
+    name: 'mover_tarea',
+    description:
+      'Mueve una tarea de área entre columnas: TODO (por hacer), DOING (haciendo) o DONE (hecha). Solo el equipo del área puede moverla.',
+    writes: true,
+    schema: z.object({
+      taskId: z.string().min(1).describe('Id de la tarea (de `tareas`)'),
+      status: z.enum(TASK_STATUSES).describe('TODO, DOING o DONE'),
+    }),
+    run: async ({ store, session, args }) => {
+      const task = await moveDeptTask(store, session, args);
+      return { id: task.id, title: task.title, status: task.status };
     },
   }),
 ];
