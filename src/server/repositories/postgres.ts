@@ -941,7 +941,7 @@ export class PostgresDataStore implements DataStore {
   // --- Adjuntos y enlaces de peticiones (ampliación A) -----------------------
 
   private static readonly DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS = `id, request_id, side, kind, file_name, content_type,
-              size_bytes, storage_key, label, url, added_by, added_at`;
+              size_bytes, storage_key, label, url, added_by, added_at, is_removed, removed_by, removed_at`;
 
   async listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]> {
     const res = requestId
@@ -989,6 +989,20 @@ export class PostgresDataStore implements DataStore {
       ],
     );
     return item;
+  }
+
+  async markDepartmentRequestAttachmentRemoved(
+    id: string,
+    removedBy: string,
+    removedAt: string,
+  ): Promise<DepartmentRequestAttachment> {
+    await this.pool.query(
+      `UPDATE department_request_attachments SET is_removed = TRUE, removed_by = $2, removed_at = $3 WHERE id = $1`,
+      [id, removedBy, removedAt],
+    );
+    const updated = await this.departmentRequestAttachmentById(id);
+    if (!updated) throw new Error(`Adjunto no encontrado: ${id}`);
+    return updated;
   }
 
   async listFeedback(): Promise<FeedbackItem[]> {
@@ -1441,6 +1455,9 @@ export class PostgresDataStore implements DataStore {
       side: String(r.side) as AttachmentSide,
       addedBy: String(r.added_by),
       addedAt: toIso(r.added_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
     };
     if (String(r.kind) === 'LINK') {
       return { ...base, kind: 'LINK', label: String(r.label), url: String(r.url) };

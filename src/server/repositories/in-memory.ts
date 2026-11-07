@@ -83,8 +83,12 @@ export class InMemoryDataStore implements DataStore {
     this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
     this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
     this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
+    // Los snapshots de la ampliación A no traen los campos de baja: se rellenan como activos.
     this.departmentRequestAttachments = new Map(
-      (data.departmentRequestAttachments ?? []).map((item) => [item.id, clone(item)]),
+      (data.departmentRequestAttachments ?? []).map((item) => [
+        item.id,
+        clone({ ...item, isRemoved: item.isRemoved ?? false, removedBy: item.removedBy ?? null, removedAt: item.removedAt ?? null }),
+      ]),
     );
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
@@ -619,6 +623,19 @@ export class InMemoryDataStore implements DataStore {
     this.departmentRequestAttachments.set(item.id, clone(item));
     this.touched();
     return clone(item);
+  }
+
+  async markDepartmentRequestAttachmentRemoved(
+    id: string,
+    removedBy: string,
+    removedAt: string,
+  ): Promise<DepartmentRequestAttachment> {
+    const current = this.departmentRequestAttachments.get(id);
+    if (!current) throw new Error(`Adjunto no encontrado: ${id}`);
+    const updated: DepartmentRequestAttachment = { ...current, isRemoved: true, removedBy, removedAt };
+    this.departmentRequestAttachments.set(id, updated);
+    this.touched();
+    return clone(updated);
   }
 
   // --- Caja negra --------------------------------------------------------------------

@@ -53,6 +53,10 @@ interface AttachmentBase {
   side: AttachmentSide;
   addedBy: string;
   addedAt: string;
+  /** Baja lógica (ampliación B, AGENTS.md §5.8): deja de mostrarse y de servirse, pero no se borra. */
+  isRemoved: boolean;
+  removedBy: string | null;
+  removedAt: string | null;
 }
 
 /** Archivo en el almacenamiento privado: solo se guarda su clave, nunca una URL pública. */

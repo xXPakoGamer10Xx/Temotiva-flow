@@ -34,6 +34,7 @@ import { detectImageType } from './feedback';
 import {
   canAttachToDepartmentRequest,
   canManageDepartmentRequest,
+  canRemoveDepartmentRequestAttachment,
   canViewDepartmentRequest,
   canViewInitiativeDependencyInInbox,
 } from './rbac';
@@ -84,6 +85,8 @@ interface AttachmentViewBase {
   side: AttachmentSide;
   addedByName: string;
   addedAt: string;
+  /** Ampliación B: la sesión puede retirarlo. */
+  canRemove: boolean;
 }
 
 /** Sin clave de almacenamiento: el archivo solo sale por la ruta de descarga con Need-to-Know. */
@@ -137,10 +140,12 @@ export async function getDepartmentRequestsView(
   ]);
   const userName = new Map(users.map((user) => [user.id, user.name]));
   const nameOf = (id: string): string => userName.get(id) ?? RETIRED_PERSON;
-  const attachmentsByRequest = new Map<string, RequestAttachmentView[]>();
+  // Los retirados no se proyectan: siguen en la base de datos y en el log.
+  const attachmentsByRequest = new Map<string, DepartmentRequestAttachment[]>();
   for (const item of attachments) {
+    if (item.isRemoved) continue;
     const list = attachmentsByRequest.get(item.requestId) ?? [];
-    list.push(toAttachmentView(item, nameOf));
+    list.push(item);
     attachmentsByRequest.set(item.requestId, list);
   }
   // `listInitiatives()` excluye las archivadas: lo que no esté aquí no se muestra.
@@ -174,7 +179,9 @@ export async function getDepartmentRequestsView(
         canStart: canManage && request.status === 'PENDING',
         canResolve: canManage && request.status !== 'RESOLVED',
         // Solo se proyectan los adjuntos de peticiones que ya pasaron el Need-to-Know.
-        attachments: attachmentsByRequest.get(request.id) ?? [],
+        attachments: (attachmentsByRequest.get(request.id) ?? []).map((item) =>
+          toAttachmentView(item, nameOf, canRemoveDepartmentRequestAttachment(session, request, item)),
+        ),
         canAttachRequest: canAttachToDepartmentRequest(session, request, 'REQUEST'),
         canAttachResponse: canAttachToDepartmentRequest(session, request, 'RESPONSE'),
       };
@@ -225,8 +232,12 @@ export function departmentRequestFileUrl(attachmentId: string): string {
   return `/api/department-requests/attachments/${attachmentId}`;
 }
 
-function toAttachmentView(item: DepartmentRequestAttachment, nameOf: (id: string) => string): RequestAttachmentView {
-  const base = { id: item.id, side: item.side, addedByName: nameOf(item.addedBy), addedAt: item.addedAt };
+function toAttachmentView(
+  item: DepartmentRequestAttachment,
+  nameOf: (id: string) => string,
+  canRemove: boolean,
+): RequestAttachmentView {
+  const base = { id: item.id, side: item.side, addedByName: nameOf(item.addedBy), addedAt: item.addedAt, canRemove };
   return item.kind === 'FILE'
     ? {
         ...base,
@@ -536,7 +547,8 @@ async function countOnSide(
   kind: DepartmentRequestAttachment['kind'],
 ): Promise<number> {
   const items = await store.listDepartmentRequestAttachments(requestId);
-  return items.filter((item) => item.side === side && item.kind === kind).length;
+  // Lo retirado libera su hueco en el cupo.
+  return items.filter((item) => !item.isRemoved && item.side === side && item.kind === kind).length;
 }
 
 /**
@@ -603,6 +615,9 @@ async function insertLinks(
       url: link.url,
       addedBy: session.userId,
       addedAt: now.toISOString(),
+      isRemoved: false,
+      removedBy: null,
+      removedAt: null,
     };
     await store.insertDepartmentRequestAttachment(item);
     await auditAttachment(store, session, item, now);
@@ -683,6 +698,9 @@ export async function addDepartmentRequestFile(
     storageKey: `department-requests/${request.id}/${id}.${type.extension}`,
     addedBy: session.userId,
     addedAt: now.toISOString(),
+    isRemoved: false,
+    removedBy: null,
+    removedAt: null,
   };
 
   // Primero el archivo y después la fila: nunca queda una fila apuntando a nada.
@@ -703,8 +721,50 @@ export async function getDepartmentRequestFile(
 ): Promise<RequestFileAttachment> {
   const item = await store.departmentRequestAttachmentById(attachmentId);
   const request = item ? await store.departmentRequestById(item.requestId) : null;
-  if (!item || item.kind !== 'FILE' || !request || !canViewDepartmentRequest(session, request)) {
+  if (!item || item.kind !== 'FILE' || item.isRemoved || !request || !canViewDepartmentRequest(session, request)) {
     throw notFound('El archivo no existe.');
   }
   return item;
+}
+
+// --- Ampliación B: retirar adjuntos (spec 001 §14) --------------------------------
+
+export interface RemoveDepartmentRequestAttachmentInput {
+  attachmentId: string;
+  now?: Date;
+}
+
+/**
+ * Baja lógica de un archivo o enlace (RF-22). En cualquier estado de la
+ * petición: es una corrección, no una edición. La fila y los bytes se
+ * conservan (AGENTS.md §5.8); deja de mostrarse, de servirse y de ocupar cupo.
+ */
+export async function removeDepartmentRequestAttachment(
+  store: DataStore,
+  session: SessionContext,
+  input: RemoveDepartmentRequestAttachmentInput,
+): Promise<DepartmentRequestAttachment> {
+  const now = input.now ?? new Date();
+  const item = await store.departmentRequestAttachmentById(input.attachmentId);
+  const request = item ? await store.departmentRequestById(item.requestId) : null;
+  // Inexistente, ya retirado o de una petición que no ves: mismo mensaje (RF-8).
+  if (!item || item.isRemoved || !request || !canViewDepartmentRequest(session, request)) {
+    throw notFound('El adjunto no existe o ya se retiró.');
+  }
+  if (!canRemoveDepartmentRequestAttachment(session, request, item)) {
+    const area = DEPARTMENT_LABELS[item.side === 'REQUEST' ? request.sourceDepartment : request.targetDepartment];
+    throw forbidden(`Solo quien lo añadió, el responsable de ${area} o Dirección pueden retirarlo.`);
+  }
+
+  const removed = await store.markDepartmentRequestAttachmentRemoved(item.id, session.userId, now.toISOString());
+  await audit(store, {
+    initiativeId: null,
+    session,
+    actionType: 'DEPARTMENT_REQUEST_ATTACHMENT_REMOVED',
+    fieldName: AUDIT_FIELD,
+    // Sin nombre de archivo ni URL, igual que al añadirlo.
+    newValue: { requestId: item.requestId, attachmentId: item.id, side: item.side, kind: item.kind },
+    at: now,
+  });
+  return removed;
 }

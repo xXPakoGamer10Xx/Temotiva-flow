@@ -1,7 +1,7 @@
 import type { Department, UserRole } from '@/domain/enums';
 import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import type { Dependency } from '@/domain/types';
-import type { AttachmentSide, DepartmentRequest } from '@/domain/department-request';
+import type { AttachmentSide, DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -257,6 +257,20 @@ export function canAttachToDepartmentRequest(
   return side === 'REQUEST'
     ? belongsTo(session, request.sourceDepartment) && request.status === 'PENDING'
     : canManageDepartmentRequest(session, request) && request.status !== 'RESOLVED';
+}
+
+/**
+ * Ampliación B: retira un adjunto quien lo añadió, el LEAD del área de ese lado
+ * (origen para la petición, destino para la respuesta) o Dirección. Sin
+ * condición de estado: retirar es una corrección, también con la petición resuelta.
+ */
+export function canRemoveDepartmentRequestAttachment(
+  session: SessionContext,
+  request: Pick<DepartmentRequest, 'sourceDepartment' | 'targetDepartment'>,
+  item: Pick<DepartmentRequestAttachment, 'side' | 'addedBy'>,
+): boolean {
+  const sideDepartment = item.side === 'REQUEST' ? request.sourceDepartment : request.targetDepartment;
+  return item.addedBy === session.userId || isExecutive(session) || isLeadOf(session, sideDepartment);
 }
 
 /**

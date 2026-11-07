@@ -1,11 +1,13 @@
 'use client';
 
 import * as React from 'react';
-import { ExternalLink, FileText, ImageIcon, Link2, Paperclip, Plus, X } from 'lucide-react';
+import { ExternalLink, FileText, ImageIcon, Link2, Paperclip, Plus, Trash2, X } from 'lucide-react';
 import type { AttachmentSide } from '@/domain/department-request';
 import { MAX_REQUEST_FILES_PER_SIDE, MAX_REQUEST_LINKS_PER_SIDE, MAX_REQUEST_LINK_LABEL } from '@/domain/rules';
 import type { RequestAttachmentView } from '@/server/services/department-requests';
+import { removeDepartmentRequestAttachmentAction } from '@/server/actions/department-requests';
 import { REQUEST_FILE_ACCEPT, checkRequestUpload, uploadRequestFile } from '@/lib/upload-request-file';
+import { useAction } from '@/lib/use-action';
 import { formatDateTime } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input, Label, SectionLabel } from '@/components/ui/primitives';
@@ -185,6 +187,53 @@ export function AttachmentFields({
   );
 }
 
+/**
+ * Retirar un adjunto (ampliación B). Confirmación en línea, sin diálogos del
+ * navegador: el primer clic pregunta y el segundo retira. Es baja lógica.
+ */
+function RemoveAttachmentControl({ attachmentId, name }: { attachmentId: string; name: string }) {
+  const remove = useAction(removeDepartmentRequestAttachmentAction, { success: 'Adjunto retirado' });
+  const [confirming, setConfirming] = React.useState(false);
+
+  if (!confirming) {
+    return (
+      <Button
+        type="button"
+        size="iconSm"
+        variant="ghost"
+        aria-label={`Retirar ${name}`}
+        title="Retirar"
+        onClick={() => setConfirming(true)}
+      >
+        <Trash2 aria-hidden />
+      </Button>
+    );
+  }
+
+  return (
+    <span className="flex shrink-0 items-center gap-1" role="group" aria-label={`Confirmar retirada de ${name}`}>
+      <span className="text-fg-muted">¿Retirar?</span>
+      <Button
+        type="button"
+        size="sm"
+        variant="danger"
+        disabled={remove.isPending}
+        onClick={() => remove.run({ attachmentId }, () => setConfirming(false))}
+      >
+        {remove.isPending ? 'Retirando…' : 'Sí'}
+      </Button>
+      <Button type="button" size="sm" variant="ghost" disabled={remove.isPending} onClick={() => setConfirming(false)}>
+        No
+      </Button>
+      {remove.error ? (
+        <span role="alert" className="tone-danger rounded px-1.5 py-0.5">
+          {remove.error}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
@@ -245,6 +294,12 @@ export function AttachmentList({
             <span className="ml-auto shrink-0 text-fg-subtle">
               {item.addedByName} · <span className="tabular-nums">{formatDateTime(item.addedAt)}</span>
             </span>
+            {item.canRemove ? (
+              <RemoveAttachmentControl
+                attachmentId={item.id}
+                name={item.kind === 'FILE' ? item.fileName : item.label}
+              />
+            ) : null}
           </li>
         ))}
       </ul>

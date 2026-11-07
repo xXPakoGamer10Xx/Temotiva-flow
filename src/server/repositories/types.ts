@@ -161,6 +161,8 @@ export interface DataStore {
   listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]>;
   departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null>;
   insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment>;
+  /** Solo la baja lógica (ampliación B): la fila y el archivo se conservan. */
+  markDepartmentRequestAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<DepartmentRequestAttachment>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

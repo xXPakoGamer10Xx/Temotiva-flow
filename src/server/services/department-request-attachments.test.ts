@@ -6,6 +6,7 @@ import {
   createDepartmentRequest,
   getDepartmentRequestFile,
   getDepartmentRequestsView,
+  removeDepartmentRequestAttachment,
   resolveDepartmentRequest,
   startDepartmentRequest,
   type AddDepartmentRequestFileInput,
@@ -315,5 +316,118 @@ describe('proyección de adjuntos en la vista', () => {
     const view = await getDepartmentRequestsView(store, makeSession('PRODUCT', 'MEMBER'));
     expect(view.requests).toEqual([]);
     expect(JSON.stringify(view)).not.toContain('borrador');
+  });
+});
+
+/** Ampliación B — retirar adjuntos (spec 001 §14; RF-22, AC-16, AC-17). */
+describe('retirar adjuntos', () => {
+  const legalColleague = makeUser({ name: 'Leo Legal', departments: ['LEGAL'], role: 'MEMBER' });
+  const legalLead = makeSession('LEGAL', 'LEAD');
+  const cyberLead = makeSession('CYBER', 'LEAD');
+  const removeInput = (attachmentId: string) => ({ attachmentId, now: TEST_NOW });
+
+  it('quien lo subió lo retira: deja de verse y de descargarse, la fila se conserva y queda en el log (AC-16)', async () => {
+    const { store, put } = await setup();
+    const item = await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput());
+
+    await removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput(item.id));
+
+    const [row] = await store.listDepartmentRequestAttachments(REQUEST_ID);
+    expect(row).toMatchObject({ id: item.id, isRemoved: true, removedBy: legal.id, removedAt: TEST_NOW.toISOString() });
+    const view = await getDepartmentRequestsView(store, sessionOf(cyber));
+    expect(view.requests[0]?.attachments).toEqual([]);
+    for (const session of [sessionOf(legal), sessionOf(cyber), makeSession([], 'EXECUTIVE')]) {
+      await expect(getDepartmentRequestFile(store, session, item.id)).rejects.toMatchObject({ code: 'NOT_FOUND' });
+    }
+    const removedEvent = (await store.listActivityLog()).find((e) => e.actionType === 'DEPARTMENT_REQUEST_ATTACHMENT_REMOVED');
+    expect(removedEvent).toMatchObject({
+      initiativeId: null,
+      userId: legal.id,
+      newValue: { requestId: REQUEST_ID, attachmentId: item.id, side: 'REQUEST', kind: 'FILE' },
+    });
+    expect(JSON.stringify(removedEvent)).not.toContain('borrador');
+  });
+
+  it('se puede retirar aunque la petición ya esté resuelta (corrección, no edición)', async () => {
+    const { store, put } = await setup();
+    const item = await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput());
+    await resolveDepartmentRequest(store, sessionOf(cyber), { requestId: REQUEST_ID, resolutionNotes: 'Listo.', now: TEST_NOW });
+
+    await removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput(item.id));
+    expect((await store.departmentRequestAttachmentById(item.id))?.isRemoved).toBe(true);
+    // Retirar no reabre la petición: sigue sin admitir adjuntos nuevos.
+    await expect(
+      addDepartmentRequestFile(store, sessionOf(legal), put, fileInput({ fileName: 'otro.pdf' })),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+  });
+
+  it('libera su hueco en el cupo del lado', async () => {
+    const { store, put } = await setup();
+    const items = [];
+    for (let i = 0; i < 5; i += 1) items.push(await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput({ fileName: `doc-${i}.pdf` })));
+    await removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput(items[0]!.id));
+    await expect(
+      addDepartmentRequestFile(store, sessionOf(legal), put, fileInput({ fileName: 'reemplazo.pdf' })),
+    ).resolves.toMatchObject({ fileName: 'reemplazo.pdf' });
+  });
+
+  it('un compañero que no lo añadió no puede retirarlo; el LEAD de ese lado y Dirección sí (AC-17)', async () => {
+    const { store, put } = await setup();
+    const first = await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput({ fileName: 'a.pdf' }));
+    const second = await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput({ fileName: 'b.pdf' }));
+
+    await expect(
+      removeDepartmentRequestAttachment(store, sessionOf(legalColleague), removeInput(first.id)),
+    ).rejects.toMatchObject({ code: 'FORBIDDEN' });
+    // El LEAD del otro lado tampoco: lo de la petición es del área origen.
+    await expect(removeDepartmentRequestAttachment(store, cyberLead, removeInput(first.id))).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+
+    await removeDepartmentRequestAttachment(store, legalLead, removeInput(first.id));
+    await removeDepartmentRequestAttachment(store, makeSession([], 'EXECUTIVE'), removeInput(second.id));
+    const rows = await store.listDepartmentRequestAttachments(REQUEST_ID);
+    expect(rows.every((row) => row.isRemoved)).toBe(true);
+  });
+
+  it('lo de la respuesta lo retira el LEAD del área destino, no el del área origen; también los enlaces', async () => {
+    const { store } = await setup();
+    const [link] = await addDepartmentRequestLinks(store, sessionOf(cyber), {
+      requestId: REQUEST_ID,
+      side: 'RESPONSE',
+      links: [LINK],
+      now: TEST_NOW,
+    });
+    await expect(removeDepartmentRequestAttachment(store, legalLead, removeInput(link!.id))).rejects.toMatchObject({
+      code: 'FORBIDDEN',
+    });
+    await removeDepartmentRequestAttachment(store, cyberLead, removeInput(link!.id));
+    expect((await store.departmentRequestAttachmentById(link!.id))?.isRemoved).toBe(true);
+  });
+
+  it('para un área ajena, un id inventado o algo ya retirado, el adjunto no existe', async () => {
+    const { store, put } = await setup();
+    const item = await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput());
+    const notFound = { code: 'NOT_FOUND', message: 'El adjunto no existe o ya se retiró.' };
+
+    await expect(removeDepartmentRequestAttachment(store, makeSession('PRODUCT', 'LEAD'), removeInput(item.id))).rejects.toMatchObject(notFound);
+    await expect(
+      removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput('00000000-0000-4000-8000-000000000000')),
+    ).rejects.toMatchObject(notFound);
+    await removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput(item.id));
+    await expect(removeDepartmentRequestAttachment(store, sessionOf(legal), removeInput(item.id))).rejects.toMatchObject(notFound);
+  });
+
+  it('la vista indica quién puede retirar cada adjunto', async () => {
+    const { store, put } = await setup();
+    await addDepartmentRequestFile(store, sessionOf(legal), put, fileInput());
+    const flag = async (session: Parameters<typeof getDepartmentRequestsView>[1]) =>
+      (await getDepartmentRequestsView(store, session)).requests[0]?.attachments[0]?.canRemove;
+
+    expect(await flag(sessionOf(legal))).toBe(true);
+    expect(await flag(sessionOf(legalColleague))).toBe(false);
+    expect(await flag(legalLead)).toBe(true);
+    expect(await flag(sessionOf(cyber))).toBe(false);
+    expect(await flag(makeSession([], 'EXECUTIVE'))).toBe(true);
   });
 });

@@ -3,12 +3,14 @@
 import {
   addDepartmentRequestLinks,
   createDepartmentRequest,
+  removeDepartmentRequestAttachment,
   resolveDepartmentRequest,
   startDepartmentRequest,
 } from '@/server/services/department-requests';
 import {
   addDepartmentRequestLinksSchema,
   createDepartmentRequestSchema,
+  removeDepartmentRequestAttachmentSchema,
   resolveDepartmentRequestSchema,
   startDepartmentRequestSchema,
 } from './department-requests-schemas';
@@ -59,6 +61,18 @@ export async function addDepartmentRequestLinksAction(input: unknown): Promise<A
     input,
     handler: async ({ store, session, input: data }) => {
       await addDepartmentRequestLinks(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+/** Ampliación B: baja lógica de un archivo o enlace. Los permisos los decide el servicio. */
+export async function removeDepartmentRequestAttachmentAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: removeDepartmentRequestAttachmentSchema,
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await removeDepartmentRequestAttachment(store, session, data);
       return undefined;
     },
   });

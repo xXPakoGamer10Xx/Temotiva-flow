@@ -162,3 +162,20 @@ describe('migración db/07-department-request-attachments.sql', () => {
     expect(at07).toBeGreaterThan(at06);
   });
 });
+
+/** Ampliación B — retirar adjuntos (spec 001 §14, T-17). */
+describe('contrato de la retirada de adjuntos', () => {
+  const sql = readFileSync(join(process.cwd(), 'db', '07-department-request-attachments.sql'), 'utf8');
+
+  it('registra el evento de retirada con etiqueta propia', () => {
+    expect(ACTION_TYPES).toContain('DEPARTMENT_REQUEST_ATTACHMENT_REMOVED');
+    expect(ACTION_TYPE_LABELS.DEPARTMENT_REQUEST_ATTACHMENT_REMOVED.length).toBeGreaterThan(5);
+  });
+
+  it('la tabla guarda la baja lógica y exige quién y cuándo', () => {
+    expect(sql).toMatch(/is_removed BOOLEAN NOT NULL DEFAULT FALSE/);
+    expect(sql).toMatch(/removed_by UUID REFERENCES users\(id\)/);
+    expect(sql).toMatch(/removed_at TIMESTAMPTZ/);
+    expect(sql).toMatch(/dra_removal_documented/);
+  });
+});

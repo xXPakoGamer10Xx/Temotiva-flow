@@ -3,6 +3,7 @@ import {
   addDepartmentRequestLinksSchema,
   attachmentSideSchema,
   createDepartmentRequestSchema,
+  removeDepartmentRequestAttachmentSchema,
   resolveDepartmentRequestSchema,
   startDepartmentRequestSchema,
 } from './department-requests-schemas';
@@ -163,5 +164,16 @@ describe('enlaces en los esquemas', () => {
     expect(attachmentSideSchema.parse('RESPONSE')).toBe('RESPONSE');
     expectSpanish(firstError(attachmentSideSchema.safeParse('ADMIN')));
     expectSpanish(firstError(attachmentSideSchema.safeParse(null)));
+  });
+});
+
+/** Ampliación B — retirar adjuntos (T-19). */
+describe('removeDepartmentRequestAttachmentSchema', () => {
+  it('exige el id del adjunto en formato UUID y nada más', () => {
+    expect(removeDepartmentRequestAttachmentSchema.parse({ attachmentId: REQUEST_ID, removedBy: 'otra' })).toEqual({
+      attachmentId: REQUEST_ID,
+    });
+    expectSpanish(firstError(removeDepartmentRequestAttachmentSchema.safeParse({})));
+    expectSpanish(firstError(removeDepartmentRequestAttachmentSchema.safeParse({ attachmentId: 'att-1' })));
   });
 });

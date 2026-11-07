@@ -96,6 +96,13 @@ export const resolveDepartmentRequestSchema = z.object({
   links: linksSchema.optional(),
 });
 
+const ATTACHMENT_ID_MESSAGE = 'Identificador de adjunto no válido.';
+
+/** Ampliación B: el servidor decide si la sesión puede retirarlo. */
+export const removeDepartmentRequestAttachmentSchema = z.object({
+  attachmentId: z.string({ message: ATTACHMENT_ID_MESSAGE }).uuid({ message: ATTACHMENT_ID_MESSAGE }),
+});
+
 export const addDepartmentRequestLinksSchema = z.object({
   requestId: requestIdSchema,
   side: attachmentSideSchema,

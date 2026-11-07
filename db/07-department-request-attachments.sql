@@ -5,7 +5,8 @@
 -- Una fila por archivo o enlace, marcada con el lado al que pertenece: la
 -- petición (área origen) o la respuesta (área destino). Los archivos viven en
 -- el almacenamiento privado; aquí solo se guarda su clave, nunca una URL
--- pública. No altera ninguna tabla existente.
+-- pública. No altera ninguna tabla existente. Retirar es baja lógica
+-- (ampliación B): la fila se marca y deja de mostrarse y servirse.
 -- ---------------------------------------------------------------------------
 
 CREATE TABLE IF NOT EXISTS department_request_attachments (
@@ -21,6 +22,10 @@ CREATE TABLE IF NOT EXISTS department_request_attachments (
     url VARCHAR(500),
     added_by UUID REFERENCES users(id) NOT NULL,
     added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_removed BOOLEAN NOT NULL DEFAULT FALSE,     -- baja lógica (AGENTS.md §5.8): la fila y el archivo se conservan
+    removed_by UUID REFERENCES users(id),
+    removed_at TIMESTAMPTZ,
+    CONSTRAINT dra_removal_documented CHECK (NOT is_removed OR (removed_by IS NOT NULL AND removed_at IS NOT NULL)),
     CONSTRAINT dra_file_complete CHECK (kind <> 'FILE' OR (
         file_name IS NOT NULL AND
         content_type IS NOT NULL AND

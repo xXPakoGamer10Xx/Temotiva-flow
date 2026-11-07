@@ -203,6 +203,9 @@ const fileItem = (overrides: Partial<DepartmentRequestAttachment> = {}): Departm
     storageKey: `department-requests/${REQ_ID}/att-file.pdf`,
     addedBy: 'u-legal',
     addedAt: '2026-11-07T10:00:00.000Z',
+    isRemoved: false,
+    removedBy: null,
+    removedAt: null,
     ...overrides,
   }) as DepartmentRequestAttachment;
 
@@ -216,6 +219,9 @@ const linkItem = (overrides: Partial<DepartmentRequestAttachment> = {}): Departm
     url: 'https://notion.so/informe',
     addedBy: 'u-cyber',
     addedAt: '2026-11-07T11:00:00.000Z',
+    isRemoved: false,
+    removedBy: null,
+    removedAt: null,
     ...overrides,
   }) as DepartmentRequestAttachment;
 
@@ -264,6 +270,9 @@ const FILE_ROW = {
   url: null,
   added_by: 'u-legal',
   added_at: new Date('2026-11-07T10:00:00.000Z'),
+  is_removed: false,
+  removed_by: null,
+  removed_at: null,
 };
 
 const LINK_ROW = {
@@ -307,5 +316,49 @@ describe('PostgresDataStore — adjuntos de peticiones', () => {
     expect(nth(calls, 0).sql).not.toContain('DROP TABLE');
     expect(nth(calls, 0).params).toContain("https://x.test/?q=';DROP TABLE users");
     expect(await store.departmentRequestAttachmentById('x')).toBeNull();
+  });
+});
+
+/** Ampliación B — baja lógica de adjuntos (T-18). */
+describe('retirada de adjuntos en la persistencia', () => {
+  it('InMemory: marca la baja lógica sin borrar la fila y avisa al snapshot', async () => {
+    const store = new InMemoryDataStore();
+    await store.insertDepartmentRequestAttachment(fileItem());
+    const listener = vi.fn();
+    store.setChangeListener(listener);
+
+    const removed = await store.markDepartmentRequestAttachmentRemoved('att-file', 'u-lead', '2026-11-07T12:00:00.000Z');
+    expect(removed).toMatchObject({ isRemoved: true, removedBy: 'u-lead', removedAt: '2026-11-07T12:00:00.000Z' });
+    expect(await store.listDepartmentRequestAttachments(REQ_ID)).toHaveLength(1);
+    expect(listener).toHaveBeenCalledTimes(1);
+    await expect(store.markDepartmentRequestAttachmentRemoved('missing', 'u', 'x')).rejects.toThrow();
+  });
+
+  it('InMemory: los snapshots de la ampliación A (sin campos de baja) arrancan como no retirados', async () => {
+    const seed = buildSeedData();
+    const legacy = { ...fileItem() } as Record<string, unknown>;
+    delete legacy.isRemoved;
+    delete legacy.removedBy;
+    delete legacy.removedAt;
+    seed.departmentRequestAttachments = [legacy as unknown as DepartmentRequestAttachment];
+    const restored = await new InMemoryDataStore(seed).departmentRequestAttachmentById('att-file');
+    expect(restored).toMatchObject({ isRemoved: false, removedBy: null, removedAt: null });
+  });
+
+  it('Postgres: mapea la baja y la escribe con consulta parametrizada', async () => {
+    const removedRow = { ...FILE_ROW, is_removed: true, removed_by: 'u-lead', removed_at: new Date('2026-11-07T12:00:00.000Z') };
+    const { pool, calls } = fakePool([removedRow]);
+    const store = new PostgresDataStore(pool);
+
+    const removed = await store.markDepartmentRequestAttachmentRemoved('att-file', 'u-lead', '2026-11-07T12:00:00.000Z');
+    expect(removed).toMatchObject({ isRemoved: true, removedBy: 'u-lead', removedAt: '2026-11-07T12:00:00.000Z' });
+    expect(nth(calls, 0).sql).toMatch(/UPDATE department_request_attachments SET is_removed = TRUE/);
+    expect(nth(calls, 0).params).toEqual(['att-file', 'u-lead', '2026-11-07T12:00:00.000Z']);
+    expect(nth(calls, 1).sql).toMatch(/FROM department_request_attachments WHERE id = \$1/);
+  });
+
+  it('Postgres: un adjunto activo se mapea como no retirado', async () => {
+    const { pool } = fakePool([FILE_ROW]);
+    expect(await new PostgresDataStore(pool).departmentRequestAttachmentById('att-file')).toEqual(fileItem());
   });
 });
