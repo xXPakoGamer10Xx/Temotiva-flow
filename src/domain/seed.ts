@@ -19,6 +19,7 @@ import type {
 } from './types';
 import { SEED_CHECKLIST_ITEMS, SEED_STAGES, STAGE_ID_BY_KEY, checklistItemId } from './workflow';
 import type { StageKey, StopReason } from './enums';
+import type { DepartmentRequest } from './department-request';
 
 /**
  * Estado inicial del sistema: personas ficticias y 9 iniciativas activas (mas
@@ -56,6 +57,8 @@ export interface SeedData {
   personalSteps?: PersonalStep[];
   notificationPrefs?: NotificationPref[];
   departmentNotificationSettings?: DepartmentNotificationSetting[];
+  /** Opcional: las semillas y snapshots anteriores al módulo de Dependencias (spec 001) no lo traen. */
+  departmentRequests?: DepartmentRequest[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */

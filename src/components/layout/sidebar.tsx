@@ -12,6 +12,7 @@ import {
   ListTodo,
   LogOut,
   FolderOpen,
+  Handshake,
   MessageSquarePlus,
   Moon,
   PanelLeft,
@@ -41,7 +42,18 @@ import { cn } from '@/lib/utils';
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'tasks' | 'documents' | 'feedback' | 'team' | 'help';
+  icon:
+    | 'mywork'
+    | 'board'
+    | 'radar'
+    | 'executive'
+    | 'notifications'
+    | 'tasks'
+    | 'dependencies'
+    | 'documents'
+    | 'feedback'
+    | 'team'
+    | 'help';
   badge?: number;
   shortcut?: string;
 }
@@ -53,6 +65,7 @@ const ICONS = {
   executive: TrendingUp,
   notifications: Bell,
   tasks: ListTodo,
+  dependencies: Handshake,
   documents: FolderOpen,
   feedback: MessageSquarePlus,
   team: ShieldCheck,

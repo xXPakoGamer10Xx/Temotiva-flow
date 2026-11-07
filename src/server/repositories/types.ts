@@ -19,6 +19,7 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
+import type { DepartmentRequest } from '@/domain/department-request';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -142,6 +143,18 @@ export interface DataStore {
   listDepartmentNotificationSettings(): Promise<DepartmentNotificationSetting[]>;
   /** Inserta o reemplaza el ajuste de esa área. */
   setDepartmentNotificationSetting(setting: DepartmentNotificationSetting): Promise<DepartmentNotificationSetting>;
+
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ------------------------
+  /** Sin filtrar: el Need-to-Know se aplica en el servicio, nunca aquí. Más reciente primero. */
+  listDepartmentRequests(): Promise<DepartmentRequest[]>;
+  departmentRequestById(id: string): Promise<DepartmentRequest | null>;
+  insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest>;
+  updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

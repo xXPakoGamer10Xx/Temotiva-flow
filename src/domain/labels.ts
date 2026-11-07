@@ -12,6 +12,7 @@ import type {
   TaskStatus,
   UserRole,
 } from './enums';
+import type { DepartmentRequestStatus } from './department-request';
 
 /**
  * Unica fuente de los textos visibles (AGENTS.md §4.1: codigo en ingles,
@@ -147,7 +148,27 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   TASK_REMOVED: 'Tarea de área retirada',
   API_TOKEN_CREATED: 'Token de acceso para IA creado',
   API_TOKEN_REVOKED: 'Token de acceso para IA revocado',
+  DEPARTMENT_REQUEST_CREATED: 'Petición entre áreas creada',
+  DEPARTMENT_REQUEST_STARTED: 'Petición entre áreas tomada',
+  DEPARTMENT_REQUEST_RESOLVED: 'Petición entre áreas resuelta',
 };
+
+/** Peticiones entre áreas (spec 001 — Dependencias). */
+export const DEPARTMENT_REQUEST_STATUS_LABELS: Record<DepartmentRequestStatus, string> = {
+  PENDING: 'Pendiente',
+  IN_PROGRESS: 'En curso',
+  RESOLVED: 'Resuelta',
+};
+
+/**
+ * Rótulos del indicador de bloqueo de una petición. Es informativo, así que
+ * ninguno promete detener el SLE (spec 001, RF-9).
+ */
+export const REQUEST_BLOCKING_LABEL_STANDALONE = 'Prioridad Alta (No altera SLE)';
+export const REQUEST_BLOCKING_LABEL_LINKED = 'Bloquea iniciativa (No altera SLE)';
+
+/** Badge de una dependencia 🆘 de iniciativa mostrada en el buzón: esa sí cuenta para el SLE (RF-16). */
+export const INITIATIVE_DEPENDENCY_BADGE = 'Iniciativa (SLE Activo)';
 
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   TODO: 'Por hacer',

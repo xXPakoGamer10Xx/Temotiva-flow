@@ -38,6 +38,14 @@ export const MIN_TASK_TITLE = 3;
 export const MAX_TASK_TITLE = 120;
 export const MAX_TASK_DESCRIPTION = 500;
 
+/** Peticiones entre áreas (spec 001 — Dependencias). */
+export const MIN_DEPARTMENT_REQUEST_TITLE = 8;
+export const MAX_DEPARTMENT_REQUEST_TITLE = 120;
+export const MIN_DEPARTMENT_REQUEST_DESCRIPTION = 15;
+export const MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES = 5;
+/** El buzón devuelve todas las abiertas, pero solo las N cerradas más recientes de cada fuente (spec §10). */
+export const MAX_CLOSED_INBOX_ITEMS = 100;
+
 /** Pasos propios (privados) de una persona en una iniciativa. */
 export const MIN_PERSONAL_STEP_TITLE = 2;
 export const MAX_PERSONAL_STEP_TITLE = 80;

@@ -1,5 +1,7 @@
 import type { Department, UserRole } from '@/domain/enums';
 import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
+import type { Dependency } from '@/domain/types';
+import type { DepartmentRequest } from '@/domain/department-request';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -215,6 +217,50 @@ export function canChooseOwnNotifications(session: SessionContext): boolean {
 /** Activar o desactivar las notificaciones del equipo de un área: su responsable o Dirección. */
 export function canConfigureAreaNotifications(session: SessionContext, department: Department): boolean {
   return isExecutive(session) || isLeadOf(session, department);
+}
+
+// --- Buzón de Dependencias (spec 001) ---------------------------------------------
+
+/**
+ * Need-to-Know cooperativo: una petición entre áreas solo la ven sus dos áreas
+ * implicadas (cualquier rol) y Dirección. Nunca una petición entre áreas ajenas.
+ */
+export function canViewDepartmentRequest(
+  session: SessionContext,
+  request: Pick<DepartmentRequest, 'sourceDepartment' | 'targetDepartment'>,
+): boolean {
+  return (
+    isExecutive(session) || belongsTo(session, request.sourceDepartment) || belongsTo(session, request.targetDepartment)
+  );
+}
+
+/**
+ * Tomar o resolver es responder, y responde el área destinataria (o Dirección).
+ * El área origen la ve, pero no puede darse por atendida.
+ */
+export function canManageDepartmentRequest(
+  session: SessionContext,
+  request: Pick<DepartmentRequest, 'targetDepartment'>,
+): boolean {
+  return isExecutive(session) || belongsTo(session, request.targetDepartment);
+}
+
+/**
+ * Una dependencia 🆘 de iniciativa aparece en el buzón (solo lectura, RF-16)
+ * para su área destino, para el área dueña actual de la iniciativa y para quien
+ * la abrió, que no pierde el rastro si la iniciativa cambia de área dueña.
+ */
+export function canViewInitiativeDependencyInInbox(
+  session: SessionContext,
+  dependency: Pick<Dependency, 'targetDepartment' | 'requestedBy'>,
+  initiative: Pick<Initiative, 'ownerDepartment'>,
+): boolean {
+  return (
+    isExecutive(session) ||
+    belongsTo(session, dependency.targetDepartment) ||
+    belongsTo(session, initiative.ownerDepartment) ||
+    dependency.requestedBy === session.userId
+  );
 }
 
 /** Lanza `FORBIDDEN` con el texto que verá la persona si el permiso no se cumple. */

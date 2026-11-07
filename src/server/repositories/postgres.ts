@@ -21,6 +21,7 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
+import type { DepartmentRequest, DepartmentRequestStatus } from '@/domain/department-request';
 import type { DataStore } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -846,6 +847,92 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ----------------------
+
+  private static readonly DEPARTMENT_REQUEST_COLUMNS = `id, title, description, source_department, target_department, requested_by,
+              help_type, status, blocks_initiative, initiative_id, assignee_id, resolution_notes,
+              resolved_by, created_at, updated_at, resolved_at`;
+
+  async listDepartmentRequests(): Promise<DepartmentRequest[]> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_COLUMNS}
+       FROM department_requests ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapDepartmentRequest(r));
+  }
+
+  async departmentRequestById(id: string): Promise<DepartmentRequest | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_COLUMNS}
+       FROM department_requests WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDepartmentRequest(res.rows[0]);
+  }
+
+  async insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest> {
+    await this.pool.query(
+      `INSERT INTO department_requests (
+        id, title, description, source_department, target_department, requested_by, help_type, status,
+        blocks_initiative, initiative_id, assignee_id, resolution_notes, resolved_by, created_at, updated_at, resolved_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [
+        request.id,
+        request.title,
+        request.description,
+        request.sourceDepartment,
+        request.targetDepartment,
+        request.requestedBy,
+        request.helpType,
+        request.status,
+        request.blocksInitiative,
+        request.initiativeId,
+        request.assigneeId,
+        request.resolutionNotes,
+        request.resolvedBy,
+        request.createdAt,
+        request.updatedAt,
+        request.resolvedAt,
+      ],
+    );
+    return request;
+  }
+
+  async updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest> {
+    // Los campos anulables llevan su bandera: `undefined` conserva, `null` vacía.
+    await this.pool.query(
+      `UPDATE department_requests SET
+         status = COALESCE($2, status),
+         assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
+         resolution_notes = CASE WHEN $5::boolean THEN $6::text ELSE resolution_notes END,
+         resolved_by = CASE WHEN $7::boolean THEN $8::uuid ELSE resolved_by END,
+         resolved_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE resolved_at END,
+         updated_at = COALESCE($11, updated_at)
+       WHERE id = $1`,
+      [
+        id,
+        patch.status ?? null,
+        patch.assigneeId !== undefined,
+        patch.assigneeId ?? null,
+        patch.resolutionNotes !== undefined,
+        patch.resolutionNotes ?? null,
+        patch.resolvedBy !== undefined,
+        patch.resolvedBy ?? null,
+        patch.resolvedAt !== undefined,
+        patch.resolvedAt ?? null,
+        patch.updatedAt ?? null,
+      ],
+    );
+    const updated = await this.departmentRequestById(id);
+    if (!updated) throw new Error(`Petición no encontrada: ${id}`);
+    return updated;
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -1265,6 +1352,27 @@ export class PostgresDataStore implements DataStore {
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
       isArchived: Boolean(r.is_archived),
+    };
+  }
+
+  private mapDepartmentRequest(r: Record<string, unknown>): DepartmentRequest {
+    return {
+      id: String(r.id),
+      title: String(r.title),
+      description: String(r.description ?? ''),
+      sourceDepartment: String(r.source_department) as Department,
+      targetDepartment: String(r.target_department) as Department,
+      requestedBy: String(r.requested_by),
+      helpType: String(r.help_type) as HelpType,
+      status: String(r.status) as DepartmentRequestStatus,
+      blocksInitiative: Boolean(r.blocks_initiative),
+      initiativeId: r.initiative_id ? String(r.initiative_id) : null,
+      assigneeId: r.assignee_id ? String(r.assignee_id) : null,
+      resolutionNotes: r.resolution_notes != null ? String(r.resolution_notes) : null,
+      resolvedBy: r.resolved_by ? String(r.resolved_by) : null,
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+      resolvedAt: toNullableIso(r.resolved_at),
     };
   }
 

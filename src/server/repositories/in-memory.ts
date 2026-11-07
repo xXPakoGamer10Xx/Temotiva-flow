@@ -21,6 +21,7 @@ import type {
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
+import type { DepartmentRequest } from '@/domain/department-request';
 import type { DataStore } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -51,6 +52,7 @@ export class InMemoryDataStore implements DataStore {
   private areaLinks = new Map<string, AreaLink>();
   private apiTokens = new Map<string, ApiToken>();
   private deptTasks = new Map<string, DeptTask>();
+  private departmentRequests = new Map<string, DepartmentRequest>();
   private notificationPrefs = new Map<string, NotificationPref>();
   private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
   private activityLog: ActivityLogEntry[] = [];
@@ -79,6 +81,7 @@ export class InMemoryDataStore implements DataStore {
     this.areaLinks = new Map((data.areaLinks ?? []).map((link) => [link.id, clone(link)]));
     this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
     this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
+    this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
@@ -103,6 +106,7 @@ export class InMemoryDataStore implements DataStore {
       areaLinks: [...this.areaLinks.values()].map(clone),
       apiTokens: [...this.apiTokens.values()].map(clone),
       deptTasks: [...this.deptTasks.values()].map(clone),
+      departmentRequests: [...this.departmentRequests.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
       notificationPrefs: [...this.notificationPrefs.values()].map(clone),
@@ -557,6 +561,37 @@ export class InMemoryDataStore implements DataStore {
     if (!current) throw new Error(`Dependencia no encontrada: ${id}`);
     const updated: Dependency = { ...current, ...patch };
     this.dependencies.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ------------------------------
+
+  async listDepartmentRequests(): Promise<DepartmentRequest[]> {
+    return [...this.departmentRequests.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone);
+  }
+
+  async departmentRequestById(id: string): Promise<DepartmentRequest | null> {
+    const request = this.departmentRequests.get(id);
+    return request ? clone(request) : null;
+  }
+
+  async insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest> {
+    this.departmentRequests.set(request.id, clone(request));
+    this.touched();
+    return clone(request);
+  }
+
+  async updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest> {
+    const current = this.departmentRequests.get(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    const updated: DepartmentRequest = { ...current, ...patch };
+    this.departmentRequests.set(id, updated);
     this.touched();
     return clone(updated);
   }
