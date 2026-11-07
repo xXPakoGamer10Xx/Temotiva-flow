@@ -21,7 +21,12 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
-import type { DepartmentRequest, DepartmentRequestStatus } from '@/domain/department-request';
+import type {
+  AttachmentSide,
+  DepartmentRequest,
+  DepartmentRequestAttachment,
+  DepartmentRequestStatus,
+} from '@/domain/department-request';
 import type { DataStore } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -933,6 +938,59 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  // --- Adjuntos y enlaces de peticiones (ampliación A) -----------------------
+
+  private static readonly DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS = `id, request_id, side, kind, file_name, content_type,
+              size_bytes, storage_key, label, url, added_by, added_at`;
+
+  async listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]> {
+    const res = requestId
+      ? await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+           FROM department_request_attachments WHERE request_id = $1 ORDER BY added_at`,
+          [requestId],
+        )
+      : await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+           FROM department_request_attachments ORDER BY added_at`,
+        );
+    return res.rows.map((r) => this.mapDepartmentRequestAttachment(r));
+  }
+
+  async departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+       FROM department_request_attachments WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDepartmentRequestAttachment(res.rows[0]);
+  }
+
+  async insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment> {
+    const file = item.kind === 'FILE' ? item : null;
+    const link = item.kind === 'LINK' ? item : null;
+    await this.pool.query(
+      `INSERT INTO department_request_attachments (
+        id, request_id, side, kind, file_name, content_type, size_bytes, storage_key, label, url, added_by, added_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        item.id,
+        item.requestId,
+        item.side,
+        item.kind,
+        file?.fileName ?? null,
+        file?.contentType ?? null,
+        file?.sizeBytes ?? null,
+        file?.storageKey ?? null,
+        link?.label ?? null,
+        link?.url ?? null,
+        item.addedBy,
+        item.addedAt,
+      ],
+    );
+    return item;
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -1373,6 +1431,27 @@ export class PostgresDataStore implements DataStore {
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
       resolvedAt: toNullableIso(r.resolved_at),
+    };
+  }
+
+  private mapDepartmentRequestAttachment(r: Record<string, unknown>): DepartmentRequestAttachment {
+    const base = {
+      id: String(r.id),
+      requestId: String(r.request_id),
+      side: String(r.side) as AttachmentSide,
+      addedBy: String(r.added_by),
+      addedAt: toIso(r.added_at),
+    };
+    if (String(r.kind) === 'LINK') {
+      return { ...base, kind: 'LINK', label: String(r.label), url: String(r.url) };
+    }
+    return {
+      ...base,
+      kind: 'FILE',
+      fileName: String(r.file_name),
+      contentType: String(r.content_type),
+      sizeBytes: Number(r.size_bytes),
+      storageKey: String(r.storage_key),
     };
   }
 

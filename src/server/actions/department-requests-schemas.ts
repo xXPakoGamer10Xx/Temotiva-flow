@@ -1,11 +1,15 @@
 import { z } from 'zod';
 import { DEPARTMENTS } from '@/domain/enums';
-import { DEPARTMENT_REQUEST_HELP_TYPES } from '@/domain/department-request';
+import { ATTACHMENT_SIDES, DEPARTMENT_REQUEST_HELP_TYPES } from '@/domain/department-request';
 import {
   MAX_DEPARTMENT_REQUEST_TITLE,
+  MAX_REQUEST_LINKS_PER_SIDE,
+  MAX_REQUEST_LINK_LABEL,
+  MAX_REQUEST_LINK_URL,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MIN_DEPARTMENT_REQUEST_TITLE,
+  MIN_REQUEST_LINK_LABEL,
 } from '@/domain/rules';
 
 /**
@@ -25,6 +29,45 @@ const REQUEST_ID_MESSAGE = 'Identificador de petición no válido.';
 
 const requestIdSchema = z.string({ message: REQUEST_ID_MESSAGE }).uuid({ message: REQUEST_ID_MESSAGE });
 
+// --- Ampliación A: enlaces y lado de los adjuntos --------------------------------
+
+const LINK_LABEL_MESSAGE = `Cada enlace necesita un nombre de entre ${MIN_REQUEST_LINK_LABEL} y ${MAX_REQUEST_LINK_LABEL} caracteres.`;
+const LINK_URL_MESSAGE = 'Cada enlace debe ser una dirección https:// válida.';
+
+/** Solo `https:` y sin credenciales; el servicio lo vuelve a comprobar. */
+function isSafeHttpsUrl(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}
+
+const linkSchema = z.object(
+  {
+    label: z
+      .string({ message: LINK_LABEL_MESSAGE })
+      .trim()
+      .min(MIN_REQUEST_LINK_LABEL, LINK_LABEL_MESSAGE)
+      .max(MAX_REQUEST_LINK_LABEL, LINK_LABEL_MESSAGE),
+    url: z
+      .string({ message: LINK_URL_MESSAGE })
+      .trim()
+      .max(MAX_REQUEST_LINK_URL, `La dirección del enlace no puede superar ${MAX_REQUEST_LINK_URL} caracteres.`)
+      .refine(isSafeHttpsUrl, LINK_URL_MESSAGE),
+  },
+  { message: 'Enlace no válido.' },
+);
+
+const LINKS_LIMIT_MESSAGE = `Cada parte de la petición admite como máximo ${MAX_REQUEST_LINKS_PER_SIDE} enlaces.`;
+const linksSchema = z.array(linkSchema, { message: 'Enlaces no válidos.' }).max(MAX_REQUEST_LINKS_PER_SIDE, LINKS_LIMIT_MESSAGE);
+
+/** Lado de un adjunto; también lo usa la ruta de subida de archivos. */
+export const attachmentSideSchema = z.enum(ATTACHMENT_SIDES, {
+  message: 'Indica si el adjunto es de la petición o de la respuesta.',
+});
+
 export const createDepartmentRequestSchema = z.object({
   sourceDepartment: z.enum(DEPARTMENTS, { message: 'Elige desde qué área pides ayuda.' }),
   targetDepartment: z.enum(DEPARTMENTS, { message: 'Elige a qué área pides ayuda.' }),
@@ -40,6 +83,7 @@ export const createDepartmentRequestSchema = z.object({
     .string({ message: 'Identificador de iniciativa no válido.' })
     .regex(/^TEMO-\d+$/, 'Identificador de iniciativa no válido.')
     .nullish(),
+  links: linksSchema.optional(),
 });
 
 export const startDepartmentRequestSchema = z.object({
@@ -49,4 +93,11 @@ export const startDepartmentRequestSchema = z.object({
 export const resolveDepartmentRequestSchema = z.object({
   requestId: requestIdSchema,
   resolutionNotes: z.string({ message: NOTES_MESSAGE }).trim().min(MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES, NOTES_MESSAGE),
+  links: linksSchema.optional(),
+});
+
+export const addDepartmentRequestLinksSchema = z.object({
+  requestId: requestIdSchema,
+  side: attachmentSideSchema,
+  links: linksSchema.min(1, 'Añade al menos un enlace.'),
 });

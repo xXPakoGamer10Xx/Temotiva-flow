@@ -40,6 +40,9 @@ function request(overrides: Partial<DepartmentRequestView> = {}): DepartmentRequ
     isOutgoing: false,
     canStart: true,
     canResolve: true,
+    attachments: [],
+    canAttachRequest: false,
+    canAttachResponse: true,
     ...overrides,
   };
 }

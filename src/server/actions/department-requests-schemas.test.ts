@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
+  addDepartmentRequestLinksSchema,
+  attachmentSideSchema,
   createDepartmentRequestSchema,
   resolveDepartmentRequestSchema,
   startDepartmentRequestSchema,
@@ -114,5 +116,52 @@ describe('resolveDepartmentRequestSchema', () => {
       firstError(resolveDepartmentRequestSchema.safeParse({ requestId: REQUEST_ID, resolutionNotes: '  ok  ' })),
     );
     expectSpanish(firstError(resolveDepartmentRequestSchema.safeParse({ requestId: 'x', resolutionNotes: 'Hecho.' })));
+  });
+});
+
+/** Ampliación A — enlaces en la frontera de entrada (T-14). */
+describe('enlaces en los esquemas', () => {
+  const link = { label: 'Diseño en Figma', url: 'https://figma.com/file/abc' };
+
+  it('crear y resolver aceptan hasta 5 enlaces https y los recortan', () => {
+    const parsed = createDepartmentRequestSchema.parse({
+      ...validCreate,
+      links: [{ label: '  Diseño en Figma ', url: ' https://figma.com/file/abc ' }],
+    });
+    expect(parsed.links).toEqual([link]);
+    const resolved = resolveDepartmentRequestSchema.parse({
+      requestId: REQUEST_ID,
+      resolutionNotes: 'Hecho.',
+      links: Array.from({ length: 5 }, () => link),
+    });
+    expect(resolved.links).toHaveLength(5);
+    expect(createDepartmentRequestSchema.parse(validCreate).links).toBeUndefined();
+  });
+
+  it.each([
+    ['más de 5 enlaces', { links: Array.from({ length: 6 }, () => link) }],
+    ['un enlace http://', { links: [{ label: 'Inseguro', url: 'http://figma.com' }] }],
+    ['un enlace javascript:', { links: [{ label: 'Truco', url: 'javascript:alert(1)' }] }],
+    ['un nombre de enlace corto', { links: [{ label: 'x', url: 'https://x.test' }] }],
+    ['un enlace sin URL', { links: [{ label: 'Sin URL' }] }],
+  ])('rechaza %s con mensaje en español', (_label, overrides) => {
+    expectSpanish(firstError(createDepartmentRequestSchema.safeParse({ ...validCreate, ...overrides })));
+  });
+
+  it('añadir enlaces exige petición, lado válido y entre 1 y 5 enlaces', () => {
+    expect(addDepartmentRequestLinksSchema.parse({ requestId: REQUEST_ID, side: 'REQUEST', links: [link] })).toEqual({
+      requestId: REQUEST_ID,
+      side: 'REQUEST',
+      links: [link],
+    });
+    expectSpanish(firstError(addDepartmentRequestLinksSchema.safeParse({ requestId: REQUEST_ID, side: 'REQUEST', links: [] })));
+    expectSpanish(firstError(addDepartmentRequestLinksSchema.safeParse({ requestId: REQUEST_ID, side: 'BOTH', links: [link] })));
+    expectSpanish(firstError(addDepartmentRequestLinksSchema.safeParse({ side: 'REQUEST', links: [link] })));
+  });
+
+  it('el lado de una subida solo admite REQUEST o RESPONSE', () => {
+    expect(attachmentSideSchema.parse('RESPONSE')).toBe('RESPONSE');
+    expectSpanish(firstError(attachmentSideSchema.safeParse('ADMIN')));
+    expectSpanish(firstError(attachmentSideSchema.safeParse(null)));
   });
 });

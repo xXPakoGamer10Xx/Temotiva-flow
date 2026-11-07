@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { Pool } from 'pg';
-import type { DepartmentRequest } from '@/domain/department-request';
+import type { DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
 import { buildSeedData } from '@/domain/seed';
 import { InMemoryDataStore } from './in-memory';
 
@@ -187,3 +187,125 @@ function nth<T>(items: T[], index: number): T {
   if (item === undefined) throw new Error(`Falta la consulta ${index}`);
   return item;
 }
+
+/** Ampliación A — persistencia de adjuntos y enlaces (T-12). */
+const REQ_ID = '11111111-1111-4111-8111-111111111111';
+
+const fileItem = (overrides: Partial<DepartmentRequestAttachment> = {}): DepartmentRequestAttachment =>
+  ({
+    id: 'att-file',
+    requestId: REQ_ID,
+    side: 'REQUEST',
+    kind: 'FILE',
+    fileName: 'borrador.pdf',
+    contentType: 'application/pdf',
+    sizeBytes: 1234,
+    storageKey: `department-requests/${REQ_ID}/att-file.pdf`,
+    addedBy: 'u-legal',
+    addedAt: '2026-11-07T10:00:00.000Z',
+    ...overrides,
+  }) as DepartmentRequestAttachment;
+
+const linkItem = (overrides: Partial<DepartmentRequestAttachment> = {}): DepartmentRequestAttachment =>
+  ({
+    id: 'att-link',
+    requestId: REQ_ID,
+    side: 'RESPONSE',
+    kind: 'LINK',
+    label: 'Informe en Notion',
+    url: 'https://notion.so/informe',
+    addedBy: 'u-cyber',
+    addedAt: '2026-11-07T11:00:00.000Z',
+    ...overrides,
+  }) as DepartmentRequestAttachment;
+
+describe('InMemoryDataStore — adjuntos de peticiones', () => {
+  it('arranca vacío con semillas que no traen la colección', async () => {
+    const seed = buildSeedData();
+    delete seed.departmentRequestAttachments;
+    expect(await new InMemoryDataStore(seed).listDepartmentRequestAttachments()).toEqual([]);
+  });
+
+  it('inserta, lee por id y lista por petición en orden de llegada', async () => {
+    const store = new InMemoryDataStore();
+    await store.insertDepartmentRequestAttachment(linkItem());
+    await store.insertDepartmentRequestAttachment(fileItem());
+    await store.insertDepartmentRequestAttachment(fileItem({ id: 'other', requestId: 'otra-peticion' }));
+
+    expect(await store.departmentRequestAttachmentById('att-link')).toEqual(linkItem());
+    expect(await store.departmentRequestAttachmentById('missing')).toBeNull();
+    expect((await store.listDepartmentRequestAttachments(REQ_ID)).map((a) => a.id)).toEqual(['att-file', 'att-link']);
+    expect(await store.listDepartmentRequestAttachments()).toHaveLength(3);
+  });
+
+  it('devuelve copias defensivas, avisa al snapshot y sobrevive a la hidratación', async () => {
+    const store = new InMemoryDataStore();
+    const listener = vi.fn();
+    store.setChangeListener(listener);
+    const inserted = await store.insertDepartmentRequestAttachment(fileItem());
+    (inserted as { fileName: string }).fileName = 'manipulado.exe';
+
+    expect(listener).toHaveBeenCalledTimes(1);
+    const restored = new InMemoryDataStore(store.snapshot());
+    expect(await restored.departmentRequestAttachmentById('att-file')).toEqual(fileItem());
+  });
+});
+
+const FILE_ROW = {
+  id: 'att-file',
+  request_id: REQ_ID,
+  side: 'REQUEST',
+  kind: 'FILE',
+  file_name: 'borrador.pdf',
+  content_type: 'application/pdf',
+  size_bytes: 1234,
+  storage_key: `department-requests/${REQ_ID}/att-file.pdf`,
+  label: null,
+  url: null,
+  added_by: 'u-legal',
+  added_at: new Date('2026-11-07T10:00:00.000Z'),
+};
+
+const LINK_ROW = {
+  ...FILE_ROW,
+  id: 'att-link',
+  side: 'RESPONSE',
+  kind: 'LINK',
+  file_name: null,
+  content_type: null,
+  size_bytes: null,
+  storage_key: null,
+  label: 'Informe en Notion',
+  url: 'https://notion.so/informe',
+  added_by: 'u-cyber',
+  added_at: new Date('2026-11-07T11:00:00.000Z'),
+};
+
+describe('PostgresDataStore — adjuntos de peticiones', () => {
+  it('mapea archivos y enlaces sin campos de la otra clase', async () => {
+    const { pool } = fakePool([FILE_ROW, LINK_ROW]);
+    const list = await new PostgresDataStore(pool).listDepartmentRequestAttachments(REQ_ID);
+    expect(list).toEqual([fileItem(), linkItem()]);
+  });
+
+  it('filtra por petición con parámetro y ordena por llegada', async () => {
+    const { pool, calls } = fakePool([]);
+    const store = new PostgresDataStore(pool);
+    await store.listDepartmentRequestAttachments(REQ_ID);
+    await store.listDepartmentRequestAttachments();
+    expect(nth(calls, 0).sql).toMatch(/FROM department_request_attachments WHERE request_id = \$1/);
+    expect(nth(calls, 0).params).toEqual([REQ_ID]);
+    expect(nth(calls, 0).sql).toMatch(/ORDER BY added_at/);
+    expect(nth(calls, 1).sql).not.toMatch(/WHERE/);
+  });
+
+  it('inserta con consulta parametrizada y devuelve null si no existe', async () => {
+    const { pool, calls } = fakePool([]);
+    const store = new PostgresDataStore(pool);
+    await store.insertDepartmentRequestAttachment(linkItem({ url: "https://x.test/?q=';DROP TABLE users" }));
+    expect(nth(calls, 0).sql).toMatch(/INSERT INTO department_request_attachments/);
+    expect(nth(calls, 0).sql).not.toContain('DROP TABLE');
+    expect(nth(calls, 0).params).toContain("https://x.test/?q=';DROP TABLE users");
+    expect(await store.departmentRequestAttachmentById('x')).toBeNull();
+  });
+});

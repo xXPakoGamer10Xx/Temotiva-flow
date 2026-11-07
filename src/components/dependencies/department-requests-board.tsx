@@ -2,7 +2,7 @@
 
 import * as React from 'react';
 import Link from 'next/link';
-import { ExternalLink, Plus, Search } from 'lucide-react';
+import { ExternalLink, Paperclip, Plus, Search } from 'lucide-react';
 import type { Department } from '@/domain/enums';
 import { DEPARTMENT_LABELS, HELP_TYPE_LABELS } from '@/domain/labels';
 import { MAX_CLOSED_INBOX_ITEMS } from '@/domain/rules';
@@ -246,6 +246,13 @@ function RequestCard({ request, onOpen }: { request: DepartmentRequestView; onOp
           {request.requestedByName} · <span className="tabular-nums">{formatDateTime(request.createdAt)}</span>
         </span>
         {request.assigneeName ? <span>Atiende: {request.assigneeName}</span> : null}
+        {request.attachments.length > 0 ? (
+          <span className="inline-flex items-center gap-1" title="Adjuntos">
+            <Paperclip className="size-3.5" aria-hidden />
+            <span className="tabular-nums">{request.attachments.length}</span>
+            <span className="sr-only">adjuntos</span>
+          </span>
+        ) : null}
         {request.initiativeId ? (
           <Link href={initiativeSheetHref(request.initiativeId)} scroll={false} className="text-accent-text hover:underline">
             {request.initiativeId}

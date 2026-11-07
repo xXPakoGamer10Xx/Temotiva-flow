@@ -1,7 +1,7 @@
 import type { Department, UserRole } from '@/domain/enums';
 import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import type { Dependency } from '@/domain/types';
-import type { DepartmentRequest } from '@/domain/department-request';
+import type { AttachmentSide, DepartmentRequest } from '@/domain/department-request';
 import { belongsTo } from '@/domain/types';
 import { forbidden } from './errors';
 
@@ -243,6 +243,20 @@ export function canManageDepartmentRequest(
   request: Pick<DepartmentRequest, 'targetDepartment'>,
 ): boolean {
   return isExecutive(session) || belongsTo(session, request.targetDepartment);
+}
+
+/**
+ * Ampliación A: el área origen adjunta a la petición mientras está Pendiente;
+ * el área destino (o Dirección) adjunta a la respuesta mientras no esté Resuelta.
+ */
+export function canAttachToDepartmentRequest(
+  session: SessionContext,
+  request: Pick<DepartmentRequest, 'sourceDepartment' | 'targetDepartment' | 'status'>,
+  side: AttachmentSide,
+): boolean {
+  return side === 'REQUEST'
+    ? belongsTo(session, request.sourceDepartment) && request.status === 'PENDING'
+    : canManageDepartmentRequest(session, request) && request.status !== 'RESOLVED';
 }
 
 /**

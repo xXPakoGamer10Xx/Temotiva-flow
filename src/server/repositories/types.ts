@@ -19,7 +19,7 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
-import type { DepartmentRequest } from '@/domain/department-request';
+import type { DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -155,6 +155,12 @@ export interface DataStore {
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
   ): Promise<DepartmentRequest>;
+
+  // --- Adjuntos y enlaces de peticiones (spec 001, ampliación A) --------------
+  /** De una petición (o de todas), en orden de llegada. Sin filtrar: el Need-to-Know va en el servicio. */
+  listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]>;
+  departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null>;
+  insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

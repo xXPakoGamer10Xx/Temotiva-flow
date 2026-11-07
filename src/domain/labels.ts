@@ -151,6 +151,7 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   DEPARTMENT_REQUEST_CREATED: 'Petición entre áreas creada',
   DEPARTMENT_REQUEST_STARTED: 'Petición entre áreas tomada',
   DEPARTMENT_REQUEST_RESOLVED: 'Petición entre áreas resuelta',
+  DEPARTMENT_REQUEST_ATTACHMENT_ADDED: 'Adjunto añadido a una petición entre áreas',
 };
 
 /** Peticiones entre áreas (spec 001 — Dependencias). */

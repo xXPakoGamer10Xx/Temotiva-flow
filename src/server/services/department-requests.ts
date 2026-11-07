@@ -3,23 +3,40 @@ import type { Department, HelpStatus, HelpType } from '@/domain/enums';
 import { DEPARTMENTS } from '@/domain/enums';
 import {
   DEPARTMENT_REQUEST_HELP_TYPES,
+  type AttachmentSide,
   type DepartmentRequest,
+  type DepartmentRequestAttachment,
   type DepartmentRequestStatus,
+  type RequestFileAttachment,
+  type RequestLinkAttachment,
 } from '@/domain/department-request';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import {
   MAX_CLOSED_INBOX_ITEMS,
   MAX_DEPARTMENT_REQUEST_TITLE,
+  MAX_REQUEST_FILES_PER_SIDE,
+  MAX_REQUEST_FILE_BYTES,
+  MAX_REQUEST_LINKS_PER_SIDE,
+  MAX_REQUEST_LINK_LABEL,
+  MAX_REQUEST_LINK_URL,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MIN_DEPARTMENT_REQUEST_TITLE,
+  MIN_REQUEST_LINK_LABEL,
 } from '@/domain/rules';
 import type { SessionContext } from '@/domain/types';
 import { belongsTo } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
+import { PDF_MIME, detectDocumentType, sanitizeFileName } from './attachments';
 import { audit } from './audit';
 import { forbidden, invalid, invalidState, notFound } from './errors';
-import { canManageDepartmentRequest, canViewDepartmentRequest, canViewInitiativeDependencyInInbox } from './rbac';
+import { detectImageType } from './feedback';
+import {
+  canAttachToDepartmentRequest,
+  canManageDepartmentRequest,
+  canViewDepartmentRequest,
+  canViewInitiativeDependencyInInbox,
+} from './rbac';
 
 /**
  * Buzón de Dependencias (spec 001): peticiones entre áreas (`department_requests`)
@@ -56,7 +73,23 @@ export interface DepartmentRequestView {
   isOutgoing: boolean;
   canStart: boolean;
   canResolve: boolean;
+  /** Ampliación A: archivos y enlaces, en orden de llegada. */
+  attachments: RequestAttachmentView[];
+  canAttachRequest: boolean;
+  canAttachResponse: boolean;
 }
+
+interface AttachmentViewBase {
+  id: string;
+  side: AttachmentSide;
+  addedByName: string;
+  addedAt: string;
+}
+
+/** Sin clave de almacenamiento: el archivo solo sale por la ruta de descarga con Need-to-Know. */
+export type RequestAttachmentView =
+  | (AttachmentViewBase & { kind: 'FILE'; fileName: string; contentType: string; sizeBytes: number; downloadUrl: string })
+  | (AttachmentViewBase & { kind: 'LINK'; label: string; url: string });
 
 /** Dependencia 🆘 de iniciativa en solo lectura (RF-16); se gestiona en su ficha. */
 export interface InitiativeDependencyView {
@@ -95,14 +128,21 @@ export async function getDepartmentRequestsView(
   store: DataStore,
   session: SessionContext,
 ): Promise<DepartmentRequestsView> {
-  const [requests, dependencies, users, initiatives] = await Promise.all([
+  const [requests, dependencies, users, initiatives, attachments] = await Promise.all([
     store.listDepartmentRequests(),
     store.listDependencies(),
     store.listUsers(),
     store.listInitiatives(),
+    store.listDepartmentRequestAttachments(),
   ]);
   const userName = new Map(users.map((user) => [user.id, user.name]));
   const nameOf = (id: string): string => userName.get(id) ?? RETIRED_PERSON;
+  const attachmentsByRequest = new Map<string, RequestAttachmentView[]>();
+  for (const item of attachments) {
+    const list = attachmentsByRequest.get(item.requestId) ?? [];
+    list.push(toAttachmentView(item, nameOf));
+    attachmentsByRequest.set(item.requestId, list);
+  }
   // `listInitiatives()` excluye las archivadas: lo que no esté aquí no se muestra.
   const liveInitiatives = new Map(initiatives.map((initiative) => [initiative.id, initiative]));
 
@@ -133,6 +173,10 @@ export async function getDepartmentRequestsView(
         isOutgoing: belongsTo(session, request.sourceDepartment),
         canStart: canManage && request.status === 'PENDING',
         canResolve: canManage && request.status !== 'RESOLVED',
+        // Solo se proyectan los adjuntos de peticiones que ya pasaron el Need-to-Know.
+        attachments: attachmentsByRequest.get(request.id) ?? [],
+        canAttachRequest: canAttachToDepartmentRequest(session, request, 'REQUEST'),
+        canAttachResponse: canAttachToDepartmentRequest(session, request, 'RESPONSE'),
       };
     });
 
@@ -176,6 +220,25 @@ export async function getDepartmentRequestsView(
   };
 }
 
+/** Ruta de descarga con Need-to-Know (`app/api/department-requests/attachments/[id]`). */
+export function departmentRequestFileUrl(attachmentId: string): string {
+  return `/api/department-requests/attachments/${attachmentId}`;
+}
+
+function toAttachmentView(item: DepartmentRequestAttachment, nameOf: (id: string) => string): RequestAttachmentView {
+  const base = { id: item.id, side: item.side, addedByName: nameOf(item.addedBy), addedAt: item.addedAt };
+  return item.kind === 'FILE'
+    ? {
+        ...base,
+        kind: 'FILE',
+        fileName: item.fileName,
+        contentType: item.contentType,
+        sizeBytes: item.sizeBytes,
+        downloadUrl: departmentRequestFileUrl(item.id),
+      }
+    : { ...base, kind: 'LINK', label: item.label, url: item.url };
+}
+
 /** Conserva el orden y todas las abiertas; de las cerradas, solo las primeras `limit`. */
 function capClosed<T>(
   items: T[],
@@ -210,6 +273,8 @@ export interface CreateDepartmentRequestInput {
   /** Informativo: nunca escribe `is_blocked` ni toca el SLE. */
   blocksInitiative: boolean;
   initiativeId?: string | null;
+  /** Ampliación A: enlaces «de la petición». Los archivos se suben aparte (Route Handler). */
+  links?: RequestLinkInput[];
   now?: Date;
 }
 
@@ -254,6 +319,10 @@ export async function createDepartmentRequest(
     initiativeId = initiative.id;
   }
 
+  // Los enlaces se validan antes de persistir nada: o entra todo, o nada.
+  const links = normalizeLinks(input.links ?? []);
+  assertQuota(0, links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
+
   const at = now.toISOString();
   const request: DepartmentRequest = {
     id: randomUUID(),
@@ -291,6 +360,8 @@ export async function createDepartmentRequest(
     },
     at: now,
   });
+
+  await insertLinks(store, session, request.id, 'REQUEST', links, now);
 
   // A propósito no se toca la iniciativa: `blocksInitiative` es solo un indicador (RF-9).
   return request;
@@ -363,6 +434,8 @@ export async function startDepartmentRequest(
 export interface ResolveDepartmentRequestInput {
   requestId: string;
   resolutionNotes: string;
+  /** Ampliación A: enlaces «de la respuesta», guardados antes de cerrar. */
+  links?: RequestLinkInput[];
   now?: Date;
 }
 
@@ -382,6 +455,15 @@ export async function resolveDepartmentRequest(
   const notes = input.resolutionNotes.trim();
   if (notes.length < MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES) {
     throw invalid(`Escribe una respuesta de al menos ${MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES} caracteres.`);
+  }
+
+  // Se validan antes de tocar nada y se guardan antes de cerrar: tras RESOLVED
+  // ya no se admiten adjuntos.
+  const links = normalizeLinks(input.links ?? []);
+  if (links.length > 0) {
+    const existing = await countOnSide(store, request.id, 'RESPONSE', 'LINK');
+    assertQuota(existing, links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
+    await insertLinks(store, session, request.id, 'RESPONSE', links, now);
   }
 
   const at = now.toISOString();
@@ -409,4 +491,220 @@ export async function resolveDepartmentRequest(
   });
 
   return updated;
+}
+
+// --- Ampliación A: adjuntos y enlaces (spec 001 §13) ------------------------------
+
+export interface RequestLinkInput {
+  label: string;
+  url: string;
+}
+
+const LINK_LABEL_ERROR = `Cada enlace necesita un nombre de entre ${MIN_REQUEST_LINK_LABEL} y ${MAX_REQUEST_LINK_LABEL} caracteres.`;
+const LINK_URL_ERROR = 'Cada enlace debe ser una dirección https:// válida.';
+export const REQUEST_FILE_TYPE_ERROR = 'Solo se admiten PDF, Word (.docx) o imágenes PNG, JPG y WebP.';
+
+/**
+ * Enlaces recortados y validados. Solo `https:` (ni `http:` ni `javascript:`)
+ * y sin credenciales incrustadas. Se guarda la URL tal como la escribieron.
+ */
+function normalizeLinks(links: RequestLinkInput[]): RequestLinkInput[] {
+  return links.map((link) => {
+    const label = link.label.trim();
+    const url = link.url.trim();
+    if (label.length < MIN_REQUEST_LINK_LABEL || label.length > MAX_REQUEST_LINK_LABEL) throw invalid(LINK_LABEL_ERROR);
+    if (url.length > MAX_REQUEST_LINK_URL) throw invalid(`La dirección del enlace no puede superar ${MAX_REQUEST_LINK_URL} caracteres.`);
+    let parsed: URL;
+    try {
+      parsed = new URL(url);
+    } catch {
+      throw invalid(LINK_URL_ERROR);
+    }
+    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw invalid(LINK_URL_ERROR);
+    return { label, url };
+  });
+}
+
+function assertQuota(existing: number, adding: number, max: number, what: 'archivos' | 'enlaces'): void {
+  if (existing + adding > max) throw invalid(`Cada parte de la petición admite como máximo ${max} ${what}.`);
+}
+
+async function countOnSide(
+  store: DataStore,
+  requestId: string,
+  side: AttachmentSide,
+  kind: DepartmentRequestAttachment['kind'],
+): Promise<number> {
+  const items = await store.listDepartmentRequestAttachments(requestId);
+  return items.filter((item) => item.side === side && item.kind === kind).length;
+}
+
+/**
+ * Distingue el motivo: no es tu lado (FORBIDDEN) o el estado ya no lo admite
+ * (INVALID_STATE). La visibilidad ya la resolvió `loadDepartmentRequest`.
+ */
+function assertCanAttach(session: SessionContext, request: DepartmentRequest, side: AttachmentSide): void {
+  if (canAttachToDepartmentRequest(session, request, side)) return;
+  const isYourSide =
+    side === 'REQUEST' ? belongsTo(session, request.sourceDepartment) : canManageDepartmentRequest(session, request);
+  if (!isYourSide) {
+    throw forbidden(
+      side === 'REQUEST'
+        ? `Solo ${DEPARTMENT_LABELS[request.sourceDepartment]} puede adjuntar material a lo que pidió.`
+        : `Solo ${DEPARTMENT_LABELS[request.targetDepartment]} puede adjuntar material a la respuesta.`,
+    );
+  }
+  throw invalidState(
+    side === 'REQUEST'
+      ? 'La petición ya se está atendiendo: ya no se le pueden añadir adjuntos.'
+      : 'La petición ya está resuelta: ya no admite adjuntos.',
+  );
+}
+
+/** Evento global y sin nombre de archivo ni URL: puede contener datos personales. */
+function auditAttachment(
+  store: DataStore,
+  session: SessionContext,
+  item: DepartmentRequestAttachment,
+  now: Date,
+): Promise<unknown> {
+  return audit(store, {
+    initiativeId: null,
+    session,
+    actionType: 'DEPARTMENT_REQUEST_ATTACHMENT_ADDED',
+    fieldName: AUDIT_FIELD,
+    newValue: {
+      requestId: item.requestId,
+      attachmentId: item.id,
+      side: item.side,
+      kind: item.kind,
+      ...(item.kind === 'FILE' ? { contentType: item.contentType, sizeBytes: item.sizeBytes } : {}),
+    },
+    at: now,
+  });
+}
+
+async function insertLinks(
+  store: DataStore,
+  session: SessionContext,
+  requestId: string,
+  side: AttachmentSide,
+  links: RequestLinkInput[],
+  now: Date,
+): Promise<RequestLinkAttachment[]> {
+  const saved: RequestLinkAttachment[] = [];
+  for (const link of links) {
+    const item: RequestLinkAttachment = {
+      id: randomUUID(),
+      requestId,
+      side,
+      kind: 'LINK',
+      label: link.label,
+      url: link.url,
+      addedBy: session.userId,
+      addedAt: now.toISOString(),
+    };
+    await store.insertDepartmentRequestAttachment(item);
+    await auditAttachment(store, session, item, now);
+    saved.push(item);
+  }
+  return saved;
+}
+
+export interface AddDepartmentRequestLinksInput {
+  requestId: string;
+  side: AttachmentSide;
+  links: RequestLinkInput[];
+  now?: Date;
+}
+
+/** Añade enlaces en el lado que le toca a la sesión (RF-17, RF-18, RF-20). */
+export async function addDepartmentRequestLinks(
+  store: DataStore,
+  session: SessionContext,
+  input: AddDepartmentRequestLinksInput,
+): Promise<RequestLinkAttachment[]> {
+  const now = input.now ?? new Date();
+  const request = await loadDepartmentRequest(store, session, input.requestId);
+  assertCanAttach(session, request, input.side);
+  const links = normalizeLinks(input.links);
+  if (links.length === 0) throw invalid('Añade al menos un enlace.');
+  assertQuota(await countOnSide(store, request.id, input.side, 'LINK'), links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
+  return insertLinks(store, session, request.id, input.side, links, now);
+}
+
+export interface AddDepartmentRequestFileInput {
+  requestId: string;
+  side: AttachmentSide;
+  fileName: string;
+  bytes: Uint8Array;
+  now?: Date;
+}
+
+/** `put` del almacenamiento privado, inyectado para que el servicio siga siendo puro. */
+export type PutFile = (key: string, bytes: Uint8Array, contentType: string) => Promise<void>;
+
+/** Tipo real por los bytes: PDF, DOCX, PNG, JPEG o WebP. GIF y SVG quedan fuera. */
+function detectRequestFileType(bytes: Uint8Array): { contentType: string; extension: string } | null {
+  const document = detectDocumentType(bytes);
+  if (document) return { contentType: document, extension: document === PDF_MIME ? 'pdf' : 'docx' };
+  const image = detectImageType(bytes);
+  if (image && image.extension !== 'gif') return { contentType: image.contentType, extension: image.extension };
+  return null;
+}
+
+/** Sube un archivo al lado que le toca a la sesión (RF-17 a RF-19). */
+export async function addDepartmentRequestFile(
+  store: DataStore,
+  session: SessionContext,
+  put: PutFile,
+  input: AddDepartmentRequestFileInput,
+): Promise<RequestFileAttachment> {
+  const now = input.now ?? new Date();
+  const request = await loadDepartmentRequest(store, session, input.requestId);
+  assertCanAttach(session, request, input.side);
+
+  if (input.bytes.byteLength === 0) throw invalid('El archivo está vacío.');
+  if (input.bytes.byteLength > MAX_REQUEST_FILE_BYTES) throw invalid('El archivo supera 4 MB.');
+  const type = detectRequestFileType(input.bytes);
+  if (!type) throw invalid(REQUEST_FILE_TYPE_ERROR);
+  assertQuota(await countOnSide(store, request.id, input.side, 'FILE'), 1, MAX_REQUEST_FILES_PER_SIDE, 'archivos');
+
+  const id = randomUUID();
+  const item: RequestFileAttachment = {
+    id,
+    requestId: request.id,
+    side: input.side,
+    kind: 'FILE',
+    fileName: sanitizeFileName(input.fileName),
+    contentType: type.contentType,
+    sizeBytes: input.bytes.byteLength,
+    // La clave la genera el servidor: nada del nombre del cliente llega a la ruta.
+    storageKey: `department-requests/${request.id}/${id}.${type.extension}`,
+    addedBy: session.userId,
+    addedAt: now.toISOString(),
+  };
+
+  // Primero el archivo y después la fila: nunca queda una fila apuntando a nada.
+  await put(item.storageKey, input.bytes, item.contentType);
+  await store.insertDepartmentRequestAttachment(item);
+  await auditAttachment(store, session, item, now);
+  return item;
+}
+
+/**
+ * Archivo para la ruta de descarga, solo si la sesión puede ver su petición.
+ * En cualquier otro caso responde igual que si no existiera (RF-21).
+ */
+export async function getDepartmentRequestFile(
+  store: DataStore,
+  session: SessionContext,
+  attachmentId: string,
+): Promise<RequestFileAttachment> {
+  const item = await store.departmentRequestAttachmentById(attachmentId);
+  const request = item ? await store.departmentRequestById(item.requestId) : null;
+  if (!item || item.kind !== 'FILE' || !request || !canViewDepartmentRequest(session, request)) {
+    throw notFound('El archivo no existe.');
+  }
+  return item;
 }

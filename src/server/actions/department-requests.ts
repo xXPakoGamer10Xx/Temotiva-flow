@@ -1,11 +1,13 @@
 'use server';
 
 import {
+  addDepartmentRequestLinks,
   createDepartmentRequest,
   resolveDepartmentRequest,
   startDepartmentRequest,
 } from '@/server/services/department-requests';
 import {
+  addDepartmentRequestLinksSchema,
   createDepartmentRequestSchema,
   resolveDepartmentRequestSchema,
   startDepartmentRequestSchema,
@@ -45,6 +47,18 @@ export async function resolveDepartmentRequestAction(input: unknown): Promise<Ac
     input,
     handler: async ({ store, session, input: data }) => {
       await resolveDepartmentRequest(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+/** Ampliación A: añade enlaces al lado que le toca a la sesión. Los archivos van por Route Handler. */
+export async function addDepartmentRequestLinksAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: addDepartmentRequestLinksSchema,
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await addDepartmentRequestLinks(store, session, data);
       return undefined;
     },
   });

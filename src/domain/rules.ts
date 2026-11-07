@@ -45,6 +45,13 @@ export const MIN_DEPARTMENT_REQUEST_DESCRIPTION = 15;
 export const MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES = 5;
 /** El buzón devuelve todas las abiertas, pero solo las N cerradas más recientes de cada fuente (spec §10). */
 export const MAX_CLOSED_INBOX_ITEMS = 100;
+/** Adjuntos y enlaces de una petición, por lado (petición / respuesta). Ampliación A. */
+export const MAX_REQUEST_FILES_PER_SIDE = 5;
+export const MAX_REQUEST_LINKS_PER_SIDE = 5;
+export const MAX_REQUEST_FILE_BYTES = 4 * 1024 * 1024;
+export const MIN_REQUEST_LINK_LABEL = 2;
+export const MAX_REQUEST_LINK_LABEL = 60;
+export const MAX_REQUEST_LINK_URL = 500;
 
 /** Pasos propios (privados) de una persona en una iniciativa. */
 export const MIN_PERSONAL_STEP_TITLE = 2;

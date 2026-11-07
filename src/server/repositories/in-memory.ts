@@ -21,7 +21,7 @@ import type {
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
-import type { DepartmentRequest } from '@/domain/department-request';
+import type { DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
 import type { DataStore } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -53,6 +53,7 @@ export class InMemoryDataStore implements DataStore {
   private apiTokens = new Map<string, ApiToken>();
   private deptTasks = new Map<string, DeptTask>();
   private departmentRequests = new Map<string, DepartmentRequest>();
+  private departmentRequestAttachments = new Map<string, DepartmentRequestAttachment>();
   private notificationPrefs = new Map<string, NotificationPref>();
   private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
   private activityLog: ActivityLogEntry[] = [];
@@ -82,6 +83,9 @@ export class InMemoryDataStore implements DataStore {
     this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
     this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
     this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
+    this.departmentRequestAttachments = new Map(
+      (data.departmentRequestAttachments ?? []).map((item) => [item.id, clone(item)]),
+    );
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
@@ -107,6 +111,7 @@ export class InMemoryDataStore implements DataStore {
       apiTokens: [...this.apiTokens.values()].map(clone),
       deptTasks: [...this.deptTasks.values()].map(clone),
       departmentRequests: [...this.departmentRequests.values()].map(clone),
+      departmentRequestAttachments: [...this.departmentRequestAttachments.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
       notificationPrefs: [...this.notificationPrefs.values()].map(clone),
@@ -594,6 +599,26 @@ export class InMemoryDataStore implements DataStore {
     this.departmentRequests.set(id, updated);
     this.touched();
     return clone(updated);
+  }
+
+  // --- Adjuntos y enlaces de peticiones (ampliación A) -------------------------------
+
+  async listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]> {
+    return [...this.departmentRequestAttachments.values()]
+      .filter((item) => requestId === undefined || item.requestId === requestId)
+      .sort((a, b) => a.addedAt.localeCompare(b.addedAt))
+      .map(clone);
+  }
+
+  async departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null> {
+    const item = this.departmentRequestAttachments.get(id);
+    return item ? clone(item) : null;
+  }
+
+  async insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment> {
+    this.departmentRequestAttachments.set(item.id, clone(item));
+    this.touched();
+    return clone(item);
   }
 
   // --- Caja negra --------------------------------------------------------------------
