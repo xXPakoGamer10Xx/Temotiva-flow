@@ -10,6 +10,7 @@ import {
   Bell,
   CircleHelp,
   CornerDownLeft,
+  Download,
   Inbox,
   KanbanSquare,
   FolderOpen,
@@ -29,12 +30,14 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Badge, Kbd, SectionLabel } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
 import { SHORTCUTS } from './shortcuts';
+import { useInstallMode } from '@/components/pwa/install-store';
 import { cn } from '@/lib/utils';
 import {
   UI_EVENTS,
   focusBoardFilter,
   isTypingTarget,
   openBulkArchive,
+  openInstallApp,
   openNewInitiative,
   openShortcutsHelp,
   useUiEvent,
@@ -89,6 +92,8 @@ export function CommandCenter({
   const [query, setQuery] = React.useState('');
   const [activeIndex, setActiveIndex] = React.useState(0);
   const listRef = React.useRef<HTMLDivElement>(null);
+
+  const installMode = useInstallMode();
 
   useUiEvent(UI_EVENTS.openPalette, () => setOpen(true));
   useUiEvent(UI_EVENTS.openShortcuts, () => setShortcutsOpen(true));
@@ -287,6 +292,22 @@ export function CommandCenter({
           setOpen(false);
         },
       },
+      // Spec 002: solo si este navegador permite instalar y aún no está instalada.
+      ...(installMode === 'native' || installMode === 'ios'
+        ? [
+            {
+              id: 'install-app',
+              label: 'Descargar app',
+              group: 'Acciones' as const,
+              icon: <Download className="size-3.5" />,
+              keywords: 'instalar pwa movil pantalla de inicio aplicacion descargar',
+              run: () => {
+                setOpen(false);
+                openInstallApp();
+              },
+            },
+          ]
+        : []),
       {
         id: 'shortcuts',
         label: 'Ver los atajos de teclado',
@@ -318,7 +339,7 @@ export function CommandCenter({
     }));
 
     return [...initiativeCommands, ...views, ...actions];
-  }, [canBulkArchive, canManagePeople, go, initiatives, pathname, router, searchParams]);
+  }, [canBulkArchive, canManagePeople, go, initiatives, installMode, pathname, router, searchParams]);
 
   const results = React.useMemo(() => {
     const needle = normalize(query.trim());

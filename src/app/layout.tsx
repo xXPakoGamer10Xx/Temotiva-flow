@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Roboto, Roboto_Mono } from 'next/font/google';
 import { Toaster } from '@/components/ui/toaster';
+import { ServiceWorkerRegistrar } from '@/components/pwa/service-worker-registrar';
 import './globals.css';
 
 const roboto = Roboto({ subsets: ['latin'], weight: ['400', '500', '700'], display: 'swap', variable: '--font-roboto' });
@@ -14,6 +15,9 @@ export const metadata: Metadata = {
   description:
     'Sistema interno de gestión, trazabilidad y coordinación del flujo de iniciativas interdisciplinares de Temotiva.',
   robots: { index: false, follow: false },
+  // Spec 002: iOS necesita estas etiquetas para abrir la app instalada a pantalla completa.
+  appleWebApp: { capable: true, title: 'TemoFlow', statusBarStyle: 'default' },
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 export const viewport: Viewport = {
@@ -50,6 +54,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-dvh bg-bg text-fg antialiased" suppressHydrationWarning>{children}
         <Toaster />
+        <ServiceWorkerRegistrar />
       </body>
     </html>
   );

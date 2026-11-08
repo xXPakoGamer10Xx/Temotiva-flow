@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/controls';
 import { signOutAction } from '@/server/actions/auth';
 import { IdentityCard, type IdentityUser } from '@/components/shared/identity';
+import { InstallAppButton } from '@/components/pwa/install-app';
 import type { SidebarLink } from './sidebar';
 
 /** Barra superior para pantallas estrechas, donde la navegación lateral se pliega del todo. */
@@ -34,6 +35,7 @@ export function MobileNav({ links, user }: { links: SidebarLink[]; user: Identit
       >
         <Search className="size-4" />
       </button>
+      <InstallAppButton />
 
       <DropdownMenu>
         <DropdownMenuTrigger

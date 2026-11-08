@@ -20,6 +20,7 @@ import type {
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -175,6 +176,22 @@ export interface DataStore {
   insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment>;
   /** Solo la baja lógica (ampliación B): la fila y el archivo se conservan. */
   markDepartmentRequestAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<DepartmentRequestAttachment>;
+
+  // --- Notificaciones push (spec 002) -----------------------------------------
+  /** Dispositivos activos (sin `revokedAt`) de esas personas. Lista vacía → vacío, sin consultar. */
+  listActivePushSubscriptions(userIds: string[]): Promise<PushSubscriptionRecord[]>;
+  /** Activa o dada de baja: el servicio comprueba a quién pertenece. */
+  pushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null>;
+  /**
+   * Alta por `endpoint`. Si el dispositivo ya existía conserva `id` y `createdAt`,
+   * pasa a `userId` (cambio de cuenta), renueva las claves y se reactiva.
+   */
+  upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord>;
+  /** Baja lógica; solo marca si seguía activa. Un endpoint desconocido no es un error. */
+  revokePushSubscription(endpoint: string, at: string): Promise<void>;
+  touchPushSubscription(endpoint: string, at: string): Promise<void>;
+  /** `true` si la marca es nueva; `false` si esa iniciativa y fase ya se avisaron. */
+  insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

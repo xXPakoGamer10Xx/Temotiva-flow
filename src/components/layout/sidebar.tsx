@@ -37,6 +37,7 @@ import {
 } from '@/components/ui/controls';
 import { BrandMark } from '@/components/shared/brand-mark';
 import { IdentityCard } from '@/components/shared/identity';
+import { InstallAppRow } from '@/components/pwa/install-app';
 import { cn } from '@/lib/utils';
 
 export interface SidebarLink {
@@ -177,6 +178,7 @@ export function Sidebar({
       </nav>
 
       <div className="space-y-1 border-t border-border p-2">
+        <InstallAppRow />
         <ThemeToggleRow />
         <DropdownMenu>
           <DropdownMenuTrigger

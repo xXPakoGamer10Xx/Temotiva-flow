@@ -30,6 +30,8 @@ npm run dev                  # http://localhost:3000
 | `AUTH_GOOGLE_ID` / `AUTH_GOOGLE_SECRET` | Credenciales OAuth de Google. | Para entrar con Google |
 | `ALLOW_DEV_AUTH` | Habilita el acceso local sin Google (solo desarrollo). | No |
 | `DATA_SNAPSHOT` | `false` para no persistir el estado en `.data/`. | No |
+| `NEXT_PUBLIC_VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` / `VAPID_SUBJECT` | Claves de las notificaciones push. Sin ellas la app funciona igual, sin avisos al móvil. | Para push |
+| `CRON_SECRET` | Secreto con el que el crontab llama a `/api/cron/sle-risk`. | Para el aviso de SLE |
 
 En desarrollo, si falta `AUTH_SECRET` se usa una clave local derivada del proyecto y se
 avisa por consola. En producción no hay sustituto: sin secreto no se firma ninguna sesión.
@@ -51,6 +53,29 @@ Con `NODE_ENV=development` y `ALLOW_DEV_AUTH=true`, la pantalla de acceso ofrece
 como cualquiera de los perfiles de la semilla, sin Google. Sirve para ver la aplicación
 antes de tener credenciales OAuth y para probar cada rol. Pasa por la misma lista de
 acceso y **no se registra nunca en producción**, aunque la variable esté puesta.
+
+### Notificaciones push
+
+Los avisos al móvil y al escritorio necesitan HTTPS (en local vale `localhost`) y un par
+de claves VAPID:
+
+```bash
+npx web-push generate-vapid-keys   # copia la pública y la privada a .env.local
+```
+
+`VAPID_SUBJECT` es un contacto (`mailto:` o `https:`) que exigen los servicios push. La
+clave privada es un secreto: no se comitea ni se comparte.
+
+El aviso de **SLE en riesgo** no depende de ninguna acción: lo dispara un repaso periódico.
+En el servidor, programa el crontab para que llame cada hora al endpoint con el secreto:
+
+```cron
+0 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/cron/sle-risk
+```
+
+Responde `{"notified": N}` (iniciativas avisadas en esa pasada). Sin `CRON_SECRET` o sin
+claves VAPID responde `503`; con un secreto incorrecto, `401`. Cada iniciativa se avisa una
+sola vez por fase, así que repetir la llamada no duplica avisos.
 
 ---
 
