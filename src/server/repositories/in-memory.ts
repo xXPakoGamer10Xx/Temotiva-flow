@@ -694,6 +694,25 @@ export class InMemoryDataStore implements DataStore {
     this.touched();
   }
 
+  async revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number> {
+    let touched = 0;
+    for (const [endpoint, sub] of [...this.pushSubscriptions.entries()]) {
+      if (sub.userId !== userId) continue;
+      const alreadyScrubbed = sub.endpoint.startsWith('anonymized:');
+      if (sub.revokedAt !== null && (!scrub || alreadyScrubbed)) continue;
+      const next: PushSubscriptionRecord = {
+        ...sub,
+        revokedAt: sub.revokedAt ?? at,
+        ...(scrub ? { endpoint: `anonymized:${sub.id}`, p256dh: '', auth: '', userAgent: null } : {}),
+      };
+      this.pushSubscriptions.delete(endpoint);
+      this.pushSubscriptions.set(next.endpoint, next);
+      touched += 1;
+    }
+    if (touched > 0) this.touched();
+    return touched;
+  }
+
   async touchPushSubscription(endpoint: string, at: string): Promise<void> {
     const current = this.pushSubscriptions.get(endpoint);
     if (!current) return;

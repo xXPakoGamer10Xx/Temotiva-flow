@@ -189,6 +189,12 @@ export interface DataStore {
   upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord>;
   /** Baja lógica; solo marca si seguía activa. Un endpoint desconocido no es un error. */
   revokePushSubscription(endpoint: string, at: string): Promise<void>;
+  /**
+   * Baja de todos los dispositivos de una persona (perfil revocado). Con
+   * `scrub` (anonimización) además se vacían endpoint, claves y user-agent:
+   * la fila se conserva, pero ya no identifica ningún dispositivo. Devuelve cuántos tocó.
+   */
+  revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number>;
   touchPushSubscription(endpoint: string, at: string): Promise<void>;
   /** `true` si la marca es nueva; `false` si esa iniciativa y fase ya se avisaron. */
   insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean>;

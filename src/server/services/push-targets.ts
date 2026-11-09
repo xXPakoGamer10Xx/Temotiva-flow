@@ -23,7 +23,23 @@ export interface PushTargets {
 
 type Draft = { userIds: string[]; message: PushMessage } | null;
 
+/** Eventos que pueden generar un aviso; el resto no cuesta ninguna consulta. */
+const PUSH_ACTION_TYPES: ReadonlySet<string> = new Set([
+  'TASK_ASSIGNED',
+  'ASSIGNEE_CHANGED',
+  'DEPENDENCY_CREATED',
+  'DEPARTMENT_REQUEST_CREATED',
+  'DEPENDENCY_RESOLVED',
+  'DEPARTMENT_REQUEST_RESOLVED',
+  'STAGE_TRANSITION',
+  'OWNER_REASSIGNED',
+  'INITIATIVE_CREATED',
+  'EXCEPTION_OVERRIDE',
+  'BLOCKED_SET',
+]);
+
 export async function resolvePushTargets(store: DataStore, entry: ActivityLogEntry): Promise<PushTargets | null> {
+  if (!PUSH_ACTION_TYPES.has(entry.actionType)) return null;
   let initiative: Initiative | null = null;
   if (entry.initiativeId) {
     initiative = await store.initiativeById(entry.initiativeId);

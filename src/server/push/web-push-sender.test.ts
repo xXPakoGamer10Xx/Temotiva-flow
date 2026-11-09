@@ -11,7 +11,7 @@ const { createWebPushSender, getPushSender, readVapidConfig } = await import('./
 const SUB: PushSubscriptionRecord = {
   id: 'id',
   userId: 'u',
-  endpoint: 'https://push.example/device',
+  endpoint: 'https://fcm.googleapis.com/fcm/send/device',
   p256dh: 'p256dh',
   auth: 'auth',
   userAgent: null,
@@ -63,6 +63,15 @@ describe('envío con web-push', () => {
         vapidDetails: { subject: CONFIG.subject, publicKey: 'pub', privateKey: 'priv' },
       }),
     );
+  });
+
+  it('no envía nada a un endpoint fuera de los servicios push conocidos', async () => {
+    const send = vi.fn();
+    const sender = createWebPushSender(CONFIG, send);
+    for (const endpoint of ['https://intranet.local/x', 'https://169.254.169.254/latest', 'https://evil.example/fcm.googleapis.com']) {
+      expect(await sender.send({ ...SUB, endpoint }, '{}')).toBe('gone');
+    }
+    expect(send).not.toHaveBeenCalled();
   });
 
   it('404 y 410 significan suscripción caducada', async () => {

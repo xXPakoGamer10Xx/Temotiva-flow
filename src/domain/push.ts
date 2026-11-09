@@ -62,3 +62,31 @@ export interface PushMessage {
   /** `${kind}:${entityId}`: el sistema sustituye avisos del mismo objeto en vez de apilarlos. */
   tag: string;
 }
+
+/**
+ * Servicios push de los navegadores, los únicos a los que el servidor envía.
+ *
+ * El `endpoint` lo manda el cliente y el servidor le hace POST: sin esta lista
+ * cualquier sesión podría apuntar el envío a un host interno (SSRF). Cubre
+ * Chrome, Edge, Brave, Opera y Samsung (FCM), Firefox, Safari/iOS y el WNS de
+ * Windows. Un navegador nuevo exige añadir su host aquí, a propósito.
+ */
+const PUSH_SERVICE_EXACT_HOSTS = new Set([
+  'fcm.googleapis.com',
+  'android.googleapis.com',
+  'updates.push.services.mozilla.com',
+]);
+const PUSH_SERVICE_HOST_SUFFIXES = ['.push.apple.com', '.notify.windows.com'];
+
+export function isKnownPushEndpoint(value: string): boolean {
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    return false;
+  }
+  // Puerto por defecto, sin credenciales, y host por nombre: ni IP ni `localhost` pasan la lista.
+  if (url.protocol !== 'https:' || url.username || url.password || url.port !== '') return false;
+  const host = url.hostname.toLowerCase();
+  return PUSH_SERVICE_EXACT_HOSTS.has(host) || PUSH_SERVICE_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix) && host.length > suffix.length);
+}

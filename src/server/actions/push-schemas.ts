@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { isKnownPushEndpoint } from '@/domain/push';
 
 /**
  * Esquemas de entrada de las Server Actions de push (spec 002, constitución §4).
@@ -16,19 +17,10 @@ const MAX_P256DH = 200;
 const MAX_AUTH = 100;
 const BASE64URL = /^[A-Za-z0-9_-]+={0,2}$/;
 
-function isSafeHttpsUrl(value: string): boolean {
-  try {
-    const url = new URL(value);
-    return url.protocol === 'https:' && !url.username && !url.password;
-  } catch {
-    return false;
-  }
-}
-
 const endpointSchema = z
   .string({ message: ENDPOINT_MESSAGE })
   .max(MAX_ENDPOINT, ENDPOINT_MESSAGE)
-  .refine(isSafeHttpsUrl, ENDPOINT_MESSAGE);
+  .refine(isKnownPushEndpoint, ENDPOINT_MESSAGE);
 
 const keySchema = (max: number) => z.string({ message: KEYS_MESSAGE }).min(1, KEYS_MESSAGE).max(max, KEYS_MESSAGE).regex(BASE64URL, KEYS_MESSAGE);
 

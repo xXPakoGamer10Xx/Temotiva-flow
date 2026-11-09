@@ -1,6 +1,6 @@
 import 'server-only';
 import { sendNotification, WebPushError } from 'web-push';
-import type { PushSubscriptionRecord } from '@/domain/push';
+import { isKnownPushEndpoint, type PushSubscriptionRecord } from '@/domain/push';
 import type { PushDeliveryResult, PushSender } from '@/server/services/push';
 
 /**
@@ -39,6 +39,8 @@ export function getPushSender(): PushSender | null {
 export function createWebPushSender(config: VapidConfig, send: SendFn = sendNotification): PushSender {
   return {
     async send(sub: PushSubscriptionRecord, payload: string): Promise<PushDeliveryResult> {
+      // Defensa en profundidad: filas guardadas antes de la lista blanca no reciben ningún POST.
+      if (!isKnownPushEndpoint(sub.endpoint)) return 'gone';
       try {
         await send({ endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } }, payload, {
           TTL: TTL_SECONDS,

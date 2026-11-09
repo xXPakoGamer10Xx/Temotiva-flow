@@ -37,8 +37,34 @@ describe('subscribePushSchema', () => {
     }
   });
 
+  it('solo acepta endpoints de servicios push conocidos (SSRF)', () => {
+    const internal = [
+      'https://169.254.169.254/latest/meta-data',
+      'https://localhost/x',
+      'https://127.0.0.1/x',
+      'https://intranet.corp/x',
+      'https://fcm.googleapis.com.evil.example/x',
+      'https://evil.example/fcm.googleapis.com/x',
+      'https://fcm.googleapis.com:8443/x',
+      'https://push.apple.com/x',
+    ];
+    for (const endpoint of internal) {
+      expect(subscribePushSchema.safeParse({ ...validSubscription, endpoint }).success, endpoint).toBe(false);
+      expect(unsubscribePushSchema.safeParse({ endpoint }).success, endpoint).toBe(false);
+    }
+    const allowed = [
+      'https://fcm.googleapis.com/fcm/send/abc',
+      'https://updates.push.services.mozilla.com/wpush/v2/abc',
+      'https://web.push.apple.com/abc',
+      'https://wns2-par02p.notify.windows.com/w/?token=abc',
+    ];
+    for (const endpoint of allowed) {
+      expect(subscribePushSchema.safeParse({ ...validSubscription, endpoint }).success, endpoint).toBe(true);
+    }
+  });
+
   it('limita la longitud del endpoint', () => {
-    const endpoint = `https://push.example/${'a'.repeat(1000)}`;
+    const endpoint = `https://fcm.googleapis.com/fcm/send/${'a'.repeat(1000)}`;
     expect(subscribePushSchema.safeParse({ ...validSubscription, endpoint }).success).toBe(false);
   });
 

@@ -1081,6 +1081,23 @@ export class PostgresDataStore implements DataStore {
     );
   }
 
+  async revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number> {
+    const res = scrub
+      ? await this.pool.query(
+          `UPDATE push_subscriptions SET
+             revoked_at = COALESCE(revoked_at, $2),
+             endpoint = 'anonymized:' || id::text,
+             p256dh = '', auth = '', user_agent = NULL
+           WHERE user_id = $1 AND endpoint NOT LIKE 'anonymized:%'`,
+          [userId, at],
+        )
+      : await this.pool.query(
+          `UPDATE push_subscriptions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL`,
+          [userId, at],
+        );
+    return res.rowCount ?? 0;
+  }
+
   async touchPushSubscription(endpoint: string, at: string): Promise<void> {
     await this.pool.query(`UPDATE push_subscriptions SET last_used_at = $2 WHERE endpoint = $1`, [endpoint, at]);
   }
