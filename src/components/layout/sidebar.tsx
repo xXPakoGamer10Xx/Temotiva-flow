@@ -24,7 +24,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import type { Department } from '@/domain/enums';
-import { signOutAction } from '@/server/actions/auth';
+import { SignOutForm } from '@/components/pwa/sign-out-form';
 import { openCommandPalette } from '@/components/command/command-bus';
 import { Avatar, Badge, Kbd } from '@/components/ui/primitives';
 import {
@@ -205,12 +205,12 @@ export function Sidebar({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <form action={signOutAction}>
+              <SignOutForm>
                 <button type="submit" className="flex w-full items-center gap-2 text-left">
                   <LogOut className="size-3.5" />
                   Cerrar sesión
                 </button>
-              </form>
+              </SignOutForm>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

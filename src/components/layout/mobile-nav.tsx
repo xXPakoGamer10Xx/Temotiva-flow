@@ -13,7 +13,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/controls';
-import { signOutAction } from '@/server/actions/auth';
+import { SignOutForm } from '@/components/pwa/sign-out-form';
 import { IdentityCard, type IdentityUser } from '@/components/shared/identity';
 import { InstallAppButton } from '@/components/pwa/install-app';
 import type { SidebarLink } from './sidebar';
@@ -68,11 +68,11 @@ export function MobileNav({ links, user }: { links: SidebarLink[]; user: Identit
             </Link>
           </DropdownMenuItem>
           <DropdownMenuItem asChild>
-            <form action={signOutAction}>
+            <SignOutForm>
               <button type="submit" className="w-full text-left">
                 Cerrar sesión
               </button>
-            </form>
+            </SignOutForm>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
