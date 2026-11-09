@@ -67,7 +67,12 @@ npx web-push generate-vapid-keys   # copia la pública y la privada a .env.local
 clave privada es un secreto: no se comitea ni se comparte.
 
 El aviso de **SLE en riesgo** no depende de ninguna acción: lo dispara un repaso periódico.
-En el servidor, programa el crontab para que llame cada hora al endpoint con el secreto:
+**En Vercel**, `vercel.json` ya programa un repaso diario (13:00 UTC). El plan Hobby solo admite
+una ejecución al día; basta con definir `CRON_SECRET` en las variables de entorno, porque Vercel
+lo envía solo como `Authorization: Bearer`. En un plan Pro puedes subir la frecuencia cambiando
+`schedule` en `vercel.json`.
+
+**En un servidor propio**, programa el crontab para que llame cada hora al endpoint con el secreto:
 
 ```cron
 0 * * * * curl -fsS -H "Authorization: Bearer $CRON_SECRET" https://<host>/api/cron/sle-risk
