@@ -201,6 +201,8 @@ export async function setAccessActive(
   }
 
   const updated = await store.updateUser(user.id, { isActive: input.isActive });
+  // Sin acceso no hay avisos: los dispositivos de esa persona dejan de recibirlos de inmediato.
+  if (!input.isActive) await store.revokePushSubscriptionsForUser(user.id, new Date().toISOString(), false);
 
   await audit(store, {
     initiativeId: null,
@@ -249,6 +251,8 @@ export async function anonymizeUser(
     isActive: false,
     isAnonymized: true,
   });
+  // Supresión: la fila de cada dispositivo se queda, pero sin endpoint, claves ni user-agent.
+  await store.revokePushSubscriptionsForUser(user.id, new Date().toISOString(), true);
 
   await audit(store, {
     initiativeId: null,

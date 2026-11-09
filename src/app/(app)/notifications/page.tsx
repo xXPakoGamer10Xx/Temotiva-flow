@@ -5,6 +5,7 @@ import { HELP_STATUS_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getNotificationSettingsView } from '@/server/services/notification-settings';
 import { NotificationPreferences } from '@/components/notifications/notification-preferences';
+import { PushDeviceCard } from '@/components/notifications/push-device-card';
 import { getNotifications, type NotificationView } from '@/server/services/views';
 import { PageHeader } from '@/components/layout/app-shell';
 import { MarkNotificationsSeen } from '@/components/layout/mark-notifications-seen';
@@ -43,6 +44,7 @@ export default async function NotificationsPage({
 
       <div className="scrollbar-slim flex-1 overflow-y-auto px-4 py-4 sm:px-6">
         <div className="mx-auto max-w-3xl space-y-6">
+          <PushDeviceCard vapidPublicKey={process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() || null} />
           <NotificationPreferences settings={settings} />
 
           <section className="space-y-2">

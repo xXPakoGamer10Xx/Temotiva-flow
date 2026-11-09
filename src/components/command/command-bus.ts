@@ -19,6 +19,7 @@ export const UI_EVENTS = {
   openShortcuts: 'temotiva:open-shortcuts',
   openWelcome: 'temotiva:open-welcome',
   bulkArchive: 'temotiva:bulk-archive',
+  openInstall: 'temotiva:open-install',
 } as const;
 
 type UiEvent = (typeof UI_EVENTS)[keyof typeof UI_EVENTS];
@@ -34,6 +35,8 @@ export const focusBoardFilter = (): void => emit(UI_EVENTS.focusFilter);
 export const openShortcutsHelp = (): void => emit(UI_EVENTS.openShortcuts);
 export const openWelcomeGuide = (): void => emit(UI_EVENTS.openWelcome);
 export const openBulkArchive = (): void => emit(UI_EVENTS.bulkArchive);
+/** Spec 002: «Descargar app» (diálogo nativo o pasos de iOS). */
+export const openInstallApp = (): void => emit(UI_EVENTS.openInstall);
 
 /**
  * Suscribe un manejador a un evento de interfaz mientras el componente viva.

@@ -27,6 +27,7 @@ import type {
   DepartmentRequestAttachment,
   DepartmentRequestStatus,
 } from '@/domain/department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DataStore } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -1032,6 +1033,86 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  // --- Notificaciones push (spec 002) ----------------------------------------
+
+  private static readonly PUSH_SUBSCRIPTION_COLUMNS = `id, user_id, endpoint, p256dh, auth, user_agent,
+              created_at, last_used_at, revoked_at`;
+
+  async listActivePushSubscriptions(userIds: string[]): Promise<PushSubscriptionRecord[]> {
+    if (userIds.length === 0) return [];
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}
+       FROM push_subscriptions WHERE user_id = ANY($1::uuid[]) AND revoked_at IS NULL`,
+      [userIds],
+    );
+    return res.rows.map((r) => this.mapPushSubscription(r));
+  }
+
+  async pushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}
+       FROM push_subscriptions WHERE endpoint = $1`,
+      [endpoint],
+    );
+    return res.rows.length === 0 ? null : this.mapPushSubscription(res.rows[0]);
+  }
+
+  async upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord> {
+    // Un dispositivo que vuelve (o que cambia de cuenta) conserva id y fecha de alta.
+    const res = await this.pool.query(
+      `INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, last_used_at, revoked_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (endpoint) DO UPDATE SET
+         user_id = EXCLUDED.user_id,
+         p256dh = EXCLUDED.p256dh,
+         auth = EXCLUDED.auth,
+         user_agent = EXCLUDED.user_agent,
+         revoked_at = NULL
+       RETURNING ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}`,
+      [sub.id, sub.userId, sub.endpoint, sub.p256dh, sub.auth, sub.userAgent, sub.createdAt, sub.lastUsedAt, sub.revokedAt],
+    );
+    return this.mapPushSubscription(res.rows[0]);
+  }
+
+  async revokePushSubscription(endpoint: string, at: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE push_subscriptions SET revoked_at = $2 WHERE endpoint = $1 AND revoked_at IS NULL`,
+      [endpoint, at],
+    );
+  }
+
+  async revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number> {
+    const res = scrub
+      ? await this.pool.query(
+          `UPDATE push_subscriptions SET
+             revoked_at = COALESCE(revoked_at, $2),
+             endpoint = 'anonymized:' || id::text,
+             p256dh = '', auth = '', user_agent = NULL
+           WHERE user_id = $1 AND endpoint NOT LIKE 'anonymized:%'`,
+          [userId, at],
+        )
+      : await this.pool.query(
+          `UPDATE push_subscriptions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL`,
+          [userId, at],
+        );
+    return res.rowCount ?? 0;
+  }
+
+  async touchPushSubscription(endpoint: string, at: string): Promise<void> {
+    await this.pool.query(`UPDATE push_subscriptions SET last_used_at = $2 WHERE endpoint = $1`, [endpoint, at]);
+  }
+
+  async insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean> {
+    const res = await this.pool.query(
+      `INSERT INTO sle_risk_notices (initiative_id, stage_id, notified_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING
+       RETURNING initiative_id`,
+      [notice.initiativeId, notice.stageId, notice.notifiedAt],
+    );
+    return res.rows.length > 0;
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -1451,6 +1532,20 @@ export class PostgresDataStore implements DataStore {
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
       isArchived: Boolean(r.is_archived),
+    };
+  }
+
+  private mapPushSubscription(r: Record<string, unknown>): PushSubscriptionRecord {
+    return {
+      id: String(r.id),
+      userId: String(r.user_id),
+      endpoint: String(r.endpoint),
+      p256dh: String(r.p256dh),
+      auth: String(r.auth),
+      userAgent: r.user_agent != null ? String(r.user_agent) : null,
+      createdAt: toIso(r.created_at),
+      lastUsedAt: toNullableIso(r.last_used_at),
+      revokedAt: toNullableIso(r.revoked_at),
     };
   }
 

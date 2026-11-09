@@ -9,6 +9,7 @@ import { CommandCenter, type PaletteInitiative } from '@/components/command/comm
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
 import { BulkArchiveDialog } from '@/components/initiative/bulk-archive-dialog';
 import { WelcomeGuide } from '@/components/help/welcome-guide';
+import { InstallAppHost } from '@/components/pwa/install-app';
 import { MobileNav } from './mobile-nav';
 import { Sidebar, type SidebarLink } from './sidebar';
 
@@ -87,6 +88,7 @@ export async function AppShell({
       />
       <WelcomeGuide userId={session.userId} role={session.role} />
       {session.role === 'EXECUTIVE' ? <BulkArchiveDialog initiatives={paletteInitiatives} /> : null}
+      <InstallAppHost />
       <CommandCenter
         initiatives={paletteInitiatives}
         canManagePeople={canManagePeople(session)}

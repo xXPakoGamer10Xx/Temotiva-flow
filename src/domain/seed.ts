@@ -20,6 +20,7 @@ import type {
 import { SEED_CHECKLIST_ITEMS, SEED_STAGES, STAGE_ID_BY_KEY, checklistItemId } from './workflow';
 import type { StageKey, StopReason } from './enums';
 import type { DepartmentRequest, DepartmentRequestAttachment } from './department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from './push';
 
 /**
  * Estado inicial del sistema: personas ficticias y 9 iniciativas activas (mas
@@ -61,6 +62,9 @@ export interface SeedData {
   departmentRequests?: DepartmentRequest[];
   /** Opcional: las semillas y snapshots anteriores a la ampliación A (adjuntos) no lo traen. */
   departmentRequestAttachments?: DepartmentRequestAttachment[];
+  /** Opcionales: las semillas y snapshots anteriores a las notificaciones push (spec 002) no los traen. */
+  pushSubscriptions?: PushSubscriptionRecord[];
+  sleRiskNotices?: SleRiskNotice[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */
