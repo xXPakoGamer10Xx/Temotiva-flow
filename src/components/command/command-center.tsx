@@ -13,6 +13,7 @@ import {
   Inbox,
   KanbanSquare,
   FolderOpen,
+  Handshake,
   MessageSquarePlus,
   Moon,
   Plus,
@@ -189,6 +190,16 @@ export function CommandCenter({
     });
 
     views.push({
+      id: 'go-dependencies',
+      label: 'Dependencias',
+      hint: 'G P',
+      group: 'Ir a',
+      icon: <Handshake className="size-3.5" />,
+      keywords: 'peticiones buzón entre áreas pedir ayuda solicitudes ayuda 🆘 responder pendientes archivos enlaces',
+      run: () => go('/dependencias'),
+    });
+
+    views.push({
       id: 'go-documents',
       label: 'Documentos',
       hint: 'G O',
@@ -336,7 +347,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();
