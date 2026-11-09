@@ -9,6 +9,7 @@ import { CommandCenter, type PaletteInitiative } from '@/components/command/comm
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
 import { BulkArchiveDialog } from '@/components/initiative/bulk-archive-dialog';
 import { WelcomeGuide } from '@/components/help/welcome-guide';
+import { InstallAppHost } from '@/components/pwa/install-app';
 import { MobileNav } from './mobile-nav';
 import { Sidebar, type SidebarLink } from './sidebar';
 
@@ -49,6 +50,7 @@ export async function AppShell({
     // Lo primero: lo que espera de mí. El badge cuenta solo eso, no lo asignado.
     { href: '/mi-trabajo', label: 'Mi trabajo', icon: 'mywork', shortcut: 'G M', badge: myWork.waiting.length },
     { href: '/tareas', label: 'Tareas', icon: 'tasks', shortcut: 'G T' },
+    { href: '/dependencias', label: 'Dependencias', icon: 'dependencies' },
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
@@ -86,6 +88,7 @@ export async function AppShell({
       />
       <WelcomeGuide userId={session.userId} role={session.role} />
       {session.role === 'EXECUTIVE' ? <BulkArchiveDialog initiatives={paletteInitiatives} /> : null}
+      <InstallAppHost />
       <CommandCenter
         initiatives={paletteInitiatives}
         canManagePeople={canManagePeople(session)}

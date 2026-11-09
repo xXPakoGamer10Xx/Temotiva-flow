@@ -21,6 +21,13 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
+import type {
+  AttachmentSide,
+  DepartmentRequest,
+  DepartmentRequestAttachment,
+  DepartmentRequestStatus,
+} from '@/domain/department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DataStore } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -846,6 +853,266 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ----------------------
+
+  private static readonly DEPARTMENT_REQUEST_COLUMNS = `id, title, description, source_department, target_department, requested_by,
+              help_type, status, blocks_initiative, initiative_id, assignee_id, resolution_notes,
+              resolved_by, created_at, updated_at, resolved_at`;
+
+  async listDepartmentRequests(): Promise<DepartmentRequest[]> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_COLUMNS}
+       FROM department_requests ORDER BY created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapDepartmentRequest(r));
+  }
+
+  async departmentRequestById(id: string): Promise<DepartmentRequest | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_COLUMNS}
+       FROM department_requests WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDepartmentRequest(res.rows[0]);
+  }
+
+  async insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest> {
+    await this.pool.query(
+      `INSERT INTO department_requests (
+        id, title, description, source_department, target_department, requested_by, help_type, status,
+        blocks_initiative, initiative_id, assignee_id, resolution_notes, resolved_by, created_at, updated_at, resolved_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+      [
+        request.id,
+        request.title,
+        request.description,
+        request.sourceDepartment,
+        request.targetDepartment,
+        request.requestedBy,
+        request.helpType,
+        request.status,
+        request.blocksInitiative,
+        request.initiativeId,
+        request.assigneeId,
+        request.resolutionNotes,
+        request.resolvedBy,
+        request.createdAt,
+        request.updatedAt,
+        request.resolvedAt,
+      ],
+    );
+    return request;
+  }
+
+  async updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest> {
+    await this.applyDepartmentRequestPatch(id, patch, null);
+    const updated = await this.departmentRequestById(id);
+    if (!updated) throw new Error(`Petición no encontrada: ${id}`);
+    return updated;
+  }
+
+  async transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null> {
+    // La condición `status = $12` va en el propio UPDATE: la comprobación y la escritura son una sola sentencia.
+    const changed = await this.applyDepartmentRequestPatch(id, patch, from);
+    const current = await this.departmentRequestById(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    return changed ? current : null;
+  }
+
+  /** `true` si se modificó una fila. Con `expectedStatus`, solo si la petición seguía en ese estado. */
+  private async applyDepartmentRequestPatch(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+    expectedStatus: DepartmentRequestStatus | null,
+  ): Promise<boolean> {
+    // Los campos anulables llevan su bandera: `undefined` conserva, `null` vacía.
+    const res = await this.pool.query(
+      `UPDATE department_requests SET
+         status = COALESCE($2, status),
+         assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
+         resolution_notes = CASE WHEN $5::boolean THEN $6::text ELSE resolution_notes END,
+         resolved_by = CASE WHEN $7::boolean THEN $8::uuid ELSE resolved_by END,
+         resolved_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE resolved_at END,
+         updated_at = COALESCE($11, updated_at)
+       WHERE id = $1 AND ($12::varchar IS NULL OR status = $12::varchar)`,
+      [
+        id,
+        patch.status ?? null,
+        patch.assigneeId !== undefined,
+        patch.assigneeId ?? null,
+        patch.resolutionNotes !== undefined,
+        patch.resolutionNotes ?? null,
+        patch.resolvedBy !== undefined,
+        patch.resolvedBy ?? null,
+        patch.resolvedAt !== undefined,
+        patch.resolvedAt ?? null,
+        patch.updatedAt ?? null,
+        expectedStatus,
+      ],
+    );
+    return (res.rowCount ?? 0) > 0;
+  }
+
+  // --- Adjuntos y enlaces de peticiones (ampliación A) -----------------------
+
+  private static readonly DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS = `id, request_id, side, kind, file_name, content_type,
+              size_bytes, storage_key, label, url, added_by, added_at, is_removed, removed_by, removed_at`;
+
+  async listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]> {
+    const res = requestId
+      ? await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+           FROM department_request_attachments WHERE request_id = $1 ORDER BY added_at`,
+          [requestId],
+        )
+      : await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+           FROM department_request_attachments ORDER BY added_at`,
+        );
+    return res.rows.map((r) => this.mapDepartmentRequestAttachment(r));
+  }
+
+  async departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.DEPARTMENT_REQUEST_ATTACHMENT_COLUMNS}
+       FROM department_request_attachments WHERE id = $1`,
+      [id],
+    );
+    return res.rows.length === 0 ? null : this.mapDepartmentRequestAttachment(res.rows[0]);
+  }
+
+  async insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment> {
+    const file = item.kind === 'FILE' ? item : null;
+    const link = item.kind === 'LINK' ? item : null;
+    await this.pool.query(
+      `INSERT INTO department_request_attachments (
+        id, request_id, side, kind, file_name, content_type, size_bytes, storage_key, label, url, added_by, added_at
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)`,
+      [
+        item.id,
+        item.requestId,
+        item.side,
+        item.kind,
+        file?.fileName ?? null,
+        file?.contentType ?? null,
+        file?.sizeBytes ?? null,
+        file?.storageKey ?? null,
+        link?.label ?? null,
+        link?.url ?? null,
+        item.addedBy,
+        item.addedAt,
+      ],
+    );
+    return item;
+  }
+
+  async markDepartmentRequestAttachmentRemoved(
+    id: string,
+    removedBy: string,
+    removedAt: string,
+  ): Promise<DepartmentRequestAttachment> {
+    await this.pool.query(
+      `UPDATE department_request_attachments SET is_removed = TRUE, removed_by = $2, removed_at = $3 WHERE id = $1`,
+      [id, removedBy, removedAt],
+    );
+    const updated = await this.departmentRequestAttachmentById(id);
+    if (!updated) throw new Error(`Adjunto no encontrado: ${id}`);
+    return updated;
+  }
+
+  // --- Notificaciones push (spec 002) ----------------------------------------
+
+  private static readonly PUSH_SUBSCRIPTION_COLUMNS = `id, user_id, endpoint, p256dh, auth, user_agent,
+              created_at, last_used_at, revoked_at`;
+
+  async listActivePushSubscriptions(userIds: string[]): Promise<PushSubscriptionRecord[]> {
+    if (userIds.length === 0) return [];
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}
+       FROM push_subscriptions WHERE user_id = ANY($1::uuid[]) AND revoked_at IS NULL`,
+      [userIds],
+    );
+    return res.rows.map((r) => this.mapPushSubscription(r));
+  }
+
+  async pushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}
+       FROM push_subscriptions WHERE endpoint = $1`,
+      [endpoint],
+    );
+    return res.rows.length === 0 ? null : this.mapPushSubscription(res.rows[0]);
+  }
+
+  async upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord> {
+    // Un dispositivo que vuelve (o que cambia de cuenta) conserva id y fecha de alta.
+    const res = await this.pool.query(
+      `INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth, user_agent, created_at, last_used_at, revoked_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+       ON CONFLICT (endpoint) DO UPDATE SET
+         user_id = EXCLUDED.user_id,
+         p256dh = EXCLUDED.p256dh,
+         auth = EXCLUDED.auth,
+         user_agent = EXCLUDED.user_agent,
+         revoked_at = NULL
+       RETURNING ${PostgresDataStore.PUSH_SUBSCRIPTION_COLUMNS}`,
+      [sub.id, sub.userId, sub.endpoint, sub.p256dh, sub.auth, sub.userAgent, sub.createdAt, sub.lastUsedAt, sub.revokedAt],
+    );
+    return this.mapPushSubscription(res.rows[0]);
+  }
+
+  async revokePushSubscription(endpoint: string, at: string): Promise<void> {
+    await this.pool.query(
+      `UPDATE push_subscriptions SET revoked_at = $2 WHERE endpoint = $1 AND revoked_at IS NULL`,
+      [endpoint, at],
+    );
+  }
+
+  async revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number> {
+    const res = scrub
+      ? await this.pool.query(
+          `UPDATE push_subscriptions SET
+             revoked_at = COALESCE(revoked_at, $2),
+             endpoint = 'anonymized:' || id::text,
+             p256dh = '', auth = '', user_agent = NULL
+           WHERE user_id = $1 AND endpoint NOT LIKE 'anonymized:%'`,
+          [userId, at],
+        )
+      : await this.pool.query(
+          `UPDATE push_subscriptions SET revoked_at = $2 WHERE user_id = $1 AND revoked_at IS NULL`,
+          [userId, at],
+        );
+    return res.rowCount ?? 0;
+  }
+
+  async touchPushSubscription(endpoint: string, at: string): Promise<void> {
+    await this.pool.query(`UPDATE push_subscriptions SET last_used_at = $2 WHERE endpoint = $1`, [endpoint, at]);
+  }
+
+  async insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean> {
+    const res = await this.pool.query(
+      `INSERT INTO sle_risk_notices (initiative_id, stage_id, notified_at)
+       VALUES ($1, $2, $3)
+       ON CONFLICT DO NOTHING
+       RETURNING initiative_id`,
+      [notice.initiativeId, notice.stageId, notice.notifiedAt],
+    );
+    return res.rows.length > 0;
+  }
+
   async listFeedback(): Promise<FeedbackItem[]> {
     const res = await this.pool.query(
       `SELECT id, category, message, status, created_by, created_at, updated_by, updated_at, images
@@ -1265,6 +1532,65 @@ export class PostgresDataStore implements DataStore {
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),
       isArchived: Boolean(r.is_archived),
+    };
+  }
+
+  private mapPushSubscription(r: Record<string, unknown>): PushSubscriptionRecord {
+    return {
+      id: String(r.id),
+      userId: String(r.user_id),
+      endpoint: String(r.endpoint),
+      p256dh: String(r.p256dh),
+      auth: String(r.auth),
+      userAgent: r.user_agent != null ? String(r.user_agent) : null,
+      createdAt: toIso(r.created_at),
+      lastUsedAt: toNullableIso(r.last_used_at),
+      revokedAt: toNullableIso(r.revoked_at),
+    };
+  }
+
+  private mapDepartmentRequest(r: Record<string, unknown>): DepartmentRequest {
+    return {
+      id: String(r.id),
+      title: String(r.title),
+      description: String(r.description ?? ''),
+      sourceDepartment: String(r.source_department) as Department,
+      targetDepartment: String(r.target_department) as Department,
+      requestedBy: String(r.requested_by),
+      helpType: String(r.help_type) as HelpType,
+      status: String(r.status) as DepartmentRequestStatus,
+      blocksInitiative: Boolean(r.blocks_initiative),
+      initiativeId: r.initiative_id ? String(r.initiative_id) : null,
+      assigneeId: r.assignee_id ? String(r.assignee_id) : null,
+      resolutionNotes: r.resolution_notes != null ? String(r.resolution_notes) : null,
+      resolvedBy: r.resolved_by ? String(r.resolved_by) : null,
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+      resolvedAt: toNullableIso(r.resolved_at),
+    };
+  }
+
+  private mapDepartmentRequestAttachment(r: Record<string, unknown>): DepartmentRequestAttachment {
+    const base = {
+      id: String(r.id),
+      requestId: String(r.request_id),
+      side: String(r.side) as AttachmentSide,
+      addedBy: String(r.added_by),
+      addedAt: toIso(r.added_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
+    };
+    if (String(r.kind) === 'LINK') {
+      return { ...base, kind: 'LINK', label: String(r.label), url: String(r.url) };
+    }
+    return {
+      ...base,
+      kind: 'FILE',
+      fileName: String(r.file_name),
+      contentType: String(r.content_type),
+      sizeBytes: Number(r.size_bytes),
+      storageKey: String(r.storage_key),
     };
   }
 

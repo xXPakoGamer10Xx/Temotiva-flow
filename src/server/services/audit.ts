@@ -1,6 +1,7 @@
 import type { ActionType } from '@/domain/enums';
 import type { ActivityLogEntry, JsonValue, OverrideMetadata, SessionContext } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
+import { emitAuditAppended } from './audit-listeners';
 
 /**
  * Caja negra: única puerta de escritura de eventos (SEGURIDAD.md §6).
@@ -22,8 +23,8 @@ export interface AuditInput {
   at?: Date;
 }
 
-export function audit(store: DataStore, input: AuditInput): Promise<ActivityLogEntry> {
-  return store.appendActivityLog({
+export async function audit(store: DataStore, input: AuditInput): Promise<ActivityLogEntry> {
+  const entry = await store.appendActivityLog({
     initiativeId: input.initiativeId,
     userId: input.session.userId,
     actionType: input.actionType,
@@ -35,4 +36,6 @@ export function audit(store: DataStore, input: AuditInput): Promise<ActivityLogE
     overrideMetadata: input.overrideMetadata ?? null,
     createdAt: (input.at ?? new Date()).toISOString(),
   });
+  emitAuditAppended(store, entry); // spec 002 §9: avisa de la entrada ya guardada; nunca lanza.
+  return entry;
 }

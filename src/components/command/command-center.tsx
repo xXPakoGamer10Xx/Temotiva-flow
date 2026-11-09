@@ -10,9 +10,11 @@ import {
   Bell,
   CircleHelp,
   CornerDownLeft,
+  Download,
   Inbox,
   KanbanSquare,
   FolderOpen,
+  Handshake,
   MessageSquarePlus,
   Moon,
   Plus,
@@ -28,12 +30,14 @@ import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog';
 import { Badge, Kbd, SectionLabel } from '@/components/ui/primitives';
 import { DepartmentDot } from '@/components/shared/signals';
 import { SHORTCUTS } from './shortcuts';
+import { useInstallMode } from '@/components/pwa/install-store';
 import { cn } from '@/lib/utils';
 import {
   UI_EVENTS,
   focusBoardFilter,
   isTypingTarget,
   openBulkArchive,
+  openInstallApp,
   openNewInitiative,
   openShortcutsHelp,
   useUiEvent,
@@ -88,6 +92,8 @@ export function CommandCenter({
   const [query, setQuery] = React.useState('');
   const [activeIndex, setActiveIndex] = React.useState(0);
   const listRef = React.useRef<HTMLDivElement>(null);
+
+  const installMode = useInstallMode();
 
   useUiEvent(UI_EVENTS.openPalette, () => setOpen(true));
   useUiEvent(UI_EVENTS.openShortcuts, () => setShortcutsOpen(true));
@@ -189,6 +195,16 @@ export function CommandCenter({
     });
 
     views.push({
+      id: 'go-dependencies',
+      label: 'Dependencias',
+      hint: 'G P',
+      group: 'Ir a',
+      icon: <Handshake className="size-3.5" />,
+      keywords: 'peticiones buzón entre áreas pedir ayuda solicitudes ayuda 🆘 responder pendientes archivos enlaces',
+      run: () => go('/dependencias'),
+    });
+
+    views.push({
       id: 'go-documents',
       label: 'Documentos',
       hint: 'G O',
@@ -276,6 +292,22 @@ export function CommandCenter({
           setOpen(false);
         },
       },
+      // Spec 002: solo si este navegador permite instalar y aún no está instalada.
+      ...(installMode === 'native' || installMode === 'ios'
+        ? [
+            {
+              id: 'install-app',
+              label: 'Descargar app',
+              group: 'Acciones' as const,
+              icon: <Download className="size-3.5" />,
+              keywords: 'instalar pwa movil pantalla de inicio aplicacion descargar',
+              run: () => {
+                setOpen(false);
+                openInstallApp();
+              },
+            },
+          ]
+        : []),
       {
         id: 'shortcuts',
         label: 'Ver los atajos de teclado',
@@ -307,7 +339,7 @@ export function CommandCenter({
     }));
 
     return [...initiativeCommands, ...views, ...actions];
-  }, [canBulkArchive, canManagePeople, go, initiatives, pathname, router, searchParams]);
+  }, [canBulkArchive, canManagePeople, go, initiatives, installMode, pathname, router, searchParams]);
 
   const results = React.useMemo(() => {
     const needle = normalize(query.trim());
@@ -336,7 +368,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople)) {
           event.preventDefault();

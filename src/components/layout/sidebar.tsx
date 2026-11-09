@@ -12,6 +12,7 @@ import {
   ListTodo,
   LogOut,
   FolderOpen,
+  Handshake,
   MessageSquarePlus,
   Moon,
   PanelLeft,
@@ -23,7 +24,7 @@ import {
   UserRound,
 } from 'lucide-react';
 import type { Department } from '@/domain/enums';
-import { signOutAction } from '@/server/actions/auth';
+import { SignOutForm } from '@/components/pwa/sign-out-form';
 import { openCommandPalette } from '@/components/command/command-bus';
 import { Avatar, Badge, Kbd } from '@/components/ui/primitives';
 import {
@@ -36,12 +37,24 @@ import {
 } from '@/components/ui/controls';
 import { BrandMark } from '@/components/shared/brand-mark';
 import { IdentityCard } from '@/components/shared/identity';
+import { InstallAppRow } from '@/components/pwa/install-app';
 import { cn } from '@/lib/utils';
 
 export interface SidebarLink {
   href: string;
   label: string;
-  icon: 'mywork' | 'board' | 'radar' | 'executive' | 'notifications' | 'tasks' | 'documents' | 'feedback' | 'team' | 'help';
+  icon:
+    | 'mywork'
+    | 'board'
+    | 'radar'
+    | 'executive'
+    | 'notifications'
+    | 'tasks'
+    | 'dependencies'
+    | 'documents'
+    | 'feedback'
+    | 'team'
+    | 'help';
   badge?: number;
   shortcut?: string;
 }
@@ -53,6 +66,7 @@ const ICONS = {
   executive: TrendingUp,
   notifications: Bell,
   tasks: ListTodo,
+  dependencies: Handshake,
   documents: FolderOpen,
   feedback: MessageSquarePlus,
   team: ShieldCheck,
@@ -164,6 +178,7 @@ export function Sidebar({
       </nav>
 
       <div className="space-y-1 border-t border-border p-2">
+        <InstallAppRow />
         <ThemeToggleRow />
         <DropdownMenu>
           <DropdownMenuTrigger
@@ -190,12 +205,12 @@ export function Sidebar({
               </Link>
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
-              <form action={signOutAction}>
+              <SignOutForm>
                 <button type="submit" className="flex w-full items-center gap-2 text-left">
                   <LogOut className="size-3.5" />
                   Cerrar sesión
                 </button>
-              </form>
+              </SignOutForm>
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

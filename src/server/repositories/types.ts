@@ -19,6 +19,8 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
+import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -142,6 +144,60 @@ export interface DataStore {
   listDepartmentNotificationSettings(): Promise<DepartmentNotificationSetting[]>;
   /** Inserta o reemplaza el ajuste de esa área. */
   setDepartmentNotificationSetting(setting: DepartmentNotificationSetting): Promise<DepartmentNotificationSetting>;
+
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ------------------------
+  /** Sin filtrar: el Need-to-Know se aplica en el servicio, nunca aquí. Más reciente primero. */
+  listDepartmentRequests(): Promise<DepartmentRequest[]>;
+  departmentRequestById(id: string): Promise<DepartmentRequest | null>;
+  insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest>;
+  updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest>;
+  /**
+   * Cambio de estado atómico: solo se aplica si la petición sigue en `from`.
+   * Devuelve `null` si otra persona la movió antes (nada se escribe), para que
+   * dos respuestas simultáneas no se pisen. Lanza si la petición no existe.
+   */
+  transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null>;
+
+  // --- Adjuntos y enlaces de peticiones (spec 001, ampliación A) --------------
+  /** De una petición (o de todas), en orden de llegada. Sin filtrar: el Need-to-Know va en el servicio. */
+  listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]>;
+  departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null>;
+  insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment>;
+  /** Solo la baja lógica (ampliación B): la fila y el archivo se conservan. */
+  markDepartmentRequestAttachmentRemoved(id: string, removedBy: string, removedAt: string): Promise<DepartmentRequestAttachment>;
+
+  // --- Notificaciones push (spec 002) -----------------------------------------
+  /** Dispositivos activos (sin `revokedAt`) de esas personas. Lista vacía → vacío, sin consultar. */
+  listActivePushSubscriptions(userIds: string[]): Promise<PushSubscriptionRecord[]>;
+  /** Activa o dada de baja: el servicio comprueba a quién pertenece. */
+  pushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null>;
+  /**
+   * Alta por `endpoint`. Si el dispositivo ya existía conserva `id` y `createdAt`,
+   * pasa a `userId` (cambio de cuenta), renueva las claves y se reactiva.
+   */
+  upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord>;
+  /** Baja lógica; solo marca si seguía activa. Un endpoint desconocido no es un error. */
+  revokePushSubscription(endpoint: string, at: string): Promise<void>;
+  /**
+   * Baja de todos los dispositivos de una persona (perfil revocado). Con
+   * `scrub` (anonimización) además se vacían endpoint, claves y user-agent:
+   * la fila se conserva, pero ya no identifica ningún dispositivo. Devuelve cuántos tocó.
+   */
+  revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number>;
+  touchPushSubscription(endpoint: string, at: string): Promise<void>;
+  /** `true` si la marca es nueva; `false` si esa iniciativa y fase ya se avisaron. */
+  insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean>;
 
   // --- Caja negra (append-only) ----------------------------------------------
   listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]>;

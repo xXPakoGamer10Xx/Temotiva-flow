@@ -12,5 +12,6 @@ export const proxy = auth;
 export default auth;
 
 export const config = {
-  matcher: ['/((?!api/auth|api/mcp|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // Spec 002: manifest, service worker, página sin conexión y crontab van sin sesión.
+  matcher: ['/((?!api/auth|api/mcp|api/cron/|manifest\\.webmanifest$|sw\\.js$|offline$|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 };

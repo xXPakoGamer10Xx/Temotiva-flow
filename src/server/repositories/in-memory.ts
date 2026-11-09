@@ -21,6 +21,8 @@ import type {
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
+import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
+import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DataStore } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -51,8 +53,14 @@ export class InMemoryDataStore implements DataStore {
   private areaLinks = new Map<string, AreaLink>();
   private apiTokens = new Map<string, ApiToken>();
   private deptTasks = new Map<string, DeptTask>();
+  private departmentRequests = new Map<string, DepartmentRequest>();
+  private departmentRequestAttachments = new Map<string, DepartmentRequestAttachment>();
   private notificationPrefs = new Map<string, NotificationPref>();
   private departmentNotificationSettings = new Map<string, DepartmentNotificationSetting>();
+  /** Por `endpoint`, que es la clave única del DDL. */
+  private pushSubscriptions = new Map<string, PushSubscriptionRecord>();
+  /** Por `${initiativeId}::${stageId}`, la PK compuesta del DDL. */
+  private sleRiskNotices = new Map<string, SleRiskNotice>();
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -79,11 +87,23 @@ export class InMemoryDataStore implements DataStore {
     this.areaLinks = new Map((data.areaLinks ?? []).map((link) => [link.id, clone(link)]));
     this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
     this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
+    this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
+    // Los snapshots de la ampliación A no traen los campos de baja: se rellenan como activos.
+    this.departmentRequestAttachments = new Map(
+      (data.departmentRequestAttachments ?? []).map((item) => [
+        item.id,
+        clone({ ...item, isRemoved: item.isRemoved ?? false, removedBy: item.removedBy ?? null, removedAt: item.removedAt ?? null }),
+      ]),
+    );
     this.feedback = new Map((data.feedback ?? []).map((item) => [item.id, clone({ ...item, images: item.images ?? [] })]));
     this.personalSteps = new Map((data.personalSteps ?? []).map((step) => [step.id, clone(step)]));
     this.notificationPrefs = new Map((data.notificationPrefs ?? []).map((pref) => [pref.userId, clone(pref)]));
     this.departmentNotificationSettings = new Map(
       (data.departmentNotificationSettings ?? []).map((setting) => [setting.department, clone(setting)]),
+    );
+    this.pushSubscriptions = new Map((data.pushSubscriptions ?? []).map((sub) => [sub.endpoint, clone(sub)]));
+    this.sleRiskNotices = new Map(
+      (data.sleRiskNotices ?? []).map((notice) => [sleRiskNoticeKey(notice.initiativeId, notice.stageId), clone(notice)]),
     );
     this.activityLog = data.activityLog.map((entry) => clone(entry));
   }
@@ -103,10 +123,14 @@ export class InMemoryDataStore implements DataStore {
       areaLinks: [...this.areaLinks.values()].map(clone),
       apiTokens: [...this.apiTokens.values()].map(clone),
       deptTasks: [...this.deptTasks.values()].map(clone),
+      departmentRequests: [...this.departmentRequests.values()].map(clone),
+      departmentRequestAttachments: [...this.departmentRequestAttachments.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
       personalSteps: [...this.personalSteps.values()].map(clone),
       notificationPrefs: [...this.notificationPrefs.values()].map(clone),
       departmentNotificationSettings: [...this.departmentNotificationSettings.values()].map(clone),
+      pushSubscriptions: [...this.pushSubscriptions.values()].map(clone),
+      sleRiskNotices: [...this.sleRiskNotices.values()].map(clone),
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -561,6 +585,149 @@ export class InMemoryDataStore implements DataStore {
     return clone(updated);
   }
 
+  // --- Peticiones entre áreas (spec 001 — Dependencias) ------------------------------
+
+  async listDepartmentRequests(): Promise<DepartmentRequest[]> {
+    return [...this.departmentRequests.values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).map(clone);
+  }
+
+  async departmentRequestById(id: string): Promise<DepartmentRequest | null> {
+    const request = this.departmentRequests.get(id);
+    return request ? clone(request) : null;
+  }
+
+  async insertDepartmentRequest(request: DepartmentRequest): Promise<DepartmentRequest> {
+    this.departmentRequests.set(request.id, clone(request));
+    this.touched();
+    return clone(request);
+  }
+
+  async updateDepartmentRequest(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest> {
+    const current = this.departmentRequests.get(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    const updated: DepartmentRequest = { ...current, ...patch };
+    this.departmentRequests.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null> {
+    const current = this.departmentRequests.get(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    if (current.status !== from) return null;
+    return this.updateDepartmentRequest(id, patch);
+  }
+
+  // --- Adjuntos y enlaces de peticiones (ampliación A) -------------------------------
+
+  async listDepartmentRequestAttachments(requestId?: string): Promise<DepartmentRequestAttachment[]> {
+    return [...this.departmentRequestAttachments.values()]
+      .filter((item) => requestId === undefined || item.requestId === requestId)
+      .sort((a, b) => a.addedAt.localeCompare(b.addedAt))
+      .map(clone);
+  }
+
+  async departmentRequestAttachmentById(id: string): Promise<DepartmentRequestAttachment | null> {
+    const item = this.departmentRequestAttachments.get(id);
+    return item ? clone(item) : null;
+  }
+
+  async insertDepartmentRequestAttachment(item: DepartmentRequestAttachment): Promise<DepartmentRequestAttachment> {
+    this.departmentRequestAttachments.set(item.id, clone(item));
+    this.touched();
+    return clone(item);
+  }
+
+  async markDepartmentRequestAttachmentRemoved(
+    id: string,
+    removedBy: string,
+    removedAt: string,
+  ): Promise<DepartmentRequestAttachment> {
+    const current = this.departmentRequestAttachments.get(id);
+    if (!current) throw new Error(`Adjunto no encontrado: ${id}`);
+    const updated: DepartmentRequestAttachment = { ...current, isRemoved: true, removedBy, removedAt };
+    this.departmentRequestAttachments.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  // --- Notificaciones push (spec 002) ------------------------------------------------
+
+  async listActivePushSubscriptions(userIds: string[]): Promise<PushSubscriptionRecord[]> {
+    if (userIds.length === 0) return [];
+    const wanted = new Set(userIds);
+    return [...this.pushSubscriptions.values()]
+      .filter((sub) => sub.revokedAt === null && wanted.has(sub.userId))
+      .map(clone);
+  }
+
+  async pushSubscriptionByEndpoint(endpoint: string): Promise<PushSubscriptionRecord | null> {
+    const sub = this.pushSubscriptions.get(endpoint);
+    return sub ? clone(sub) : null;
+  }
+
+  async upsertPushSubscription(sub: PushSubscriptionRecord): Promise<PushSubscriptionRecord> {
+    const current = this.pushSubscriptions.get(sub.endpoint);
+    const stored: PushSubscriptionRecord = current
+      ? { ...current, userId: sub.userId, p256dh: sub.p256dh, auth: sub.auth, userAgent: sub.userAgent, revokedAt: null }
+      : clone(sub);
+    this.pushSubscriptions.set(sub.endpoint, stored);
+    this.touched();
+    return clone(stored);
+  }
+
+  async revokePushSubscription(endpoint: string, at: string): Promise<void> {
+    const current = this.pushSubscriptions.get(endpoint);
+    if (!current || current.revokedAt !== null) return;
+    this.pushSubscriptions.set(endpoint, { ...current, revokedAt: at });
+    this.touched();
+  }
+
+  async revokePushSubscriptionsForUser(userId: string, at: string, scrub: boolean): Promise<number> {
+    let touched = 0;
+    for (const [endpoint, sub] of [...this.pushSubscriptions.entries()]) {
+      if (sub.userId !== userId) continue;
+      const alreadyScrubbed = sub.endpoint.startsWith('anonymized:');
+      if (sub.revokedAt !== null && (!scrub || alreadyScrubbed)) continue;
+      const next: PushSubscriptionRecord = {
+        ...sub,
+        revokedAt: sub.revokedAt ?? at,
+        ...(scrub ? { endpoint: `anonymized:${sub.id}`, p256dh: '', auth: '', userAgent: null } : {}),
+      };
+      this.pushSubscriptions.delete(endpoint);
+      this.pushSubscriptions.set(next.endpoint, next);
+      touched += 1;
+    }
+    if (touched > 0) this.touched();
+    return touched;
+  }
+
+  async touchPushSubscription(endpoint: string, at: string): Promise<void> {
+    const current = this.pushSubscriptions.get(endpoint);
+    if (!current) return;
+    this.pushSubscriptions.set(endpoint, { ...current, lastUsedAt: at });
+    this.touched();
+  }
+
+  async insertSleRiskNotice(notice: SleRiskNotice): Promise<boolean> {
+    const key = sleRiskNoticeKey(notice.initiativeId, notice.stageId);
+    if (this.sleRiskNotices.has(key)) return false;
+    this.sleRiskNotices.set(key, clone(notice));
+    this.touched();
+    return true;
+  }
+
   // --- Caja negra --------------------------------------------------------------------
 
   async listActivityLog(initiativeId?: string): Promise<ActivityLogEntry[]> {
@@ -584,4 +751,8 @@ export class InMemoryDataStore implements DataStore {
 
 function checklistValueKey(initiativeId: string, checklistId: string): string {
   return `${initiativeId}::${checklistId}`;
+}
+
+function sleRiskNoticeKey(initiativeId: string, stageId: number): string {
+  return `${initiativeId}::${stageId}`;
 }
