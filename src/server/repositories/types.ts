@@ -19,7 +19,7 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
-import type { DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
+import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -155,6 +155,18 @@ export interface DataStore {
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
   ): Promise<DepartmentRequest>;
+  /**
+   * Cambio de estado atómico: solo se aplica si la petición sigue en `from`.
+   * Devuelve `null` si otra persona la movió antes (nada se escribe), para que
+   * dos respuestas simultáneas no se pisen. Lanza si la petición no existe.
+   */
+  transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null>;
 
   // --- Adjuntos y enlaces de peticiones (spec 001, ampliación A) --------------
   /** De una petición (o de todas), en orden de llegada. Sin filtrar: el Need-to-Know va en el servicio. */

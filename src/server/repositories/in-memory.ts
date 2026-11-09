@@ -21,7 +21,7 @@ import type {
 } from '@/domain/types';
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
-import type { DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
+import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { DataStore } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -603,6 +603,19 @@ export class InMemoryDataStore implements DataStore {
     this.departmentRequests.set(id, updated);
     this.touched();
     return clone(updated);
+  }
+
+  async transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null> {
+    const current = this.departmentRequests.get(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    if (current.status !== from) return null;
+    return this.updateDepartmentRequest(id, patch);
   }
 
   // --- Adjuntos y enlaces de peticiones (ampliación A) -------------------------------

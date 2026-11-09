@@ -418,11 +418,13 @@ export async function startDepartmentRequest(
     throw invalidState('Esta petición ya estaba tomada o resuelta.');
   }
 
-  const updated = await store.updateDepartmentRequest(request.id, {
+  // Atómico: si otra persona la tomó o resolvió entre la lectura y la escritura, no se pisa.
+  const updated = await store.transitionDepartmentRequest(request.id, 'PENDING', {
     status: 'IN_PROGRESS',
     assigneeId: session.userId,
     updatedAt: now.toISOString(),
   });
+  if (!updated) throw invalidState('Esta petición ya estaba tomada o resuelta.');
 
   await audit(store, {
     initiativeId: null,
@@ -468,23 +470,24 @@ export async function resolveDepartmentRequest(
     throw invalid(`Escribe una respuesta de al menos ${MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES} caracteres.`);
   }
 
-  // Se validan antes de tocar nada y se guardan antes de cerrar: tras RESOLVED
-  // ya no se admiten adjuntos.
+  // Se validan antes de tocar nada. Se guardan justo después de ganar la
+  // transición: así quien pierde la carrera no deja enlaces en una petición ajena.
   const links = normalizeLinks(input.links ?? []);
   if (links.length > 0) {
     const existing = await countOnSide(store, request.id, 'RESPONSE', 'LINK');
     assertQuota(existing, links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
-    await insertLinks(store, session, request.id, 'RESPONSE', links, now);
   }
 
   const at = now.toISOString();
-  const updated = await store.updateDepartmentRequest(request.id, {
+  const updated = await store.transitionDepartmentRequest(request.id, request.status, {
     status: 'RESOLVED',
     resolutionNotes: notes,
     resolvedBy: session.userId,
     resolvedAt: at,
     updatedAt: at,
   });
+  if (!updated) throw invalidState('Esta petición cambió mientras la respondías. Recarga para ver su estado.');
+  if (links.length > 0) await insertLinks(store, session, request.id, 'RESPONSE', links, now);
 
   await audit(store, {
     initiativeId: null,

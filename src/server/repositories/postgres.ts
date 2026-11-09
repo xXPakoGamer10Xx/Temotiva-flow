@@ -909,8 +909,36 @@ export class PostgresDataStore implements DataStore {
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
   ): Promise<DepartmentRequest> {
+    await this.applyDepartmentRequestPatch(id, patch, null);
+    const updated = await this.departmentRequestById(id);
+    if (!updated) throw new Error(`Petición no encontrada: ${id}`);
+    return updated;
+  }
+
+  async transitionDepartmentRequest(
+    id: string,
+    from: DepartmentRequestStatus,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+  ): Promise<DepartmentRequest | null> {
+    // La condición `status = $12` va en el propio UPDATE: la comprobación y la escritura son una sola sentencia.
+    const changed = await this.applyDepartmentRequestPatch(id, patch, from);
+    const current = await this.departmentRequestById(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    return changed ? current : null;
+  }
+
+  /** `true` si se modificó una fila. Con `expectedStatus`, solo si la petición seguía en ese estado. */
+  private async applyDepartmentRequestPatch(
+    id: string,
+    patch: Partial<
+      Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
+    >,
+    expectedStatus: DepartmentRequestStatus | null,
+  ): Promise<boolean> {
     // Los campos anulables llevan su bandera: `undefined` conserva, `null` vacía.
-    await this.pool.query(
+    const res = await this.pool.query(
       `UPDATE department_requests SET
          status = COALESCE($2, status),
          assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
@@ -918,7 +946,7 @@ export class PostgresDataStore implements DataStore {
          resolved_by = CASE WHEN $7::boolean THEN $8::uuid ELSE resolved_by END,
          resolved_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE resolved_at END,
          updated_at = COALESCE($11, updated_at)
-       WHERE id = $1`,
+       WHERE id = $1 AND ($12::varchar IS NULL OR status = $12::varchar)`,
       [
         id,
         patch.status ?? null,
@@ -931,11 +959,10 @@ export class PostgresDataStore implements DataStore {
         patch.resolvedAt !== undefined,
         patch.resolvedAt ?? null,
         patch.updatedAt ?? null,
+        expectedStatus,
       ],
     );
-    const updated = await this.departmentRequestById(id);
-    if (!updated) throw new Error(`Petición no encontrada: ${id}`);
-    return updated;
+    return (res.rowCount ?? 0) > 0;
   }
 
   // --- Adjuntos y enlaces de peticiones (ampliación A) -----------------------

@@ -392,6 +392,51 @@ describe('startDepartmentRequest y resolveDepartmentRequest (RF-6, RF-7, RF-8, R
     expect(await store.listActivityLog()).toHaveLength(1);
   });
 
+  /** Simula la carrera: el servicio lee la petición Pendiente, pero otra persona la resuelve antes de que escriba. */
+  async function withStaleRead(store: Awaited<ReturnType<typeof setup>>, otherId: string) {
+    const stale = await store.departmentRequestById('req-1');
+    await store.updateDepartmentRequest('req-1', {
+      status: 'RESOLVED',
+      assigneeId: otherId,
+      resolutionNotes: 'Respuesta de otra persona.',
+      resolvedBy: otherId,
+      resolvedAt: TEST_NOW.toISOString(),
+    });
+    store.departmentRequestById = async () => (stale ? { ...stale } : null);
+  }
+
+  it('tomar no pisa una petición que otra persona resolvió entre la lectura y la escritura', async () => {
+    const store = await setup();
+    await withStaleRead(store, legalMember.id);
+
+    await expect(
+      startDepartmentRequest(store, sessionOf(cyberMember), { requestId: 'req-1', now: LATER }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+
+    const [stored] = await store.listDepartmentRequests();
+    expect(stored).toMatchObject({ status: 'RESOLVED', assigneeId: legalMember.id, resolvedBy: legalMember.id });
+    expect(await store.listActivityLog()).toHaveLength(0);
+  });
+
+  it('resolver no pisa la respuesta de otra persona ni deja enlaces ni eventos de quien pierde', async () => {
+    const store = await setup();
+    await withStaleRead(store, legalMember.id);
+
+    await expect(
+      resolveDepartmentRequest(store, sessionOf(cyberMember), {
+        requestId: 'req-1',
+        resolutionNotes: 'Mi respuesta llegó tarde y no debe sobrescribir.',
+        links: [{ label: 'Informe', url: 'https://example.com/informe' }],
+        now: LATER,
+      }),
+    ).rejects.toMatchObject({ code: 'INVALID_STATE' });
+
+    const [stored] = await store.listDepartmentRequests();
+    expect(stored).toMatchObject({ status: 'RESOLVED', resolutionNotes: 'Respuesta de otra persona.' });
+    expect(await store.listDepartmentRequestAttachments('req-1')).toHaveLength(0);
+    expect(await store.listActivityLog()).toHaveLength(0);
+  });
+
   it('el área destino la resuelve con notas: queda Resuelta, con autor y fecha, sin volcar las notas al log', async () => {
     const store = await setup();
     await startDepartmentRequest(store, sessionOf(cyberMember), { requestId: 'req-1', now: TEST_NOW });

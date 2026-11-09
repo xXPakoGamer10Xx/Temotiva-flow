@@ -84,6 +84,26 @@ describe('InMemoryDataStore — peticiones entre áreas', () => {
     await expect(store.updateDepartmentRequest('missing', { status: 'RESOLVED' })).rejects.toThrow();
   });
 
+  it('transiciona solo si la petición sigue en el estado esperado', async () => {
+    const store = new InMemoryDataStore();
+    const request = await store.insertDepartmentRequest(makeRequest());
+
+    const first = await store.transitionDepartmentRequest(request.id, 'PENDING', {
+      status: 'IN_PROGRESS',
+      assigneeId: 'u-legal',
+    });
+    expect(first).toMatchObject({ status: 'IN_PROGRESS', assigneeId: 'u-legal' });
+
+    // Segunda intención sobre el mismo estado de partida: no escribe nada.
+    const second = await store.transitionDepartmentRequest(request.id, 'PENDING', {
+      status: 'IN_PROGRESS',
+      assigneeId: 'u-otra-persona',
+    });
+    expect(second).toBeNull();
+    expect((await store.departmentRequestById(request.id))?.assigneeId).toBe('u-legal');
+    await expect(store.transitionDepartmentRequest('missing', 'PENDING', { status: 'RESOLVED' })).rejects.toThrow();
+  });
+
   it('avisa al snapshot en cada mutación', async () => {
     const store = new InMemoryDataStore();
     const listener = vi.fn();
@@ -103,12 +123,12 @@ describe('InMemoryDataStore — peticiones entre áreas', () => {
 });
 
 /** Pool falso: registra cada consulta y responde con las filas preparadas. */
-function fakePool(rows: Record<string, unknown>[] = []) {
+function fakePool(rows: Record<string, unknown>[] = [], rowCount: number = rows.length) {
   const calls: { sql: string; params: unknown[] }[] = [];
   const pool = {
     query: vi.fn(async (sql: string, params: unknown[] = []) => {
       calls.push({ sql, params });
-      return { rows };
+      return { rows, rowCount };
     }),
   };
   return { pool: pool as unknown as Pool, calls };
@@ -179,6 +199,29 @@ describe('PostgresDataStore — peticiones entre áreas', () => {
     expect(nth(calls, 0).sql).toMatch(/UPDATE department_requests SET/);
     expect(nth(calls, 0).sql).not.toMatch(/initiatives|initiative_dependencies/);
     expect(nth(calls, 1).sql).toMatch(/FROM department_requests WHERE id = \$1/);
+  });
+});
+
+describe('PostgresDataStore — transición atómica de peticiones', () => {
+  it('condiciona el UPDATE al estado esperado, en la misma sentencia', async () => {
+    const { pool, calls } = fakePool([ROW]);
+    const result = await new PostgresDataStore(pool).transitionDepartmentRequest(ROW.id, 'PENDING', {
+      status: 'IN_PROGRESS',
+      assigneeId: 'u-legal',
+    });
+
+    expect(result).not.toBeNull();
+    expect(nth(calls, 0).sql).toMatch(/UPDATE department_requests SET[\s\S]*WHERE id = \$1 AND[\s\S]*status = \$12/);
+    expect(nth(calls, 0).params).toContain('PENDING');
+  });
+
+  it('devuelve null y no relee como éxito si ninguna fila cumplía el estado', async () => {
+    const { pool } = fakePool([ROW], 0);
+    const result = await new PostgresDataStore(pool).transitionDepartmentRequest(ROW.id, 'PENDING', {
+      status: 'IN_PROGRESS',
+      assigneeId: 'u-legal',
+    });
+    expect(result).toBeNull();
   });
 });
 
