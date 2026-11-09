@@ -437,6 +437,26 @@ describe('startDepartmentRequest y resolveDepartmentRequest (RF-6, RF-7, RF-8, R
     expect(await store.listActivityLog()).toHaveLength(0);
   });
 
+  it('la resolución queda en la caja negra aunque guardar un enlace falle después', async () => {
+    const store = await setup();
+    store.insertDepartmentRequestAttachment = async () => {
+      throw new Error('fallo simulado de la base de datos');
+    };
+
+    await expect(
+      resolveDepartmentRequest(store, sessionOf(cyberMember), {
+        requestId: 'req-1',
+        resolutionNotes: 'Cifrado validado en reposo y en tránsito.',
+        links: [{ label: 'Informe', url: 'https://example.com/informe' }],
+        now: LATER,
+      }),
+    ).rejects.toThrow('fallo simulado');
+
+    const [stored] = await store.listDepartmentRequests();
+    expect(stored?.status).toBe('RESOLVED');
+    expect((await store.listActivityLog()).map((e) => e.actionType)).toContain('DEPARTMENT_REQUEST_RESOLVED');
+  });
+
   it('el área destino la resuelve con notas: queda Resuelta, con autor y fecha, sin volcar las notas al log', async () => {
     const store = await setup();
     await startDepartmentRequest(store, sessionOf(cyberMember), { requestId: 'req-1', now: TEST_NOW });

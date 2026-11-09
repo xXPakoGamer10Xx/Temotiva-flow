@@ -145,6 +145,10 @@ describe('enlaces en los esquemas', () => {
     ['un enlace javascript:', { links: [{ label: 'Truco', url: 'javascript:alert(1)' }] }],
     ['un nombre de enlace corto', { links: [{ label: 'x', url: 'https://x.test' }] }],
     ['un enlace sin URL', { links: [{ label: 'Sin URL' }] }],
+    ['un enlace https: sin las dos barras', { links: [{ label: 'Sin barras', url: 'https:ejemplo.com' }] }],
+    ['un enlace con esquema en mayúsculas', { links: [{ label: 'Mayúsculas', url: 'HTTPS://ejemplo.com' }] }],
+    ['un enlace con carácter NUL', { links: [{ label: 'Nulo', url: 'https://ejemplo.com/a\u0000b' }] }],
+    ['un nombre de enlace con carácter de control', { links: [{ label: 'Nom\u0000bre', url: 'https://ejemplo.com' }] }],
   ])('rechaza %s con mensaje en español', (_label, overrides) => {
     expectSpanish(firstError(createDepartmentRequestSchema.safeParse({ ...validCreate, ...overrides })));
   });

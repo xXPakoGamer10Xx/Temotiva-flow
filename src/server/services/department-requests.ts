@@ -3,6 +3,8 @@ import type { Department, HelpStatus, HelpType } from '@/domain/enums';
 import { DEPARTMENTS } from '@/domain/enums';
 import {
   DEPARTMENT_REQUEST_HELP_TYPES,
+  hasControlChars,
+  isStorableHttpsUrl,
   type AttachmentSide,
   type DepartmentRequest,
   type DepartmentRequestAttachment,
@@ -487,7 +489,6 @@ export async function resolveDepartmentRequest(
     updatedAt: at,
   });
   if (!updated) throw invalidState('Esta petición cambió mientras la respondías. Recarga para ver su estado.');
-  if (links.length > 0) await insertLinks(store, session, request.id, 'RESPONSE', links, now);
 
   await audit(store, {
     initiativeId: null,
@@ -503,6 +504,10 @@ export async function resolveDepartmentRequest(
     },
     at: now,
   });
+
+  // Después de auditar la resolución: si guardar un enlace fallara por un motivo
+  // ajeno a la validación (red, base de datos), el cierre ya consta en la caja negra.
+  if (links.length > 0) await insertLinks(store, session, request.id, 'RESPONSE', links, now);
 
   return updated;
 }
@@ -520,7 +525,9 @@ export const REQUEST_FILE_TYPE_ERROR = 'Solo se admiten PDF, Word (.docx) o imá
 
 /**
  * Enlaces recortados y validados. Solo `https:` (ni `http:` ni `javascript:`)
- * y sin credenciales incrustadas. Se guarda la URL tal como la escribieron.
+ * `https://` literal, sin credenciales ni caracteres de control: exactamente lo
+ * que acepta la tabla, para que el INSERT nunca falle tras una validación correcta.
+ * Se guarda la URL tal como la escribieron.
  */
 function normalizeLinks(links: RequestLinkInput[]): RequestLinkInput[] {
   return links.map((link) => {
@@ -528,13 +535,8 @@ function normalizeLinks(links: RequestLinkInput[]): RequestLinkInput[] {
     const url = link.url.trim();
     if (label.length < MIN_REQUEST_LINK_LABEL || label.length > MAX_REQUEST_LINK_LABEL) throw invalid(LINK_LABEL_ERROR);
     if (url.length > MAX_REQUEST_LINK_URL) throw invalid(`La dirección del enlace no puede superar ${MAX_REQUEST_LINK_URL} caracteres.`);
-    let parsed: URL;
-    try {
-      parsed = new URL(url);
-    } catch {
-      throw invalid(LINK_URL_ERROR);
-    }
-    if (parsed.protocol !== 'https:' || parsed.username || parsed.password) throw invalid(LINK_URL_ERROR);
+    if (hasControlChars(label)) throw invalid(LINK_LABEL_ERROR);
+    if (!isStorableHttpsUrl(url)) throw invalid(LINK_URL_ERROR);
     return { label, url };
   });
 }

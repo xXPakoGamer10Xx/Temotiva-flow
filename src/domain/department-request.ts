@@ -82,3 +82,26 @@ export type DepartmentRequestAttachment = RequestFileAttachment | RequestLinkAtt
 export function isDepartmentRequestClosed(request: Pick<DepartmentRequest, 'status'>): boolean {
   return request.status === 'RESOLVED';
 }
+
+/** Caracteres de control (incluido NUL): Postgres rechaza `\u0000` y `new URL` descarta tabuladores y saltos sin avisar. */
+const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
+
+export function hasControlChars(value: string): boolean {
+  return CONTROL_CHARS.test(value);
+}
+
+/**
+ * Enlace que la base de datos va a aceptar: `https://` literal (el CHECK
+ * `url LIKE 'https://%'` distingue mayúsculas y exige las dos barras), sin
+ * credenciales ni caracteres de control. Validar lo mismo que la tabla evita
+ * que un enlace acepte el servicio y rechace el INSERT después.
+ */
+export function isStorableHttpsUrl(value: string): boolean {
+  if (!value.startsWith('https://') || hasControlChars(value)) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password;
+  } catch {
+    return false;
+  }
+}

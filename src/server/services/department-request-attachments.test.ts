@@ -100,6 +100,11 @@ describe('enlaces al crear y al resolver (RF-17, RF-18, RF-20)', () => {
     ['con credenciales', { label: 'Credenciales', url: 'https://user:pass@x.test/' }],
     ['nombre corto', { label: 'x', url: 'https://x.test/' }],
     ['URL demasiado larga', { label: 'Larga', url: `https://x.test/${'a'.repeat(500)}` }],
+    ['sin las dos barras (la tabla lo rechazaría)', { label: 'Sin barras', url: 'https:ejemplo.com' }],
+    ['con esquema en mayúsculas (la tabla lo rechazaría)', { label: 'Mayúsculas', url: 'HTTPS://ejemplo.com/a' }],
+    ['con carácter NUL en la URL', { label: 'Nulo', url: 'https://ejemplo.com/a\u0000b' }],
+    ['con salto de línea en la URL', { label: 'Salto', url: 'https://ejemplo.com/a\nb' }],
+    ['con carácter de control en el nombre', { label: 'Nom\u0000bre', url: 'https://ejemplo.com/' }],
   ])('rechaza un enlace %s al crear y no persiste ni la petición (AC-14)', async (_label, link) => {
     const { store } = await setup(null);
     await expect(
