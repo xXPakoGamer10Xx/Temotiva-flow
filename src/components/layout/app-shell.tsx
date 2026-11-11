@@ -73,7 +73,10 @@ export async function AppShell({
   };
 
   return (
-    <div className="flex h-dvh overflow-hidden">
+    // `relative` es el contenedor de los `sr-only` (position: absolute): sin él quedaban
+    // anclados al documento, fuera del recorte de `overflow-hidden`, y dejaban arrastrar
+    // la página por debajo del final del contenido.
+    <div className="relative flex h-dvh overflow-hidden">
       <Sidebar links={links} user={user} />
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">
