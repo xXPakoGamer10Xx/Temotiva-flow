@@ -38,6 +38,25 @@ export function validSignature(body: string, header: string | null, secret: stri
   return given.length === expected.length && timingSafeEqual(given, expected);
 }
 
+/** Lee el cuerpo como flujo y corta en cuanto pasa del tope; `null` = demasiado grande. */
+export async function readLimited(request: Request, maxBytes: number): Promise<string | null> {
+  if (!request.body) return '';
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > maxBytes) {
+      await reader.cancel().catch(() => undefined);
+      return null;
+    }
+    chunks.push(value);
+  }
+  return Buffer.concat(chunks).toString('utf8');
+}
+
 function allowedRepos(): Set<string> | null {
   const raw = process.env.GITHUB_REPOSITORIES?.trim();
   if (!raw) return null;
@@ -55,8 +74,10 @@ export async function POST(request: Request): Promise<NextResponse> {
 
   const declared = Number(request.headers.get('content-length') ?? 0);
   if (declared > MAX_BODY_BYTES) return json({ error: 'Carga demasiado grande.' }, 413);
-  const body = await request.text();
-  if (Buffer.byteLength(body, 'utf8') > MAX_BODY_BYTES) return json({ error: 'Carga demasiado grande.' }, 413);
+  // Sin Content-Length (envío por trozos) el aviso de arriba no sirve: el tope se
+  // aplica también mientras se lee, antes de tener el cuerpo entero en memoria.
+  const body = await readLimited(request, MAX_BODY_BYTES);
+  if (body === null) return json({ error: 'Carga demasiado grande.' }, 413);
 
   if (!validSignature(body, request.headers.get('x-hub-signature-256'), secret)) {
     return json({ error: 'Firma no válida.' }, 401);

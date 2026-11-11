@@ -10,7 +10,7 @@ vi.mock('@/server/services/github-sync', async (importOriginal) => ({
   syncPullRequest: (...args: unknown[]) => syncPullRequest(...(args as [])),
 }));
 
-const { POST, dynamic } = await import('./route');
+const { POST, dynamic, readLimited } = await import('./route');
 
 const SECRET = 'b'.repeat(64);
 const PAYLOAD = JSON.stringify({
@@ -63,5 +63,24 @@ describe('POST /api/github/webhook', () => {
     vi.stubEnv('GITHUB_REPOSITORIES', 'temotiva/otro');
     expect((await POST(request(PAYLOAD, { 'x-github-event': 'pull_request', 'x-hub-signature-256': sign(PAYLOAD) }))).status).toBe(202);
     expect(syncPullRequest).not.toHaveBeenCalled();
+  });
+
+  it('corta cuerpos demasiado grandes aunque no declaren Content-Length', async () => {
+    const big = new ReadableStream<Uint8Array>({
+      pull(controller) {
+        controller.enqueue(new Uint8Array(1024 * 1024)); // flujo sin fin, 1 MB por trozo
+      },
+    });
+    const response = await POST(
+      new Request('https://flow.example/api/github/webhook', {
+        method: 'POST',
+        body: big,
+        headers: { 'x-github-event': 'pull_request', 'x-hub-signature-256': sign('x') },
+        duplex: 'half',
+      } as RequestInit),
+    );
+    expect(response.status).toBe(413);
+    expect(syncPullRequest).not.toHaveBeenCalled();
+    expect(await readLimited(new Request('https://x', { method: 'POST', body: 'hola' }), 10)).toBe('hola');
   });
 });
