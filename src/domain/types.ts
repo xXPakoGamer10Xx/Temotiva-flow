@@ -12,6 +12,7 @@ import type {
   StageKey,
   StopReason,
   TaskStatus,
+  PullRequestState,
   UserRole,
 } from './enums';
 
@@ -237,6 +238,44 @@ export interface DeptTask {
   /** Iniciativa TEMO-XXX opcional a la que se vincula. */
   initiativeId: string | null;
   dueDate: string | null;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+  /** Baja lógica (AGENTS.md §5.8). */
+  isArchived: boolean;
+  /** Clave legible que se cita en ramas y PR (`TEC-12`). Solo las tareas de Tech la tienen. */
+  code: string | null;
+  /** Horas estimadas que fija el responsable del área. */
+  estimatedHours: number | null;
+  /** Sprint en el que se planifica; `null` = backlog. */
+  sprintId: string | null;
+  /** Último pull request de GitHub que la cita. Lo escribe solo el webhook. */
+  pullRequest: TaskPullRequest | null;
+}
+
+export interface TaskPullRequest {
+  repo: string;
+  number: number;
+  url: string;
+  title: string;
+  state: PullRequestState;
+  updatedAt: string;
+}
+
+/**
+ * Tabla `sprints`: iteración de un área (V1: solo Tech). Por defecto va de
+ * miércoles a miércoles, pero las fechas se editan libremente.
+ */
+export interface Sprint {
+  id: string;
+  department: Department;
+  name: string;
+  goal: string;
+  /** `YYYY-MM-DD`, ambos inclusive. */
+  startDate: string;
+  endDate: string;
+  /** Horas disponibles por persona en este sprint (para ver quién va sobrecargado). */
+  capacityHours: number;
   createdBy: string;
   createdAt: string;
   updatedAt: string;

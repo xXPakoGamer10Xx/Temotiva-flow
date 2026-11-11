@@ -8,6 +8,7 @@ import {
   Bell,
   CircleHelp,
   Inbox,
+  GitPullRequest,
   KanbanSquare,
   ListTodo,
   LogOut,
@@ -50,6 +51,7 @@ export interface SidebarLink {
     | 'executive'
     | 'notifications'
     | 'tasks'
+    | 'sprint'
     | 'dependencies'
     | 'documents'
     | 'feedback'
@@ -66,6 +68,7 @@ const ICONS = {
   executive: TrendingUp,
   notifications: Bell,
   tasks: ListTodo,
+  sprint: GitPullRequest,
   dependencies: Handshake,
   documents: FolderOpen,
   feedback: MessageSquarePlus,

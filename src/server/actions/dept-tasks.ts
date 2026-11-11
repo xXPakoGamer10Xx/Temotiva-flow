@@ -2,8 +2,8 @@
 
 import { z } from 'zod';
 import { DEPARTMENTS, TASK_STATUSES } from '@/domain/enums';
-import { MAX_TASK_DESCRIPTION, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
-import { assignDeptTask, createDeptTask, moveDeptTask, removeDeptTask } from '@/server/services/dept-tasks';
+import { MAX_TASK_DESCRIPTION, MAX_TASK_HOURS, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
+import { assignDeptTask, createDeptTask, moveDeptTask, planDeptTask, removeDeptTask } from '@/server/services/dept-tasks';
 import { type ActionResult, runAction } from './shared';
 
 const createSchema = z.object({
@@ -13,6 +13,8 @@ const createSchema = z.object({
   assigneeId: z.string().min(1).nullish(),
   initiativeId: z.string().min(1).nullish(),
   dueDate: z.string().min(1).nullish(),
+  estimatedHours: z.number().min(0).max(MAX_TASK_HOURS).nullish(),
+  sprintId: z.string().min(1).nullish(),
 });
 
 export async function createDeptTaskAction(input: unknown): Promise<ActionResult<{ id: string }>> {
@@ -40,6 +42,22 @@ export async function assignDeptTaskAction(input: unknown): Promise<ActionResult
     input,
     handler: async ({ store, session, input: data }) => {
       await assignDeptTask(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+export async function planDeptTaskAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: z.object({
+      taskId: z.string().min(1),
+      dueDate: z.string().min(1).nullable().optional(),
+      estimatedHours: z.number().min(0).max(MAX_TASK_HOURS).nullable().optional(),
+      sprintId: z.string().min(1).nullable().optional(),
+    }),
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await planDeptTask(store, session, data);
       return undefined;
     },
   });

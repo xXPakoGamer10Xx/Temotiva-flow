@@ -5,6 +5,7 @@ import { USER_ROLE_LABELS, departmentsLabel } from '@/domain/labels';
 import { getDataStore } from '@/server/repositories';
 import { getMyWork, getNotifications } from '@/server/services/views';
 import { canManagePeople } from '@/server/services/rbac';
+import { canSeeTechSprint } from '@/server/services/tech-sprint';
 import { CommandCenter, type PaletteInitiative } from '@/components/command/command-center';
 import { NewInitiativeDialog } from '@/components/initiative/new-initiative-dialog';
 import { BulkArchiveDialog } from '@/components/initiative/bulk-archive-dialog';
@@ -50,6 +51,8 @@ export async function AppShell({
     // Lo primero: lo que espera de mí. El badge cuenta solo eso, no lo asignado.
     { href: '/mi-trabajo', label: 'Mi trabajo', icon: 'mywork', shortcut: 'G M', badge: myWork.waiting.length },
     { href: '/tareas', label: 'Tareas', icon: 'tasks', shortcut: 'G T' },
+    // Solo Tech y Dirección: para el resto la ruta responde 404.
+    ...(canSeeTechSprint(session) ? [{ href: '/tech', label: 'Sprint Tech', icon: 'sprint' as const, shortcut: 'G S' }] : []),
     { href: '/dependencias', label: 'Dependencias', icon: 'dependencies' },
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
@@ -95,6 +98,7 @@ export async function AppShell({
       <CommandCenter
         initiatives={paletteInitiatives}
         canManagePeople={canManagePeople(session)}
+        canSeeTechSprint={canSeeTechSprint(session)}
         canBulkArchive={session.role === 'EXECUTIVE'}
       />
     </div>

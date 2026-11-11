@@ -37,6 +37,20 @@ export const ALLOWED_LINK_HOSTS = ['docs.google.com', 'drive.google.com', 'sheet
 export const MIN_TASK_TITLE = 3;
 export const MAX_TASK_TITLE = 120;
 export const MAX_TASK_DESCRIPTION = 500;
+/** Horas estimadas de una tarea: de media en media hora, hasta una semana larga. */
+export const MAX_TASK_HOURS = 80;
+export const MAX_SPRINT_NAME = 60;
+export const MAX_SPRINT_GOAL = 300;
+/** Un sprint no se alarga más de cuatro semanas. */
+export const MAX_SPRINT_DAYS = 28;
+/** Cadencia por defecto del sprint de Tech: de miércoles a miércoles. */
+export const SPRINT_START_WEEKDAY = 3;
+export const SPRINT_DEFAULT_DAYS = 7;
+/** Horas por persona y sprint que se proponen por defecto; el PM las ajusta. */
+export const SPRINT_DEFAULT_CAPACITY = 30;
+export const MAX_SPRINT_CAPACITY = 120;
+/** Prefijo de las claves de tarea de Tech que se citan en ramas y PR (TEC-12). */
+export const TECH_TASK_PREFIX = 'TEC';
 
 /** Peticiones entre áreas (spec 001 — Dependencias). */
 export const MIN_DEPARTMENT_REQUEST_TITLE = 8;

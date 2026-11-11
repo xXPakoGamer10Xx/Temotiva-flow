@@ -85,7 +85,7 @@ export function TasksBoard({
           }
         />
       ) : (
-        <div className="grid gap-4 md:min-h-0 md:flex-1 md:grid-cols-3 md:grid-rows-1">
+        <div className="grid gap-4 sm:grid-cols-2 xl:min-h-0 xl:flex-1 xl:grid-cols-4 xl:grid-rows-1">
           {TASK_STATUSES.map((status) => (
             <Column key={status} status={status} tasks={visible.filter((task) => task.status === status)} people={people} myUserId={myUserId} />
           ))}
@@ -183,6 +183,7 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
         </p>
         {task.description ? <p className="text-xs text-fg-muted [overflow-wrap:anywhere]">{task.description}</p> : null}
         <div className="flex flex-wrap gap-1.5">
+          {task.code ? <Badge tone="neutral" className="font-mono">{task.code}</Badge> : null}
           <Badge tone="accent">{DEPARTMENT_LABELS[task.department]}</Badge>
           {task.initiativeId ? <Badge tone="info">{task.initiativeId}</Badge> : null}
           {task.dueDate ? (

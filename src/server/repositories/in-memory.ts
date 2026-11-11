@@ -5,6 +5,7 @@ import type {
   ApiToken,
   Attachment,
   DeptTask,
+  Sprint,
   DepartmentNotificationSetting,
   DocumentShare,
   FeedbackImage,
@@ -23,7 +24,7 @@ import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
-import type { DataStore } from './types';
+import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
 function clone<T>(value: T): T {
@@ -53,6 +54,7 @@ export class InMemoryDataStore implements DataStore {
   private areaLinks = new Map<string, AreaLink>();
   private apiTokens = new Map<string, ApiToken>();
   private deptTasks = new Map<string, DeptTask>();
+  private sprints = new Map<string, Sprint>();
   private departmentRequests = new Map<string, DepartmentRequest>();
   private departmentRequestAttachments = new Map<string, DepartmentRequestAttachment>();
   private notificationPrefs = new Map<string, NotificationPref>();
@@ -86,7 +88,23 @@ export class InMemoryDataStore implements DataStore {
     this.documentShares = new Map((data.documentShares ?? []).map((share) => [share.id, clone(share)]));
     this.areaLinks = new Map((data.areaLinks ?? []).map((link) => [link.id, clone(link)]));
     this.apiTokens = new Map((data.apiTokens ?? []).map((token) => [token.id, clone(token)]));
-    this.deptTasks = new Map((data.deptTasks ?? []).map((task) => [task.id, clone(task)]));
+    // Snapshots anteriores al sprint de Tech no traen los campos de planificación.
+    this.deptTasks = new Map(
+      (data.deptTasks ?? []).map((task) => [
+        task.id,
+        clone({
+          ...task,
+          code: task.code ?? null,
+          estimatedHours: task.estimatedHours ?? null,
+          sprintId: task.sprintId ?? null,
+          pullRequest: task.pullRequest ?? null,
+        }),
+      ]),
+    );
+    this.sprints = new Map(
+      (data.sprints ?? []).map((sprint) => [sprint.id, clone({ ...sprint, capacityHours: sprint.capacityHours ?? 30 })]),
+    );
+    backfillTechCodes(this.deptTasks);
     this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
     // Los snapshots de la ampliación A no traen los campos de baja: se rellenan como activos.
     this.departmentRequestAttachments = new Map(
@@ -123,6 +141,7 @@ export class InMemoryDataStore implements DataStore {
       areaLinks: [...this.areaLinks.values()].map(clone),
       apiTokens: [...this.apiTokens.values()].map(clone),
       deptTasks: [...this.deptTasks.values()].map(clone),
+      sprints: [...this.sprints.values()].map(clone),
       departmentRequests: [...this.departmentRequests.values()].map(clone),
       departmentRequestAttachments: [...this.departmentRequestAttachments.values()].map(clone),
       feedback: [...this.feedback.values()].map(clone),
@@ -446,14 +465,35 @@ export class InMemoryDataStore implements DataStore {
     return clone(task);
   }
 
-  async updateDeptTask(
-    id: string,
-    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
-  ): Promise<DeptTask> {
+  async updateDeptTask(id: string, patch: DeptTaskPatch): Promise<DeptTask> {
     const current = this.deptTasks.get(id);
     if (!current) throw new Error(`Tarea no encontrada: ${id}`);
-    const updated: DeptTask = { ...current, ...patch };
+    const updated: DeptTask = { ...current, ...clone(patch) };
     this.deptTasks.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async listSprints(): Promise<Sprint[]> {
+    return [...this.sprints.values()].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(clone);
+  }
+
+  async sprintById(id: string): Promise<Sprint | null> {
+    const sprint = this.sprints.get(id);
+    return sprint ? clone(sprint) : null;
+  }
+
+  async insertSprint(sprint: Sprint): Promise<Sprint> {
+    this.sprints.set(sprint.id, clone(sprint));
+    this.touched();
+    return clone(sprint);
+  }
+
+  async updateSprint(id: string, patch: SprintPatch): Promise<Sprint> {
+    const current = this.sprints.get(id);
+    if (!current) throw new Error(`Sprint no encontrado: ${id}`);
+    const updated: Sprint = { ...current, ...patch };
+    this.sprints.set(id, updated);
     this.touched();
     return clone(updated);
   }
@@ -755,4 +795,17 @@ function checklistValueKey(initiativeId: string, checklistId: string): string {
 
 function sleRiskNoticeKey(initiativeId: string, stageId: number): string {
   return `${initiativeId}::${stageId}`;
+}
+
+/** Igual que la migración 09: las tareas de Tech sin clave reciben TEC-n por orden de creación. */
+function backfillTechCodes(tasks: Map<string, DeptTask>): void {
+  const pending = [...tasks.values()]
+    .filter((task) => task.department === 'TECH' && !task.code)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
+  if (pending.length === 0) return;
+  let top = Math.max(0, ...[...tasks.values()].map((task) => Number(/^TEC-(\d+)$/.exec(task.code ?? '')?.[1] ?? 0)));
+  for (const task of pending) {
+    top += 1;
+    tasks.set(task.id, { ...task, code: `TEC-${top}` });
+  }
 }

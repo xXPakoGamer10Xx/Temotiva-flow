@@ -146,11 +146,11 @@ export const MCP_TOOLS: McpTool[] = [
   tool({
     name: 'mover_tarea',
     description:
-      'Mueve una tarea de área entre columnas: TODO (por hacer), DOING (haciendo) o DONE (hecha). Solo el equipo del área puede moverla.',
+      'Mueve una tarea de área entre columnas: TODO (por hacer), DOING (haciendo), REVIEW (en revisión) o DONE (hecha). Solo el equipo del área puede moverla.',
     writes: true,
     schema: z.object({
       taskId: z.string().min(1).describe('Id de la tarea (de `tareas`)'),
-      status: z.enum(TASK_STATUSES).describe('TODO, DOING o DONE'),
+      status: z.enum(TASK_STATUSES).describe('TODO, DOING, REVIEW o DONE'),
     }),
     run: async ({ store, session, args }) => {
       const task = await moveDeptTask(store, session, args);

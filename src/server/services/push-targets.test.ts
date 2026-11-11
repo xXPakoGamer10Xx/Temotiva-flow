@@ -82,6 +82,10 @@ function makeTask(overrides: Partial<DeptTask> = {}): DeptTask {
     createdAt: TEST_NOW.toISOString(),
     updatedAt: TEST_NOW.toISOString(),
     isArchived: false,
+    code: null,
+    estimatedHours: null,
+    sprintId: null,
+    pullRequest: null,
     ...overrides,
   };
 }

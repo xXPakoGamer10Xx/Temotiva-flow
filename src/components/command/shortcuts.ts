@@ -9,6 +9,7 @@ export const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['G', 'D'], label: 'Ir al panel de dirección' },
   { keys: ['G', 'N'], label: 'Ir a notificaciones' },
   { keys: ['G', 'A'], label: 'Ir al equipo (responsables y dirección)' },
+  { keys: ['G', 'S'], label: 'Ir al sprint de Tech (Tech y dirección)' },
   { keys: ['G', 'O'], label: 'Ir a documentos' },
   { keys: ['G', 'T'], label: 'Ir a las tareas del área' },
   { keys: ['G', 'P'], label: 'Ir a dependencias (peticiones entre áreas)' },

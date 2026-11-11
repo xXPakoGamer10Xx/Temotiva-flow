@@ -4,6 +4,7 @@ import type {
   AreaLink,
   Attachment,
   DeptTask,
+  Sprint,
   ChecklistValue,
   Dependency,
   DepartmentNotificationSetting,
@@ -21,6 +22,16 @@ import type {
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
+
+/** Campos de una tarea de área que se pueden cambiar tras crearla. */
+export type DeptTaskPatch = Partial<
+  Pick<
+    DeptTask,
+    'status' | 'assigneeId' | 'isArchived' | 'updatedAt' | 'dueDate' | 'estimatedHours' | 'sprintId' | 'pullRequest'
+  >
+>;
+
+export type SprintPatch = Partial<Pick<Sprint, 'name' | 'goal' | 'startDate' | 'endDate' | 'capacityHours' | 'isArchived' | 'updatedAt'>>;
 
 /**
  * Frontera entre el dominio y la persistencia (DESIGN.md §10.1).
@@ -105,10 +116,14 @@ export interface DataStore {
   listDeptTasks(): Promise<DeptTask[]>;
   deptTaskById(id: string): Promise<DeptTask | null>;
   insertDeptTask(task: DeptTask): Promise<DeptTask>;
-  updateDeptTask(
-    id: string,
-    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
-  ): Promise<DeptTask>;
+  updateDeptTask(id: string, patch: DeptTaskPatch): Promise<DeptTask>;
+
+  // --- Sprints (V1: área Tech) ----------------------------------------------------
+  /** Incluye los archivados: quien pinta decide si los muestra. */
+  listSprints(): Promise<Sprint[]>;
+  sprintById(id: string): Promise<Sprint | null>;
+  insertSprint(sprint: Sprint): Promise<Sprint>;
+  updateSprint(id: string, patch: SprintPatch): Promise<Sprint>;
 
   // --- Tokens de acceso para IA (MCP) -------------------------------------------
   /** Incluye revocados y caducados: quien pinta decide qué muestra. */
