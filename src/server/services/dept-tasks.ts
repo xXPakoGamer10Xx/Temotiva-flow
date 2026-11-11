@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { DEPARTMENTS, TASK_STATUSES } from '@/domain/enums';
 import type { Department, TaskStatus } from '@/domain/enums';
-import { MAX_TASK_DESCRIPTION, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
-import type { DeptTask, SessionContext } from '@/domain/types';
+import { MAX_TASK_DESCRIPTION, MAX_TASK_HOURS, MAX_TASK_TITLE, MIN_TASK_TITLE, TECH_TASK_PREFIX } from '@/domain/rules';
+import type { DeptTask, SessionContext, TaskPullRequest } from '@/domain/types';
 import { belongsTo } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
@@ -20,6 +20,41 @@ import { canManageDeptTasks, canMoveDeptTask, canWorkInArea } from './rbac';
  */
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+
+/** `YYYY-MM-DD` que además existe en el calendario (rechaza 2026-02-31). */
+export function isValidDateKey(value: string): boolean {
+  if (!DATE_RE.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00.000Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+function checkDueDate(value: string | null): string | null {
+  if (value !== null && !isValidDateKey(value)) throw invalid('La fecha límite no es válida.');
+  return value;
+}
+
+/** Horas estimadas: de media en media hora, entre 0 y el máximo. */
+function checkHours(value: number | null): number | null {
+  if (value === null) return null;
+  if (!Number.isFinite(value) || value < 0 || value > MAX_TASK_HOURS || Math.round(value * 2) !== value * 2) {
+    throw invalid(`Las horas van de 0 a ${MAX_TASK_HOURS}, en tramos de media hora.`);
+  }
+  return value;
+}
+
+async function assertSprint(store: DataStore, department: Department, sprintId: string): Promise<void> {
+  const sprint = await store.sprintById(sprintId);
+  if (!sprint || sprint.isArchived || sprint.department !== department) {
+    throw invalid('El sprint indicado no existe en esta área.');
+  }
+}
+
+/** Siguiente clave TEC-n. El índice único de la base de datos evita duplicados en carrera. */
+async function nextTechCode(store: DataStore): Promise<string> {
+  const pattern = new RegExp(`^${TECH_TASK_PREFIX}-(\\d+)$`);
+  const top = Math.max(0, ...(await store.listDeptTasks()).map((task) => Number(pattern.exec(task.code ?? '')?.[1] ?? 0)));
+  return `${TECH_TASK_PREFIX}-${top + 1}`;
+}
 
 async function loadTask(store: DataStore, session: SessionContext, taskId: string): Promise<DeptTask> {
   const task = await store.deptTaskById(taskId);
@@ -44,6 +79,8 @@ export interface CreateDeptTaskInput {
   assigneeId?: string | null;
   initiativeId?: string | null;
   dueDate?: string | null;
+  estimatedHours?: number | null;
+  sprintId?: string | null;
   now?: Date;
 }
 
@@ -66,10 +103,10 @@ export async function createDeptTask(
   if (description.length > MAX_TASK_DESCRIPTION) {
     throw invalid(`La descripción admite hasta ${MAX_TASK_DESCRIPTION} caracteres.`);
   }
-  const dueDate = input.dueDate ?? null;
-  if (dueDate !== null && (!DATE_RE.test(dueDate) || Number.isNaN(Date.parse(dueDate)))) {
-    throw invalid('La fecha límite no es válida.');
-  }
+  const dueDate = checkDueDate(input.dueDate ?? null);
+  const estimatedHours = checkHours(input.estimatedHours ?? null);
+  const sprintId = input.sprintId ?? null;
+  if (sprintId) await assertSprint(store, department, sprintId);
   const assigneeId = input.assigneeId ?? null;
   if (assigneeId) await assertAssignee(store, department, assigneeId);
   const initiativeId = input.initiativeId ?? null;
@@ -88,13 +125,17 @@ export async function createDeptTask(
     createdAt: now.toISOString(),
     updatedAt: now.toISOString(),
     isArchived: false,
+    code: department === 'TECH' ? await nextTechCode(store) : null,
+    estimatedHours,
+    sprintId,
+    pullRequest: null,
   });
   await audit(store, {
     initiativeId,
     session,
     actionType: 'TASK_CREATED',
     fieldName: 'dept_tasks',
-    newValue: { taskId: task.id, title, department, assigneeId },
+    newValue: { taskId: task.id, code: task.code, title, department, assigneeId, sprintId, estimatedHours, dueDate },
     at: now,
   });
   return task;
@@ -156,6 +197,51 @@ export async function assignDeptTask(
   return updated;
 }
 
+export interface PlanDeptTaskInput {
+  taskId: string;
+  /** `undefined` = no tocar; `null` = quitar. */
+  dueDate?: string | null;
+  estimatedHours?: number | null;
+  sprintId?: string | null;
+  now?: Date;
+}
+
+/**
+ * Planificación: fecha límite, horas estimadas y sprint. Solo el responsable
+ * del área o Dirección; el equipo las ve pero no las cambia.
+ */
+export async function planDeptTask(store: DataStore, session: SessionContext, input: PlanDeptTaskInput): Promise<DeptTask> {
+  const now = input.now ?? new Date();
+  const task = await loadTask(store, session, input.taskId);
+  if (!canManageDeptTasks(session, task.department)) {
+    throw forbidden('Solo el responsable del área o Dirección planifican horas, fechas y sprint.');
+  }
+
+  const patch: { dueDate?: string | null; estimatedHours?: number | null; sprintId?: string | null } = {};
+  if (input.dueDate !== undefined && checkDueDate(input.dueDate) !== task.dueDate) patch.dueDate = input.dueDate;
+  if (input.estimatedHours !== undefined && checkHours(input.estimatedHours) !== task.estimatedHours) {
+    patch.estimatedHours = input.estimatedHours;
+  }
+  if (input.sprintId !== undefined && input.sprintId !== task.sprintId) {
+    if (input.sprintId) await assertSprint(store, task.department, input.sprintId);
+    patch.sprintId = input.sprintId;
+  }
+  const fields = Object.keys(patch) as (keyof typeof patch)[];
+  if (fields.length === 0) return task;
+
+  const updated = await store.updateDeptTask(task.id, { ...patch, updatedAt: now.toISOString() });
+  await audit(store, {
+    initiativeId: task.initiativeId,
+    session,
+    actionType: 'TASK_PLANNED',
+    fieldName: `dept_tasks.${fields.join(',')}`,
+    oldValue: { taskId: task.id, ...Object.fromEntries(fields.map((field) => [field, task[field]])) },
+    newValue: { taskId: task.id, ...patch },
+    at: now,
+  });
+  return updated;
+}
+
 /** Baja lógica: el responsable del área o Dirección. */
 export async function removeDeptTask(
   store: DataStore,
@@ -190,6 +276,10 @@ export interface DeptTaskView {
   assigneeName: string | null;
   initiativeId: string | null;
   dueDate: string | null;
+  code: string | null;
+  estimatedHours: number | null;
+  sprintId: string | null;
+  pullRequest: TaskPullRequest | null;
   createdByName: string;
   isMine: boolean;
   canManage: boolean;
@@ -212,6 +302,30 @@ export interface TasksPageView {
   initiatives: { id: string; title: string }[];
 }
 
+/** Proyección de una tarea para quien consulta (sin decidir si puede verla). */
+export function toDeptTaskView(task: DeptTask, session: SessionContext, userName: Map<string, string>): DeptTaskView {
+  return {
+    id: task.id,
+    title: task.title,
+    description: task.description,
+    department: task.department,
+    status: task.status,
+    assigneeId: task.assigneeId,
+    assigneeName: task.assigneeId ? (userName.get(task.assigneeId) ?? 'Persona retirada') : null,
+    initiativeId: task.initiativeId,
+    dueDate: task.dueDate,
+    code: task.code,
+    estimatedHours: task.estimatedHours,
+    sprintId: task.sprintId,
+    pullRequest: task.pullRequest,
+    createdByName: userName.get(task.createdBy) ?? 'Persona retirada',
+    isMine: task.assigneeId === session.userId,
+    canManage: canManageDeptTasks(session, task.department),
+    canMove: canMoveDeptTask(session, task),
+    canTake: task.assigneeId === null && belongsTo(session, task.department),
+  };
+}
+
 export async function getTasksView(store: DataStore, session: SessionContext): Promise<TasksPageView> {
   const [tasks, users, initiatives] = await Promise.all([
     store.listDeptTasks(),
@@ -222,22 +336,7 @@ export async function getTasksView(store: DataStore, session: SessionContext): P
 
   const views: DeptTaskView[] = tasks
     .filter((task) => !task.isArchived && canWorkInArea(session, task.department))
-    .map((task) => ({
-      id: task.id,
-      title: task.title,
-      description: task.description,
-      department: task.department,
-      status: task.status,
-      assigneeId: task.assigneeId,
-      assigneeName: task.assigneeId ? (userName.get(task.assigneeId) ?? 'Persona retirada') : null,
-      initiativeId: task.initiativeId,
-      dueDate: task.dueDate,
-      createdByName: userName.get(task.createdBy) ?? 'Persona retirada',
-      isMine: task.assigneeId === session.userId,
-      canManage: canManageDeptTasks(session, task.department),
-      canMove: canMoveDeptTask(session, task),
-      canTake: task.assigneeId === null && belongsTo(session, task.department),
-    }));
+    .map((task) => toDeptTaskView(task, session, userName));
 
   const manageableDepartments =
     session.role === 'EXECUTIVE' ? [...DEPARTMENTS] : session.role === 'LEAD' ? [...session.departments] : [];

@@ -95,6 +95,16 @@ sola vez por fase, así que repetir la llamada no duplica avisos.
 El token se rehidrata desde la tabla en cada petición, así que una baja o un cambio de rol
 surten efecto de inmediato, sin esperar a que caduque la sesión.
 
+### Sprint de Tech y GitHub
+
+`/tech` es la vista de project manager del área Tech (solo la ven Tech y Dirección). El responsable de Tech abre sprints —por defecto de miércoles a miércoles, con fechas y horas por persona editables—, reparte tareas, horas estimadas y fechas límite, y ve el ritmo del sprint, la carga de cada persona frente a su capacidad y los riesgos (vencidas, sin horas, sin asignar).
+
+Cada tarea de Tech tiene una clave `TEC-n`. Si un pull request la cita en la rama, el título o la descripción (`feat/TEC-12-login`), la tarea se mueve sola: borrador → En curso, abierto → En revisión, fusionado → Hecha.
+
+1. Genera un secreto (`openssl rand -hex 32`) y ponlo en `GITHUB_WEBHOOK_SECRET`. Opcional: `GITHUB_REPOSITORIES=owner/repo` para aceptar solo esos repos.
+2. En GitHub: *Settings → Webhooks → Add webhook*, URL `https://<host>/api/github/webhook`, tipo `application/json`, el mismo secreto y el evento **Pull requests**.
+3. Aplica la migración: `npm run db:setup` (crea `sprints` y amplía `dept_tasks`, `db/09-tech-sprints.sql`).
+
 ### Quién da de alta a quién
 
 La gestión de personas baja en cascada, desde **Equipo** (`/team`):

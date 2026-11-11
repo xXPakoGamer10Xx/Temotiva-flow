@@ -6,6 +6,7 @@ import type {
   ApiToken,
   Attachment,
   DeptTask,
+  Sprint,
   DocumentShare,
   LibraryDocument,
   ChecklistValue,
@@ -20,7 +21,7 @@ import type {
   User,
   WorkflowStage,
 } from '@/domain/types';
-import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, StageKey, StopReason, UserRole } from '@/domain/enums';
+import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, PullRequestState, StageKey, StopReason, UserRole } from '@/domain/enums';
 import type {
   AttachmentSide,
   DepartmentRequest,
@@ -28,7 +29,7 @@ import type {
   DepartmentRequestStatus,
 } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
-import type { DataStore } from './types';
+import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
 type GlobalWithPool = typeof globalThis & { [POOL_KEY]?: Pool };
@@ -787,10 +788,13 @@ export class PostgresDataStore implements DataStore {
     return updated;
   }
 
+  private static readonly DEPT_TASK_COLUMNS = `id, title, description, department, status, assignee_id, initiative_id,
+              to_char(due_date, 'YYYY-MM-DD') AS due_date, created_by, created_at, updated_at, is_archived,
+              code, estimated_hours, sprint_id, pr_repo, pr_number, pr_url, pr_title, pr_state, pr_updated_at`;
+
   async listDeptTasks(): Promise<DeptTask[]> {
     const res = await this.pool.query(
-      `SELECT id, title, description, department, status, assignee_id, initiative_id, to_char(due_date, 'YYYY-MM-DD') AS due_date, created_by,
-              created_at, updated_at, is_archived
+      `SELECT ${PostgresDataStore.DEPT_TASK_COLUMNS}
        FROM dept_tasks ORDER BY created_at DESC`,
     );
     return res.rows.map((r) => this.mapDeptTask(r));
@@ -798,8 +802,7 @@ export class PostgresDataStore implements DataStore {
 
   async deptTaskById(id: string): Promise<DeptTask | null> {
     const res = await this.pool.query(
-      `SELECT id, title, description, department, status, assignee_id, initiative_id, to_char(due_date, 'YYYY-MM-DD') AS due_date, created_by,
-              created_at, updated_at, is_archived
+      `SELECT ${PostgresDataStore.DEPT_TASK_COLUMNS}
        FROM dept_tasks WHERE id = $1`,
       [id],
     );
@@ -809,8 +812,9 @@ export class PostgresDataStore implements DataStore {
   async insertDeptTask(task: DeptTask): Promise<DeptTask> {
     await this.pool.query(
       `INSERT INTO dept_tasks (
-        id, title, description, department, status, assignee_id, initiative_id, due_date, created_by, created_at, updated_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+        id, title, description, department, status, assignee_id, initiative_id, due_date, created_by, created_at, updated_at,
+        code, estimated_hours, sprint_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
       [
         task.id,
         task.title,
@@ -823,21 +827,33 @@ export class PostgresDataStore implements DataStore {
         task.createdBy,
         task.createdAt,
         task.updatedAt,
+        task.code,
+        task.estimatedHours,
+        task.sprintId,
       ],
     );
     return task;
   }
 
-  async updateDeptTask(
-    id: string,
-    patch: Partial<Pick<DeptTask, 'status' | 'assigneeId' | 'isArchived' | 'updatedAt'>>,
-  ): Promise<DeptTask> {
+  async updateDeptTask(id: string, patch: DeptTaskPatch): Promise<DeptTask> {
+    // `$n::boolean` marca qué columnas nullable vienen en el parche: así un
+    // `null` explícito (quitar fecha, sacar del sprint) se distingue de "no tocar".
+    const pr = patch.pullRequest;
     await this.pool.query(
       `UPDATE dept_tasks SET
          status = COALESCE($2, status),
          assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
          is_archived = COALESCE($5, is_archived),
-         updated_at = COALESCE($6, updated_at)
+         updated_at = COALESCE($6, updated_at),
+         due_date = CASE WHEN $7::boolean THEN $8::date ELSE due_date END,
+         estimated_hours = CASE WHEN $9::boolean THEN $10::numeric ELSE estimated_hours END,
+         sprint_id = CASE WHEN $11::boolean THEN $12::uuid ELSE sprint_id END,
+         pr_repo = CASE WHEN $13::boolean THEN $14 ELSE pr_repo END,
+         pr_number = CASE WHEN $13::boolean THEN $15::int ELSE pr_number END,
+         pr_url = CASE WHEN $13::boolean THEN $16 ELSE pr_url END,
+         pr_title = CASE WHEN $13::boolean THEN $17 ELSE pr_title END,
+         pr_state = CASE WHEN $13::boolean THEN $18 ELSE pr_state END,
+         pr_updated_at = CASE WHEN $13::boolean THEN $19::timestamptz ELSE pr_updated_at END
        WHERE id = $1`,
       [
         id,
@@ -846,10 +862,88 @@ export class PostgresDataStore implements DataStore {
         patch.assigneeId ?? null,
         patch.isArchived ?? null,
         patch.updatedAt ?? null,
+        patch.dueDate !== undefined,
+        patch.dueDate ?? null,
+        patch.estimatedHours !== undefined,
+        patch.estimatedHours ?? null,
+        patch.sprintId !== undefined,
+        patch.sprintId ?? null,
+        pr !== undefined,
+        pr?.repo ?? null,
+        pr?.number ?? null,
+        pr?.url ?? null,
+        pr?.title ?? null,
+        pr?.state ?? null,
+        pr?.updatedAt ?? null,
       ],
     );
     const updated = await this.deptTaskById(id);
     if (!updated) throw new Error(`Tarea no encontrada: ${id}`);
+    return updated;
+  }
+
+  // --- Sprints (V1: área Tech) -------------------------------------------------
+
+  private static readonly SPRINT_COLUMNS = `id, department, name, goal, to_char(start_date, 'YYYY-MM-DD') AS start_date,
+              to_char(end_date, 'YYYY-MM-DD') AS end_date, capacity_hours, created_by, created_at, updated_at, is_archived`;
+
+  async listSprints(): Promise<Sprint[]> {
+    const res = await this.pool.query(
+      `SELECT ${PostgresDataStore.SPRINT_COLUMNS} FROM sprints ORDER BY start_date DESC, created_at DESC`,
+    );
+    return res.rows.map((r) => this.mapSprint(r));
+  }
+
+  async sprintById(id: string): Promise<Sprint | null> {
+    const res = await this.pool.query(`SELECT ${PostgresDataStore.SPRINT_COLUMNS} FROM sprints WHERE id = $1`, [id]);
+    return res.rows.length === 0 ? null : this.mapSprint(res.rows[0]);
+  }
+
+  async insertSprint(sprint: Sprint): Promise<Sprint> {
+    await this.pool.query(
+      `INSERT INTO sprints (id, department, name, goal, start_date, end_date, created_by, created_at, updated_at, is_archived, capacity_hours)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)`,
+      [
+        sprint.id,
+        sprint.department,
+        sprint.name,
+        sprint.goal,
+        sprint.startDate,
+        sprint.endDate,
+        sprint.createdBy,
+        sprint.createdAt,
+        sprint.updatedAt,
+        sprint.isArchived,
+        sprint.capacityHours,
+      ],
+    );
+    return sprint;
+  }
+
+  async updateSprint(id: string, patch: SprintPatch): Promise<Sprint> {
+    await this.pool.query(
+      `UPDATE sprints SET
+         name = COALESCE($2, name),
+         goal = COALESCE($3, goal),
+         start_date = COALESCE($4::date, start_date),
+         end_date = COALESCE($5::date, end_date),
+         is_archived = COALESCE($6, is_archived),
+         updated_at = COALESCE($7, updated_at),
+         capacity_hours = COALESCE($8::numeric, capacity_hours)
+       WHERE id = $1`,
+      [
+        id,
+        patch.name ?? null,
+        patch.goal ?? null,
+        patch.startDate ?? null,
+        patch.endDate ?? null,
+        patch.isArchived ?? null,
+        patch.updatedAt ?? null,
+        patch.capacityHours ?? null,
+      ],
+    );
+    const updated = await this.sprintById(id);
+    if (!updated) throw new Error(`Sprint no encontrado: ${id}`);
     return updated;
   }
 
@@ -1528,6 +1622,36 @@ export class PostgresDataStore implements DataStore {
       assigneeId: r.assignee_id ? String(r.assignee_id) : null,
       initiativeId: r.initiative_id ? String(r.initiative_id) : null,
       dueDate: r.due_date ? String(r.due_date) : null,
+      createdBy: String(r.created_by),
+      createdAt: toIso(r.created_at),
+      updatedAt: toIso(r.updated_at),
+      isArchived: Boolean(r.is_archived),
+      code: r.code ? String(r.code) : null,
+      estimatedHours: r.estimated_hours != null ? Number(r.estimated_hours) : null,
+      sprintId: r.sprint_id ? String(r.sprint_id) : null,
+      pullRequest:
+        r.pr_number != null && r.pr_state
+          ? {
+              repo: String(r.pr_repo ?? ''),
+              number: Number(r.pr_number),
+              url: String(r.pr_url ?? ''),
+              title: String(r.pr_title ?? ''),
+              state: String(r.pr_state) as PullRequestState,
+              updatedAt: toIso(r.pr_updated_at ?? r.updated_at),
+            }
+          : null,
+    };
+  }
+
+  private mapSprint(r: Record<string, unknown>): Sprint {
+    return {
+      id: String(r.id),
+      department: String(r.department) as Sprint['department'],
+      name: String(r.name),
+      goal: String(r.goal ?? ''),
+      startDate: String(r.start_date),
+      endDate: String(r.end_date),
+      capacityHours: r.capacity_hours != null ? Number(r.capacity_hours) : 30,
       createdBy: String(r.created_by),
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),

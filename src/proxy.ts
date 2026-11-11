@@ -13,5 +13,6 @@ export default auth;
 
 export const config = {
   // Spec 002: manifest, service worker, página sin conexión y crontab van sin sesión.
-  matcher: ['/((?!api/auth|api/mcp|api/cron/|manifest\\.webmanifest$|sw\\.js$|offline$|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
+  // El webhook de GitHub tampoco: se autentica con su firma HMAC.
+  matcher: ['/((?!api/auth|api/mcp|api/cron/|api/github/|manifest\\.webmanifest$|sw\\.js$|offline$|_next/static|_next/image|favicon.ico|.*\.(?:svg|png|jpg|jpeg|gif|webp)$).*)'],
 };

@@ -7,6 +7,7 @@ import type {
   Dependency,
   DepartmentNotificationSetting,
   DeptTask,
+  Sprint,
   DocumentShare,
   FeedbackItem,
   Initiative,
@@ -50,6 +51,7 @@ export interface SeedData {
   /** Opcionales: las semillas y snapshots anteriores a enlaces y tareas no los traen. */
   areaLinks?: AreaLink[];
   deptTasks?: DeptTask[];
+  sprints?: Sprint[];
   /** Opcional: las semillas y snapshots anteriores al feedback no lo traen. */
   feedback?: FeedbackItem[];
   /** Opcional: las semillas y snapshots anteriores a los tokens de IA no lo traen. */

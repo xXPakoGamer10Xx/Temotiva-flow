@@ -6,6 +6,7 @@ import Link from 'next/link';
 import type { Route } from 'next';
 import {
   ListTodo,
+  GitPullRequest,
   Archive,
   Bell,
   CircleHelp,
@@ -78,10 +79,12 @@ function normalize(value: string): string {
 export function CommandCenter({
   initiatives,
   canManagePeople,
+  canSeeTechSprint = false,
   canBulkArchive = false,
 }: {
   initiatives: PaletteInitiative[];
   canManagePeople: boolean;
+  canSeeTechSprint?: boolean;
   canBulkArchive?: boolean;
 }) {
   const router = useRouter();
@@ -193,6 +196,18 @@ export function CommandCenter({
       keywords: 'tareas pendientes equipo supervisor asignar por hacer en curso hecha',
       run: () => go('/tareas'),
     });
+
+    if (canSeeTechSprint) {
+      views.push({
+        id: 'go-tech-sprint',
+        label: 'Sprint de Tech',
+        hint: 'G S',
+        group: 'Ir a',
+        icon: <GitPullRequest className="size-3.5" />,
+        keywords: 'sprint tech desarrollo horas capacidad carga pull request github pr miércoles project manager',
+        run: () => go('/tech'),
+      });
+    }
 
     views.push({
       id: 'go-dependencies',
@@ -339,7 +354,7 @@ export function CommandCenter({
     }));
 
     return [...initiativeCommands, ...views, ...actions];
-  }, [canBulkArchive, canManagePeople, go, initiatives, installMode, pathname, router, searchParams]);
+  }, [canBulkArchive, canManagePeople, canSeeTechSprint, go, initiatives, installMode, pathname, router, searchParams]);
 
   const results = React.useMemo(() => {
     const needle = normalize(query.trim());
@@ -368,9 +383,9 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias', s: '/tech' }[key];
         pendingGo = 0;
-        if (destination && (destination !== '/team' || canManagePeople)) {
+        if (destination && (destination !== '/team' || canManagePeople) && (destination !== '/tech' || canSeeTechSprint)) {
           event.preventDefault();
           router.push(destination as Route);
           return;
@@ -399,7 +414,7 @@ export function CommandCenter({
 
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [canManagePeople, router]);
+  }, [canManagePeople, canSeeTechSprint, router]);
 
   const onListKeyDown = (event: React.KeyboardEvent): void => {
     if (event.key === 'ArrowDown') {

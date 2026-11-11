@@ -10,6 +10,7 @@ import type {
   PriorityReason,
   StopReason,
   TaskStatus,
+  PullRequestState,
   UserRole,
 } from './enums';
 import type { DepartmentRequestStatus } from './department-request';
@@ -146,6 +147,9 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   TASK_MOVED: 'Tarea de área movida',
   TASK_ASSIGNED: 'Tarea de área asignada',
   TASK_REMOVED: 'Tarea de área retirada',
+  TASK_PLANNED: 'Tarea planificada (sprint, horas o fecha)',
+  SPRINT_CREATED: 'Sprint creado',
+  SPRINT_UPDATED: 'Sprint modificado',
   API_TOKEN_CREATED: 'Token de acceso para IA creado',
   API_TOKEN_REVOKED: 'Token de acceso para IA revocado',
   DEPARTMENT_REQUEST_CREATED: 'Petición entre áreas creada',
@@ -175,7 +179,15 @@ export const INITIATIVE_DEPENDENCY_BADGE = 'Iniciativa (SLE Activo)';
 export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   TODO: 'Por hacer',
   DOING: 'En curso',
+  REVIEW: 'En revisión',
   DONE: 'Hecha',
+};
+
+export const PULL_REQUEST_STATE_LABELS: Record<PullRequestState, string> = {
+  DRAFT: 'PR en borrador',
+  OPEN: 'PR abierto',
+  MERGED: 'PR fusionado',
+  CLOSED: 'PR cerrado',
 };
 
 export const FEEDBACK_CATEGORY_LABELS: Record<FeedbackCategory, string> = {

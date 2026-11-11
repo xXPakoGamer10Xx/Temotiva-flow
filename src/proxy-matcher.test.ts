@@ -18,13 +18,13 @@ const protects = (path: string): boolean => matcher().test(path);
 
 describe('matcher de proxy.ts', () => {
   it('sigue protegiendo las vistas y las API de la app', () => {
-    for (const path of ['/board', '/notifications', '/dependencias', '/api/documents/1', '/api/attachments/x', '/']) {
+    for (const path of ['/board', '/notifications', '/dependencias', '/tech', '/api/documents/1', '/api/attachments/x', '/']) {
       expect(protects(path)).toBe(true);
     }
   });
 
   it('deja pasar sin sesión lo que el navegador pide para instalar y lo que llama el crontab', () => {
-    for (const path of ['/manifest.webmanifest', '/sw.js', '/offline', '/icons/icon-192.png', '/api/cron/sle-risk']) {
+    for (const path of ['/manifest.webmanifest', '/sw.js', '/offline', '/icons/icon-192.png', '/api/cron/sle-risk', '/api/github/webhook']) {
       expect(protects(path)).toBe(false);
     }
   });
@@ -36,7 +36,7 @@ describe('matcher de proxy.ts', () => {
   });
 
   it('no abre por accidente rutas que solo empiezan igual', () => {
-    for (const path of ['/offline-data', '/sw.json', '/api/cronjobs']) {
+    for (const path of ['/offline-data', '/sw.json', '/api/cronjobs', '/api/githubber']) {
       expect(protects(path)).toBe(true);
     }
   });

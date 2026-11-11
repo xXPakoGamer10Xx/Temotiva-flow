@@ -98,6 +98,9 @@ export const ACTION_TYPES = [
   'TASK_MOVED',
   'TASK_ASSIGNED',
   'TASK_REMOVED',
+  'TASK_PLANNED',
+  'SPRINT_CREATED',
+  'SPRINT_UPDATED',
   'API_TOKEN_CREATED',
   'API_TOKEN_REVOKED',
   'DEPARTMENT_REQUEST_CREATED',
@@ -108,9 +111,13 @@ export const ACTION_TYPES = [
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
-/** Estados de una tarea de área: por hacer, en curso, hecha. */
-export const TASK_STATUSES = ['TODO', 'DOING', 'DONE'] as const;
+/** Estados de una tarea de área: por hacer, en curso, en revisión, hecha. */
+export const TASK_STATUSES = ['TODO', 'DOING', 'REVIEW', 'DONE'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+/** Estado del último pull request de GitHub enlazado a una tarea. */
+export const PULL_REQUEST_STATES = ['DRAFT', 'OPEN', 'MERGED', 'CLOSED'] as const;
+export type PullRequestState = (typeof PULL_REQUEST_STATES)[number];
 
 /** A qué se refiere un comentario de feedback: la app, la web o la plataforma en sí. */
 export const FEEDBACK_CATEGORIES = ['APP', 'WEB', 'PLATFORM'] as const;
