@@ -35,13 +35,21 @@ describe('servidor MCP', () => {
     expect(await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', method: 'notifications/initialized' })).toBeNull();
   });
 
-  it('solo crear_tarea, asignar_tarea y mover_tarea escriben y no se exponen acciones críticas', async () => {
+  it('solo las tareas y el sprint de Tech escriben y no se exponen acciones críticas', async () => {
     const s = setup();
     const res = await handleMcpMessage(s.store, s.session, { jsonrpc: '2.0', id: 2, method: 'tools/list' });
     const tools = (res?.result as { tools: { name: string; annotations: { readOnlyHint: boolean } }[] }).tools;
     expect(tools.length).toBe(MCP_TOOLS.length);
     const writers = tools.filter((tool) => !tool.annotations.readOnlyHint).map((tool) => tool.name);
-    expect(writers.sort()).toEqual(['asignar_tarea', 'crear_tarea', 'mover_tarea']);
+    expect(writers.sort()).toEqual([
+      'asignar_tarea',
+      'crear_sprint',
+      'crear_tarea',
+      'editar_sprint',
+      'mover_tarea',
+      'pasar_pendientes',
+      'planificar_tarea',
+    ]);
     expect(tools.map((tool) => tool.name).join(' ')).not.toMatch(/avanzar|override|alta|rol|retirar/);
   });
 
@@ -137,6 +145,80 @@ describe('servidor MCP', () => {
     expect((bad?.result as { isError: boolean }).isError).toBe(true);
     const missing = await call(s, 'ver_iniciativa', { id: 'TEMO-999' });
     expect(JSON.stringify(missing?.result)).toContain('No existe la iniciativa TEMO-999');
+  });
+
+  describe('sprint de Tech', () => {
+    function techSetup() {
+      const lead = makeUser({ departments: ['TECH'], role: 'LEAD' });
+      const dev = makeUser({ departments: ['TECH'], role: 'MEMBER' });
+      const outsider = makeUser({ departments: ['PRODUCT'], role: 'MEMBER' });
+      const ctx = makeTestStore([makeInitiative({ id: 'TEMO-500' })], [lead, dev, outsider]);
+      return { ...ctx, session: sessionOf(lead), dev, outsider };
+    }
+    const parse = (res: Awaited<ReturnType<typeof call>>) =>
+      JSON.parse((res?.result as { content: { text: string }[] }).content[0]?.text ?? 'null');
+    const failed = (res: Awaited<ReturnType<typeof call>>) => (res?.result as { isError: boolean }).isError;
+
+    it('el responsable abre un sprint, planifica una tarea y la ve en `sprint_tech`', async () => {
+      const s = techSetup();
+      const sprint = parse(await call(s, 'crear_sprint', { startDate: '2026-11-06', endDate: '2026-11-13', capacityHours: 20 }));
+      expect(sprint).toMatchObject({ name: 'Sprint 1', capacityHours: 20 });
+
+      const task = parse(await call(s, 'crear_tarea', { title: 'Pantalla post check-in', department: 'TECH', assigneeId: s.dev.id }));
+      expect(task.code).toMatch(/^TEC-\d+$/);
+
+      const planned = parse(await call(s, 'planificar_tarea', { taskId: task.id, estimatedHours: 6.5, sprintId: sprint.id, dueDate: '2026-11-12' }));
+      expect(planned).toMatchObject({ estimatedHours: 6.5, sprintId: sprint.id, dueDate: '2026-11-12' });
+
+      const view = parse(await call(s, 'sprint_tech', { sprintId: sprint.id }));
+      expect(view.tasks).toHaveLength(1);
+      expect(view.tasks[0]).toMatchObject({ code: task.code, estimatedHours: 6.5 });
+      expect(view.load.find((row: { userId: string | null }) => row.userId === s.dev.id)).toMatchObject({ hours: 6.5, capacity: 20 });
+    });
+
+    it('`tareas` filtra por sprint y por área', async () => {
+      const s = techSetup();
+      const sprint = parse(await call(s, 'crear_sprint', { startDate: '2026-11-06', endDate: '2026-11-13' }));
+      const inSprint = parse(await call(s, 'crear_tarea', { title: 'Dentro del sprint', department: 'TECH', sprintId: sprint.id }));
+      await call(s, 'crear_tarea', { title: 'En el backlog', department: 'TECH' });
+
+      const only = parse(await call(s, 'tareas', { sprintId: sprint.id }));
+      expect(only.tasks.map((task: { id: string }) => task.id)).toEqual([inSprint.id]);
+      const none = parse(await call(s, 'tareas', { sprintId: 'ninguno' }));
+      expect(none.tasks.map((task: { title: string }) => task.title)).toEqual(['En el backlog']);
+    });
+
+    it('quien no es del área no ve ni cambia el sprint, y un miembro de Tech no planifica', async () => {
+      const s = techSetup();
+      const sprint = parse(await call(s, 'crear_sprint', { startDate: '2026-11-06', endDate: '2026-11-13' }));
+      const task = parse(await call(s, 'crear_tarea', { title: 'Tarea', department: 'TECH', assigneeId: s.dev.id }));
+
+      const outsider = { ...s, session: sessionOf(s.outsider) };
+      expect(failed(await call(outsider, 'sprint_tech'))).toBe(true);
+      expect(failed(await call(outsider, 'crear_sprint', { startDate: '2026-11-20', endDate: '2026-11-27' }))).toBe(true);
+
+      const dev = { ...s, session: sessionOf(s.dev) };
+      expect(failed(await call(dev, 'sprint_tech'))).toBe(false);
+      expect(failed(await call(dev, 'planificar_tarea', { taskId: task.id, sprintId: sprint.id }))).toBe(true);
+      expect(failed(await call(dev, 'crear_sprint', { startDate: '2026-11-20', endDate: '2026-11-27' }))).toBe(true);
+    });
+
+    it('rechaza fechas y horas fuera de rango', async () => {
+      const s = techSetup();
+      expect(failed(await call(s, 'crear_sprint', { startDate: '2026-11-13', endDate: '2026-11-06' }))).toBe(true);
+      expect(failed(await call(s, 'crear_sprint', { startDate: '13/11/2026', endDate: '2026-11-20' }))).toBe(true);
+      const task = parse(await call(s, 'crear_tarea', { title: 'Tarea', department: 'TECH' }));
+      expect(failed(await call(s, 'planificar_tarea', { taskId: task.id, estimatedHours: 200 }))).toBe(true);
+      expect(failed(await call(s, 'planificar_tarea', { taskId: task.id, estimatedHours: 2.3 }))).toBe(true);
+    });
+
+    it('pasa los pendientes al siguiente sprint', async () => {
+      const s = techSetup();
+      const one = parse(await call(s, 'crear_sprint', { startDate: '2026-10-30', endDate: '2026-11-06' }));
+      const two = parse(await call(s, 'crear_sprint', { startDate: '2026-11-06', endDate: '2026-11-13' }));
+      await call(s, 'crear_tarea', { title: 'Pendiente', department: 'TECH', sprintId: one.id });
+      expect(parse(await call(s, 'pasar_pendientes', { fromSprintId: one.id, toSprintId: two.id }))).toEqual({ moved: 1 });
+    });
   });
 
   it('rechaza herramientas y métodos desconocidos', async () => {
