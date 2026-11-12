@@ -709,8 +709,9 @@ function DueDateField({
 
 function Backlog({ view }: { view: TechSprintView }) {
   const plan = useAction(planDeptTaskAction, { success: 'Tarea añadida al sprint' });
-  const [open, setOpen] = React.useState(true);
   const { backlog, selected, canManage } = view;
+  // Con un sprint abierto el foco es el sprint: el backlog arranca plegado.
+  const [open, setOpen] = React.useState(!selected);
   if (backlog.length === 0) return null;
 
   return (
