@@ -133,6 +133,12 @@ async function run(): Promise<void> {
     console.log('📦 Aplicando migraciones (db/09-tech-sprints.sql)...');
     await client.query(readFileSync(join(process.cwd(), 'db', '09-tech-sprints.sql'), 'utf8'));
 
+    console.log('📦 Aplicando migraciones (db/10-department-request-target-user.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '10-department-request-target-user.sql'), 'utf8'));
+
+    console.log('📦 Aplicando migraciones (db/11-dept-task-reads.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '11-dept-task-reads.sql'), 'utf8'));
+
     const seed = buildSeedData();
     const stageCount = Number((await client.query('SELECT COUNT(*)::int AS c FROM workflow_stages')).rows[0].c);
 

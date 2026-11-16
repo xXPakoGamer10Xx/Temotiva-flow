@@ -1,5 +1,6 @@
 import type { Department, HelpType } from './enums';
 import { HELP_TYPES_V1 } from './enums';
+import type { User } from './types';
 
 /**
  * Peticiones entre áreas (spec 001 — módulo de Dependencias).
@@ -29,6 +30,11 @@ export interface DepartmentRequest {
   blocksInitiative: boolean;
   /** Iniciativa TEMO-XXX opcional, solo como contexto. */
   initiativeId: string | null;
+  /**
+   * Spec 004: persona concreta del área destino a la que va dirigida (`NULL` =
+   * a toda el área). Solo cuenta mientras siga siendo elegible: ver `effectiveTargetUserId`.
+   */
+  targetUserId: string | null;
   /** Persona del área destino que la tomó; obligatoria desde `IN_PROGRESS`. */
   assigneeId: string | null;
   resolutionNotes: string | null;
@@ -77,6 +83,29 @@ export interface RequestLinkAttachment extends AttachmentBase {
 
 /** Espejo de `department_request_attachments` (`db/07`). */
 export type DepartmentRequestAttachment = RequestFileAttachment | RequestLinkAttachment;
+
+// --- Spec 004: peticiones dirigidas a una persona -----------------------------------
+
+type TargetCandidate = Pick<User, 'id' | 'isActive' | 'isAnonymized' | 'departments'>;
+
+/** Puede recibir (o seguir recibiendo) una petición en `department`: activa, no anonimizada y de esa área. */
+export function isEligibleRequestTarget(user: TargetCandidate, department: Department): boolean {
+  return user.isActive && !user.isAnonymized && user.departments.includes(department);
+}
+
+/**
+ * Destinatario que cuenta ahora mismo. Si la persona se dio de baja, se
+ * anonimizó o ya no lleva el área destino, la petición vuelve a ser del área
+ * (`null`). Se deriva al leer: la fila conserva `targetUserId` como historial.
+ */
+export function effectiveTargetUserId(
+  request: Pick<DepartmentRequest, 'targetUserId' | 'targetDepartment'>,
+  usersById: ReadonlyMap<string, TargetCandidate>,
+): string | null {
+  if (!request.targetUserId) return null;
+  const user = usersById.get(request.targetUserId);
+  return user && isEligibleRequestTarget(user, request.targetDepartment) ? user.id : null;
+}
 
 /** Una petición resuelta queda en solo lectura: no admite más transiciones. */
 export function isDepartmentRequestClosed(request: Pick<DepartmentRequest, 'status'>): boolean {

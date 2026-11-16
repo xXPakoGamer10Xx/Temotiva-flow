@@ -22,6 +22,7 @@ import type {
 import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
+import type { DeptTaskReadCycle } from '@/domain/task-read';
 
 /** Campos de una tarea de área que se pueden cambiar tras crearla. */
 export type DeptTaskPatch = Partial<
@@ -118,6 +119,21 @@ export interface DataStore {
   insertDeptTask(task: DeptTask): Promise<DeptTask>;
   updateDeptTask(id: string, patch: DeptTaskPatch): Promise<DeptTask>;
 
+  // --- Confirmación de lectura de tareas (spec 003) ----------------------------
+  /** De una tarea (o de todas), en orden de alta. Sin filtrar: el Need-to-Know va en el servicio. */
+  listDeptTaskReads(taskId?: string): Promise<DeptTaskReadCycle[]>;
+  /** Abre un ciclo. Lanza si la tarea ya tiene uno abierto (índice único del DDL). */
+  openDeptTaskRead(cycle: DeptTaskReadCycle): Promise<DeptTaskReadCycle>;
+  /**
+   * Actualiza un ciclo. Con `guard.unread`, solo si aún no estaba leído: devuelve
+   * `null` si otra petición lo marcó antes (nada se escribe). Lanza si no existe.
+   */
+  updateDeptTaskRead(
+    id: string,
+    patch: Partial<Pick<DeptTaskReadCycle, 'readAt' | 'readSource' | 'resolvedAt' | 'closedAt'>>,
+    guard?: { unread: true },
+  ): Promise<DeptTaskReadCycle | null>;
+
   // --- Sprints (V1: área Tech) ----------------------------------------------------
   /** Incluye los archivados: quien pinta decide si los muestra. */
   listSprints(): Promise<Sprint[]>;
@@ -182,6 +198,17 @@ export interface DataStore {
     patch: Partial<
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
+    /** Spec 004: además, solo si la persona destinataria sigue siendo esta (`null` = ninguna). */
+    guard?: { targetUserId: string | null },
+  ): Promise<DepartmentRequest | null>;
+  /**
+   * Spec 004: cambia la persona destinataria solo si la petición sigue en el
+   * estado y con la persona esperados. `null` si otra persona se adelantó.
+   */
+  reassignDepartmentRequest(
+    id: string,
+    expected: { status: DepartmentRequestStatus; targetUserId: string | null },
+    patch: { targetUserId: string; assigneeId?: string; updatedAt: string },
   ): Promise<DepartmentRequest | null>;
 
   // --- Adjuntos y enlaces de peticiones (spec 001, ampliación A) --------------

@@ -24,6 +24,7 @@ import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import { buildSeedData, type SeedData } from '@/domain/seed';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
+import type { DeptTaskReadCycle } from '@/domain/task-read';
 import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -63,6 +64,8 @@ export class InMemoryDataStore implements DataStore {
   private pushSubscriptions = new Map<string, PushSubscriptionRecord>();
   /** Por `${initiativeId}::${stageId}`, la PK compuesta del DDL. */
   private sleRiskNotices = new Map<string, SleRiskNotice>();
+  /** Spec 003: ciclos de lectura, en orden de alta. */
+  private deptTaskReads: DeptTaskReadCycle[] = [];
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -105,7 +108,10 @@ export class InMemoryDataStore implements DataStore {
       (data.sprints ?? []).map((sprint) => [sprint.id, clone({ ...sprint, capacityHours: sprint.capacityHours ?? 30 })]),
     );
     backfillTechCodes(this.deptTasks);
-    this.departmentRequests = new Map((data.departmentRequests ?? []).map((request) => [request.id, clone(request)]));
+    // `targetUserId ?? null`: los snapshots anteriores a la spec 004 no traen el campo.
+    this.departmentRequests = new Map(
+      (data.departmentRequests ?? []).map((request) => [request.id, { ...clone(request), targetUserId: request.targetUserId ?? null }]),
+    );
     // Los snapshots de la ampliación A no traen los campos de baja: se rellenan como activos.
     this.departmentRequestAttachments = new Map(
       (data.departmentRequestAttachments ?? []).map((item) => [
@@ -120,6 +126,7 @@ export class InMemoryDataStore implements DataStore {
       (data.departmentNotificationSettings ?? []).map((setting) => [setting.department, clone(setting)]),
     );
     this.pushSubscriptions = new Map((data.pushSubscriptions ?? []).map((sub) => [sub.endpoint, clone(sub)]));
+    this.deptTaskReads = (data.deptTaskReads ?? []).map(clone);
     this.sleRiskNotices = new Map(
       (data.sleRiskNotices ?? []).map((notice) => [sleRiskNoticeKey(notice.initiativeId, notice.stageId), clone(notice)]),
     );
@@ -150,6 +157,7 @@ export class InMemoryDataStore implements DataStore {
       departmentNotificationSettings: [...this.departmentNotificationSettings.values()].map(clone),
       pushSubscriptions: [...this.pushSubscriptions.values()].map(clone),
       sleRiskNotices: [...this.sleRiskNotices.values()].map(clone),
+      deptTaskReads: this.deptTaskReads.map(clone),
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -474,6 +482,37 @@ export class InMemoryDataStore implements DataStore {
     return clone(updated);
   }
 
+  // --- Confirmación de lectura de tareas (spec 003) ----------------------------------
+
+  async listDeptTaskReads(taskId?: string): Promise<DeptTaskReadCycle[]> {
+    return this.deptTaskReads.filter((cycle) => taskId === undefined || cycle.taskId === taskId).map(clone);
+  }
+
+  async openDeptTaskRead(cycle: DeptTaskReadCycle): Promise<DeptTaskReadCycle> {
+    // Igual que `dept_task_reads_open_idx`: como mucho un ciclo abierto por tarea.
+    if (this.deptTaskReads.some((item) => item.taskId === cycle.taskId && item.closedAt === null)) {
+      throw new Error(`La tarea ${cycle.taskId} ya tiene un ciclo de lectura abierto`);
+    }
+    this.deptTaskReads.push(clone(cycle));
+    this.touched();
+    return clone(cycle);
+  }
+
+  async updateDeptTaskRead(
+    id: string,
+    patch: Partial<Pick<DeptTaskReadCycle, 'readAt' | 'readSource' | 'resolvedAt' | 'closedAt'>>,
+    guard?: { unread: true },
+  ): Promise<DeptTaskReadCycle | null> {
+    const index = this.deptTaskReads.findIndex((cycle) => cycle.id === id);
+    const current = this.deptTaskReads[index];
+    if (!current) throw new Error(`Ciclo de lectura no encontrado: ${id}`);
+    if (guard?.unread && current.readAt !== null) return null;
+    const updated: DeptTaskReadCycle = { ...current, ...patch };
+    this.deptTaskReads[index] = updated;
+    this.touched();
+    return clone(updated);
+  }
+
   async listSprints(): Promise<Sprint[]> {
     return [...this.sprints.values()].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(clone);
   }
@@ -662,11 +701,27 @@ export class InMemoryDataStore implements DataStore {
     patch: Partial<
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
+    guard?: { targetUserId: string | null },
   ): Promise<DepartmentRequest | null> {
     const current = this.departmentRequests.get(id);
     if (!current) throw new Error(`Petición no encontrada: ${id}`);
     if (current.status !== from) return null;
+    if (guard && current.targetUserId !== guard.targetUserId) return null;
     return this.updateDepartmentRequest(id, patch);
+  }
+
+  async reassignDepartmentRequest(
+    id: string,
+    expected: { status: DepartmentRequestStatus; targetUserId: string | null },
+    patch: { targetUserId: string; assigneeId?: string; updatedAt: string },
+  ): Promise<DepartmentRequest | null> {
+    const current = this.departmentRequests.get(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    if (current.status !== expected.status || current.targetUserId !== expected.targetUserId) return null;
+    const updated: DepartmentRequest = { ...current, ...patch };
+    this.departmentRequests.set(id, updated);
+    this.touched();
+    return clone(updated);
   }
 
   // --- Adjuntos y enlaces de peticiones (ampliación A) -------------------------------

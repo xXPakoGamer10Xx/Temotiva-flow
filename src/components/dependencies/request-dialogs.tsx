@@ -4,7 +4,7 @@ import * as React from 'react';
 import Link from 'next/link';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
-import { CheckCircle2, HandHelping, Hand, Paperclip } from 'lucide-react';
+import { ArrowRightLeft, CheckCircle2, HandHelping, Hand, Paperclip, UserRound } from 'lucide-react';
 import type { Department, HelpType } from '@/domain/enums';
 import { DEPARTMENT_REQUEST_HELP_TYPES, type AttachmentSide } from '@/domain/department-request';
 import {
@@ -15,19 +15,23 @@ import {
   REQUEST_BLOCKING_LABEL_STANDALONE,
 } from '@/domain/labels';
 import {
+  MAX_DEPARTMENT_REQUEST_REASSIGN_REASON,
   MAX_DEPARTMENT_REQUEST_TITLE,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MIN_DEPARTMENT_REQUEST_TITLE,
+  MIN_REASSIGN_REASON,
 } from '@/domain/rules';
 import type {
   DepartmentRequestView,
   DepartmentRequestsView,
   RequestAttachmentView,
+  RequestPersonOption,
 } from '@/server/services/department-requests';
 import {
   addDepartmentRequestLinksAction,
   createDepartmentRequestAction,
+  reassignDepartmentRequestAction,
   resolveDepartmentRequestAction,
   startDepartmentRequestAction,
 } from '@/server/actions/department-requests';
@@ -62,13 +66,113 @@ export function initiativeSheetHref(initiativeId: string): Route {
   return `/dependencias?iniciativa=${encodeURIComponent(initiativeId)}&tab=dependencies` as Route;
 }
 
+// --- Persona destinataria (spec 004) ---------------------------------------------
+
+/** «Para ti», «Para: Nombre» o el aviso de que ya la atiende el área. Nada si va al área. */
+export function TargetPersonLine({
+  request,
+}: {
+  request: Pick<DepartmentRequestView, 'isForMe' | 'targetPersonName' | 'targetPersonUnavailable'>;
+}) {
+  if (request.isForMe) {
+    return (
+      <Badge tone="accent">
+        <UserRound aria-hidden className="size-3.5" />
+        Para ti
+      </Badge>
+    );
+  }
+  if (request.targetPersonName) {
+    return (
+      <span className="inline-flex items-center gap-1">
+        <UserRound aria-hidden className="size-3.5" />
+        Para: <span className="text-fg">{request.targetPersonName}</span>
+      </span>
+    );
+  }
+  if (request.targetPersonUnavailable) {
+    return <span>La persona indicada ya no está disponible: la atiende el área</span>;
+  }
+  return null;
+}
+
+/** Personas a las que se puede pedir desde `source`: con algún área distinta y sin la propia sesión. */
+function candidatesFrom(people: RequestPersonOption[], source: Department, myUserId: string): RequestPersonOption[] {
+  return people.filter((person) => person.id !== myUserId && person.departments.some((area) => area !== source));
+}
+
+/** Formulario de reasignación (RF-7): persona del área destino distinta de la actual y motivo. */
+function ReassignForm({
+  request,
+  people,
+  disabled,
+  onDone,
+}: {
+  request: DepartmentRequestView;
+  people: RequestPersonOption[];
+  disabled: boolean;
+  onDone: () => void;
+}) {
+  const reassign = useAction(reassignDepartmentRequestAction, { success: 'Petición reasignada' });
+  const candidates = people.filter(
+    (person) => person.departments.includes(request.targetDepartment) && person.id !== request.targetUserId,
+  );
+  const [targetUserId, setTargetUserId] = React.useState('');
+  const [reason, setReason] = React.useState('');
+  const ready = targetUserId !== '' && reason.trim().length >= MIN_REASSIGN_REASON;
+
+  if (candidates.length === 0) return null;
+  return (
+    <form
+      className="space-y-2 rounded-md border border-border p-3"
+      onSubmit={(event) => {
+        event.preventDefault();
+        reassign.run({ requestId: request.id, targetUserId, reason }, onDone);
+      }}
+    >
+      <SectionLabel>{request.targetUserId ? 'Reasignar a otra persona' : 'Dirigir a una persona'}</SectionLabel>
+      <div className="space-y-1.5">
+        <Label htmlFor="reassign-person">Persona de {DEPARTMENT_LABELS[request.targetDepartment]}</Label>
+        <Select id="reassign-person" value={targetUserId} onChange={(event) => setTargetUserId(event.target.value)}>
+          <option value="">Elige a quién</option>
+          {candidates.map((person) => (
+            <option key={person.id} value={person.id}>
+              {person.name}
+            </option>
+          ))}
+        </Select>
+      </div>
+      <div className="space-y-1.5">
+        <Label htmlFor="reassign-reason">Motivo</Label>
+        <Textarea
+          id="reassign-reason"
+          rows={2}
+          value={reason}
+          maxLength={MAX_DEPARTMENT_REQUEST_REASSIGN_REASON}
+          onChange={(event) => setReason(event.target.value)}
+          placeholder={`Por qué cambia de manos (mínimo ${MIN_REASSIGN_REASON} caracteres)`}
+        />
+        <p className="text-xs text-fg-muted">Queda en la caja negra: no incluyas datos personales ni de salud.</p>
+      </div>
+      <ActionError message={reassign.error} />
+      <Button type="submit" size="sm" variant="outline" disabled={disabled || reassign.isPending || !ready}>
+        <ArrowRightLeft aria-hidden />
+        {reassign.isPending ? 'Reasignando…' : 'Reasignar'}
+      </Button>
+    </form>
+  );
+}
+
 // --- Detalle ---------------------------------------------------------------------
 
 export function RequestDetailDialog({
   request,
+  people,
   onClose,
 }: {
   request: DepartmentRequestView;
+  /** Spec 004: candidatas para reasignar (solo se usan si `canReassign`). */
+  people: RequestPersonOption[];
   onClose: () => void;
 }) {
   const router = useRouter();
@@ -144,6 +248,9 @@ export function RequestDetailDialog({
             <RequestStatusBadge status={request.status} />
             <Badge tone="info">{HELP_TYPE_LABELS[request.helpType]}</Badge>
             <RequestBlockingBadge request={request} />
+            <span className="text-xs text-fg-muted">
+              <TargetPersonLine request={request} />
+            </span>
           </div>
 
           <p className="whitespace-pre-wrap text-sm leading-relaxed">{request.description}</p>
@@ -241,9 +348,13 @@ export function RequestDetailDialog({
 
           {!request.canStart && !request.canResolve && request.status !== 'RESOLVED' ? (
             <p className="text-xs text-fg-muted">
-              La atiende {DEPARTMENT_LABELS[request.targetDepartment]}. Aquí puedes seguir su estado.
+              {request.targetPersonName
+                ? `Es para ${request.targetPersonName}: la atiende esa persona, su responsable o Dirección. Aquí puedes seguir su estado.`
+                : `La atiende ${DEPARTMENT_LABELS[request.targetDepartment]}. Aquí puedes seguir su estado.`}
             </p>
           ) : null}
+
+          {request.canReassign ? <ReassignForm request={request} people={people} disabled={busy} onDone={onClose} /> : null}
 
           <ActionError message={uploadError ?? start.error ?? resolve.error ?? addLinks.error} />
         </DialogBody>
@@ -281,12 +392,16 @@ export function RequestDetailDialog({
 
 // --- Creación --------------------------------------------------------------------
 
+type RecipientMode = 'AREA' | 'PERSON';
+
 export function NewRequestDialog({
   sourceDepartments,
   targetDepartments,
   initiatives,
+  people,
+  myUserId,
   onClose,
-}: Pick<DepartmentRequestsView, 'sourceDepartments' | 'targetDepartments' | 'initiatives'> & {
+}: Pick<DepartmentRequestsView, 'sourceDepartments' | 'targetDepartments' | 'initiatives' | 'people' | 'myUserId'> & {
   onClose: () => void;
 }) {
   const create = useAction(createDepartmentRequestAction, { success: 'Petición enviada' });
@@ -301,6 +416,16 @@ export function NewRequestDialog({
   const [draft, setDraft] = React.useState<AttachmentDraft>(EMPTY_ATTACHMENT_DRAFT);
   const router = useRouter();
 
+  // Spec 004: a un área (como siempre) o a una persona concreta de otra área.
+  const [mode, setMode] = React.useState<RecipientMode>('AREA');
+  const [personId, setPersonId] = React.useState('');
+  const [personArea, setPersonArea] = React.useState<Department | ''>('');
+  const candidates = candidatesFrom(people, sourceDepartment, myUserId);
+  const person = candidates.find((candidate) => candidate.id === personId) ?? null;
+  const personAreas = person ? person.departments.filter((area) => area !== sourceDepartment) : [];
+  const chosenPersonArea = personAreas.find((area) => area === personArea) ?? personAreas[0] ?? null;
+  const effectiveTarget: Department | null = mode === 'PERSON' ? chosenPersonArea : targetDepartment;
+
   const changeSource = (department: Department): void => {
     setSourceDepartment(department);
     if (department === targetDepartment) {
@@ -311,14 +436,17 @@ export function NewRequestDialog({
   const ready =
     title.trim().length >= MIN_DEPARTMENT_REQUEST_TITLE &&
     description.trim().length >= MIN_DEPARTMENT_REQUEST_DESCRIPTION &&
-    sourceDepartment !== targetDepartment;
+    effectiveTarget !== null &&
+    sourceDepartment !== effectiveTarget;
 
   const submit = (event: React.FormEvent): void => {
     event.preventDefault();
+    if (!effectiveTarget) return;
     create.run(
       {
         sourceDepartment,
-        targetDepartment,
+        targetDepartment: effectiveTarget,
+        targetUserId: mode === 'PERSON' && person ? person.id : null,
         helpType,
         title,
         description,
@@ -376,6 +504,18 @@ export function NewRequestDialog({
                 )}
               </div>
               <div className="space-y-1.5">
+                <Label htmlFor="request-mode">Dirigida a</Label>
+                <Select id="request-mode" value={mode} onChange={(event) => setMode(event.target.value as RecipientMode)}>
+                  <option value="AREA">Un área</option>
+                  <option value="PERSON" disabled={candidates.length === 0}>
+                    Una persona concreta
+                  </option>
+                </Select>
+              </div>
+            </div>
+
+            {mode === 'AREA' ? (
+              <div className="space-y-1.5">
                 <Label htmlFor="request-target">Pide ayuda a</Label>
                 <Select
                   id="request-target"
@@ -389,7 +529,57 @@ export function NewRequestDialog({
                   ))}
                 </Select>
               </div>
-            </div>
+            ) : (
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="request-person">Persona</Label>
+                  <Select
+                    id="request-person"
+                    value={person ? person.id : ''}
+                    onChange={(event) => {
+                      setPersonId(event.target.value);
+                      setPersonArea('');
+                    }}
+                  >
+                    <option value="">Elige a quién</option>
+                    {candidates.map((candidate) => (
+                      <option key={candidate.id} value={candidate.id}>
+                        {candidate.name} ·{' '}
+                        {candidate.departments
+                          .filter((area) => area !== sourceDepartment)
+                          .map((area) => DEPARTMENT_LABELS[area])
+                          .join(', ')}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+                {personAreas.length > 1 ? (
+                  <div className="space-y-1.5">
+                    <Label htmlFor="request-person-area">En el área</Label>
+                    <Select
+                      id="request-person-area"
+                      value={chosenPersonArea ?? ''}
+                      onChange={(event) => setPersonArea(event.target.value as Department)}
+                    >
+                      {personAreas.map((area) => (
+                        <option key={area} value={area}>
+                          {DEPARTMENT_LABELS[area]}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                ) : chosenPersonArea ? (
+                  <div className="space-y-1.5">
+                    <span className="text-sm font-medium">En el área</span>
+                    <p className="flex h-8 items-center text-sm">{DEPARTMENT_LABELS[chosenPersonArea]}</p>
+                  </div>
+                ) : null}
+                <p className="text-xs text-fg-muted sm:col-span-2">
+                  Le llegará el aviso solo a esa persona. Su área también verá la petición, y su responsable podrá
+                  atenderla o reasignarla.
+                </p>
+              </div>
+            )}
 
             <div className="space-y-1.5">
               <Label htmlFor="request-type">Tipo de necesidad</Label>

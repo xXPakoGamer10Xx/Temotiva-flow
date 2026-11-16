@@ -1,4 +1,5 @@
 import { DEPARTMENTS, STAGE_KEYS, type Department, type StageKey } from '@/domain/enums';
+import { isEligibleRequestTarget, type DepartmentRequest } from '@/domain/department-request';
 import type { PushMessage } from '@/domain/push';
 import type { ActivityLogEntry, Initiative, JsonValue, User } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
@@ -29,6 +30,7 @@ const PUSH_ACTION_TYPES: ReadonlySet<string> = new Set([
   'ASSIGNEE_CHANGED',
   'DEPENDENCY_CREATED',
   'DEPARTMENT_REQUEST_CREATED',
+  'DEPARTMENT_REQUEST_REASSIGNED',
   'DEPENDENCY_RESOLVED',
   'DEPARTMENT_REQUEST_RESOLVED',
   'STAGE_TRANSITION',
@@ -96,17 +98,38 @@ async function draftFor(store: DataStore, entry: ActivityLogEntry, initiative: I
       };
     }
 
-    // E4 · petición del buzón dirigida a mi área.
+    // E4 · petición del buzón dirigida a mi área, o a mí (spec 004: solo a la persona).
     case 'DEPARTMENT_REQUEST_CREATED': {
       const requestId = text(value.requestId);
       const request = requestId ? await store.departmentRequestById(requestId) : null;
       if (!request) return null;
+      const person = await requestTargetPerson(store, request);
       return {
-        userIds: await membersOf(store, request.targetDepartment),
+        userIds: person ? [person] : await membersOf(store, request.targetDepartment),
         message: buildPushMessage('REQUEST_INCOMING', {
           requestId: request.id,
           fromDepartment: request.sourceDepartment,
           toDepartment: request.targetDepartment,
+          forYou: person !== null,
+        }),
+      };
+    }
+
+    // E4 · spec 004: me reasignan una petición del buzón.
+    case 'DEPARTMENT_REQUEST_REASSIGNED': {
+      const requestId = text(value.requestId);
+      const request = requestId ? await store.departmentRequestById(requestId) : null;
+      if (!request || request.status === 'RESOLVED') return null;
+      const person = await requestTargetPerson(store, request);
+      // Solo si sigue siendo la persona del evento: una reasignación posterior ya avisó a otra.
+      if (!person || person !== text(value.targetUserId)) return null;
+      return {
+        userIds: [person],
+        message: buildPushMessage('REQUEST_INCOMING', {
+          requestId: request.id,
+          fromDepartment: request.sourceDepartment,
+          toDepartment: request.targetDepartment,
+          forYou: true,
         }),
       };
     }
@@ -205,6 +228,13 @@ async function membersOf(store: DataStore, area: Department): Promise<string[]> 
   return (await store.listUsers())
     .filter((user) => isReachable(user) && user.departments.includes(area))
     .map((user) => user.id);
+}
+
+/** Spec 004 §5.2: persona destinataria efectiva de una petición del buzón, o `null` si la atiende el área. */
+async function requestTargetPerson(store: DataStore, request: DepartmentRequest): Promise<string | null> {
+  if (!request.targetUserId) return null;
+  const person = await store.userById(request.targetUserId);
+  return person && isEligibleRequestTarget(person, request.targetDepartment) ? person.id : null;
 }
 
 function isReachable(user: User): boolean {

@@ -237,12 +237,31 @@ export function canViewDepartmentRequest(
 /**
  * Tomar o resolver es responder, y responde el área destinataria (o Dirección).
  * El área origen la ve, pero no puede darse por atendida.
+ *
+ * Spec 004: si va dirigida a una persona (`targetUserId`, ya el destinatario
+ * **efectivo**), responden esa persona, el LEAD del área destino o Dirección.
+ * Sin persona (`null`, por defecto) se mantiene la regla de la spec 001.
  */
 export function canManageDepartmentRequest(
   session: SessionContext,
   request: Pick<DepartmentRequest, 'targetDepartment'>,
+  targetUserId: string | null = null,
 ): boolean {
-  return isExecutive(session) || belongsTo(session, request.targetDepartment);
+  if (isExecutive(session)) return true;
+  if (!belongsTo(session, request.targetDepartment)) return false;
+  return targetUserId === null || targetUserId === session.userId || isLeadOf(session, request.targetDepartment);
+}
+
+/**
+ * Spec 004: cambiar la persona destinataria es organizar el trabajo del área
+ * destino: su LEAD o Dirección, mientras la petición no esté resuelta.
+ */
+export function canReassignDepartmentRequest(
+  session: SessionContext,
+  request: Pick<DepartmentRequest, 'targetDepartment' | 'status'>,
+): boolean {
+  if (request.status === 'RESOLVED') return false;
+  return isExecutive(session) || isLeadOf(session, request.targetDepartment);
 }
 
 /**
@@ -253,10 +272,12 @@ export function canAttachToDepartmentRequest(
   session: SessionContext,
   request: Pick<DepartmentRequest, 'sourceDepartment' | 'targetDepartment' | 'status'>,
   side: AttachmentSide,
+  /** Spec 004: destinatario efectivo; la respuesta la adjunta quien puede responder. */
+  targetUserId: string | null = null,
 ): boolean {
   return side === 'REQUEST'
     ? belongsTo(session, request.sourceDepartment) && request.status === 'PENDING'
-    : canManageDepartmentRequest(session, request) && request.status !== 'RESOLVED';
+    : canManageDepartmentRequest(session, request, targetUserId) && request.status !== 'RESOLVED';
 }
 
 /**

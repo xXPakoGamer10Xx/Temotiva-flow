@@ -26,6 +26,7 @@ import {
 } from '@/components/ui/dialog';
 import { Badge, Card, EmptyState, Input, Label, SectionLabel, Select, Textarea } from '@/components/ui/primitives';
 import { formatDate } from '@/lib/utils';
+import { TaskReadStatus } from './task-read-status';
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10);
 
@@ -196,6 +197,7 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
             {task.isMine ? 'Tuya' : (task.assigneeName ?? 'Sin asignar')}
           </Badge>
         </div>
+        <TaskReadStatus task={task} />
 
         {task.canManage ? (
           <Select

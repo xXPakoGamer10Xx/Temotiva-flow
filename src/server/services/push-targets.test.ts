@@ -121,6 +121,7 @@ function makeRequest(requestedBy: string, overrides: Partial<DepartmentRequest> 
     status: 'PENDING',
     blocksInitiative: false,
     initiativeId: null,
+    targetUserId: null,
     assigneeId: null,
     resolutionNotes: null,
     resolvedBy: null,
@@ -431,5 +432,79 @@ describe('integración con los servicios reales (la forma de los eventos no se d
     if (!entry) throw new Error('sin evento');
     const targets = await resolvePushTargets(store, entry);
     expect(sorted(targets?.userIds)).toEqual(idsOf(p.legalMember, p.multiArea));
+  });
+});
+
+/** Spec 004 (T-06, RF-8, AC-8): peticiones del buzón dirigidas a una persona. */
+describe('E4 · petición del buzón dirigida a una persona', () => {
+  it('al crearla avisa solo a esa persona, con «para ti» y sin nombres', async () => {
+    const { store, p } = setup();
+    await store.insertDepartmentRequest(makeRequest(p.productMember.id, { targetUserId: p.legalMember.id }));
+    const entry = entryOf('DEPARTMENT_REQUEST_CREATED', p.productMember, {
+      initiativeId: null,
+      newValue: { requestId: makeRequest('x').id, targetUserId: p.legalMember.id },
+    });
+    const targets = await resolvePushTargets(store, entry);
+    expect(targets?.userIds).toEqual([p.legalMember.id]);
+    expect(targets?.message).toMatchObject({
+      kind: 'REQUEST_INCOMING',
+      title: '🆘 Petición para ti de Producto',
+      body: 'En Legal / DPO',
+      url: '/dependencias',
+    });
+    expect(JSON.stringify(targets?.message)).not.toContain('CENTINELA');
+    expect(JSON.stringify(targets?.message)).not.toContain(p.legalMember.name);
+  });
+
+  it('si la persona ya no puede recibirla, avisa a toda el área como antes', async () => {
+    const { store, p } = setup();
+    await store.insertDepartmentRequest(makeRequest(p.productMember.id, { targetUserId: p.inactive.id }));
+    const entry = entryOf('DEPARTMENT_REQUEST_CREATED', p.productMember, {
+      initiativeId: null,
+      newValue: { requestId: makeRequest('x').id },
+    });
+    const targets = await resolvePushTargets(store, entry);
+    expect(sorted(targets?.userIds)).toEqual(legalTeam(p));
+    expect(targets?.message.title).toBe('🆘 Nueva petición de Producto');
+  });
+
+  it('al reasignarla avisa solo a la nueva persona', async () => {
+    const { store, p } = setup();
+    await store.insertDepartmentRequest(makeRequest(p.productMember.id, { targetUserId: p.multiArea.id }));
+    const entry = entryOf('DEPARTMENT_REQUEST_REASSIGNED', p.legalLead, {
+      initiativeId: null,
+      oldValue: { targetUserId: p.legalMember.id },
+      newValue: { requestId: makeRequest('x').id, targetUserId: p.multiArea.id, reason: 'CENTINELA motivo' },
+    });
+    const targets = await resolvePushTargets(store, entry);
+    expect(targets?.userIds).toEqual([p.multiArea.id]);
+    expect(targets?.message).toMatchObject({ kind: 'REQUEST_INCOMING', title: '🆘 Petición para ti de Producto' });
+    expect(JSON.stringify(targets?.message)).not.toContain('CENTINELA');
+  });
+
+  it('reasignarse a uno mismo, una reasignación ya superada o una petición resuelta no avisan', async () => {
+    const { store, p } = setup();
+    await store.insertDepartmentRequest(makeRequest(p.productMember.id, { targetUserId: p.legalLead.id }));
+    const self = entryOf('DEPARTMENT_REQUEST_REASSIGNED', p.legalLead, {
+      initiativeId: null,
+      newValue: { requestId: makeRequest('x').id, targetUserId: p.legalLead.id },
+    });
+    expect(await resolvePushTargets(store, self)).toBeNull();
+
+    const stale = entryOf('DEPARTMENT_REQUEST_REASSIGNED', p.legalLead, {
+      initiativeId: null,
+      newValue: { requestId: makeRequest('x').id, targetUserId: p.legalMember.id },
+    });
+    expect(await resolvePushTargets(store, stale)).toBeNull();
+
+    const resolved = setup();
+    await resolved.store.insertDepartmentRequest(
+      makeRequest(resolved.p.productMember.id, { targetUserId: resolved.p.legalMember.id, status: 'RESOLVED' }),
+    );
+    const late = entryOf('DEPARTMENT_REQUEST_REASSIGNED', resolved.p.legalLead, {
+      initiativeId: null,
+      newValue: { requestId: makeRequest('x').id, targetUserId: resolved.p.legalMember.id },
+    });
+    expect(await resolvePushTargets(resolved.store, late)).toBeNull();
   });
 });

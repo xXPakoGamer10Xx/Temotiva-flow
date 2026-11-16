@@ -66,6 +66,8 @@ export const MAX_REQUEST_FILE_BYTES = 4 * 1024 * 1024;
 export const MIN_REQUEST_LINK_LABEL = 2;
 export const MAX_REQUEST_LINK_LABEL = 60;
 export const MAX_REQUEST_LINK_URL = 500;
+/** Spec 004: el motivo de reasignar una petición va a la caja negra; se acota. El mínimo es MIN_REASSIGN_REASON. */
+export const MAX_DEPARTMENT_REQUEST_REASSIGN_REASON = 500;
 
 /** Pasos propios (privados) de una persona en una iniciativa. */
 export const MIN_PERSONAL_STEP_TITLE = 2;

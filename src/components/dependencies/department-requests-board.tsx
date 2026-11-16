@@ -29,7 +29,7 @@ import {
   type InboxStatusFilter,
   type InboxTab,
 } from './inbox-model';
-import { NewRequestDialog, RequestDetailDialog, initiativeSheetHref } from './request-dialogs';
+import { NewRequestDialog, RequestDetailDialog, TargetPersonLine, initiativeSheetHref } from './request-dialogs';
 
 /**
  * Buzón de Dependencias (spec 001). Recibe del servidor solo las filas que la
@@ -67,6 +67,7 @@ export function DepartmentRequestsBoard(view: DepartmentRequestsView) {
     filters.status !== DEFAULT_INBOX_FILTERS.status ||
     filters.department !== 'ALL' ||
     filters.onlyBlocking ||
+    filters.onlyForMe ||
     filters.query.trim() !== '';
 
   return (
@@ -139,6 +140,14 @@ export function DepartmentRequestsBoard(view: DepartmentRequestsView) {
           />
           Solo bloqueantes
         </label>
+        <label className="flex items-center gap-1.5 text-xs text-fg-muted">
+          <input
+            type="checkbox"
+            checked={filters.onlyForMe}
+            onChange={(event) => update({ onlyForMe: event.target.checked })}
+          />
+          Para mí
+        </label>
       </div>
 
       {items.length === 0 ? (
@@ -199,10 +208,14 @@ export function DepartmentRequestsBoard(view: DepartmentRequestsView) {
           sourceDepartments={view.sourceDepartments}
           targetDepartments={view.targetDepartments}
           initiatives={view.initiatives}
+          people={view.people}
+          myUserId={view.myUserId}
           onClose={() => setCreating(false)}
         />
       ) : null}
-      {openRequest ? <RequestDetailDialog request={openRequest} onClose={() => setOpenRequestId(null)} /> : null}
+      {openRequest ? (
+        <RequestDetailDialog request={openRequest} people={view.people} onClose={() => setOpenRequestId(null)} />
+      ) : null}
     </div>
   );
 }
@@ -245,6 +258,7 @@ function RequestCard({ request, onOpen }: { request: DepartmentRequestView; onOp
         <span>
           {request.requestedByName} · <span className="tabular-nums">{formatDateTime(request.createdAt)}</span>
         </span>
+        <TargetPersonLine request={request} />
         {request.assigneeName ? <span>Atiende: {request.assigneeName}</span> : null}
         {request.attachments.length > 0 ? (
           <span className="inline-flex items-center gap-1" title="Adjuntos">

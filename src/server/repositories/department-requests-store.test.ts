@@ -23,6 +23,7 @@ function makeRequest(overrides: Partial<DepartmentRequest> = {}): DepartmentRequ
     status: 'PENDING',
     blocksInitiative: false,
     initiativeId: null,
+    targetUserId: null,
     assigneeId: null,
     resolutionNotes: null,
     resolvedBy: null,
@@ -403,5 +404,96 @@ describe('retirada de adjuntos en la persistencia', () => {
   it('Postgres: un adjunto activo se mapea como no retirado', async () => {
     const { pool } = fakePool([FILE_ROW]);
     expect(await new PostgresDataStore(pool).departmentRequestAttachmentById('att-file')).toEqual(fileItem());
+  });
+});
+
+/** Spec 004 — persona destinataria (T-02). */
+describe('persona destinataria de una petición', () => {
+  it('InMemory: hidrata snapshots sin el campo como petición al área', async () => {
+    const seed = buildSeedData();
+    const legacy = makeRequest() as Partial<DepartmentRequest>;
+    delete legacy.targetUserId;
+    seed.departmentRequests = [legacy as DepartmentRequest];
+    const store = new InMemoryDataStore(seed);
+    expect((await store.departmentRequestById(makeRequest().id))?.targetUserId).toBeNull();
+  });
+
+  it('InMemory: la transición con guard no escribe si cambió la persona destinataria', async () => {
+    const store = new InMemoryDataStore();
+    const request = await store.insertDepartmentRequest(makeRequest({ targetUserId: 'u-ana' }));
+    const lost = await store.transitionDepartmentRequest(
+      request.id,
+      'PENDING',
+      { status: 'IN_PROGRESS', assigneeId: 'u-ana' },
+      { targetUserId: 'u-luis' },
+    );
+    expect(lost).toBeNull();
+    expect((await store.departmentRequestById(request.id))?.status).toBe('PENDING');
+    const won = await store.transitionDepartmentRequest(
+      request.id,
+      'PENDING',
+      { status: 'IN_PROGRESS', assigneeId: 'u-ana' },
+      { targetUserId: 'u-ana' },
+    );
+    expect(won?.status).toBe('IN_PROGRESS');
+  });
+
+  it('InMemory: reasigna solo si estado y persona siguen siendo los esperados', async () => {
+    const store = new InMemoryDataStore();
+    const request = await store.insertDepartmentRequest(makeRequest({ targetUserId: 'u-ana' }));
+    const at = '2026-11-13T10:00:00.000Z';
+    expect(
+      await store.reassignDepartmentRequest(request.id, { status: 'IN_PROGRESS', targetUserId: 'u-ana' }, { targetUserId: 'u-luis', updatedAt: at }),
+    ).toBeNull();
+    expect(
+      await store.reassignDepartmentRequest(request.id, { status: 'PENDING', targetUserId: null }, { targetUserId: 'u-luis', updatedAt: at }),
+    ).toBeNull();
+    const updated = await store.reassignDepartmentRequest(
+      request.id,
+      { status: 'PENDING', targetUserId: 'u-ana' },
+      { targetUserId: 'u-luis', updatedAt: at },
+    );
+    expect(updated).toMatchObject({ targetUserId: 'u-luis', assigneeId: null, updatedAt: at });
+    const restored = new InMemoryDataStore(store.snapshot());
+    expect((await restored.departmentRequestById(request.id))?.targetUserId).toBe('u-luis');
+  });
+
+  it('Postgres: lee y escribe target_user_id', async () => {
+    const { pool } = fakePool([{ ...ROW, target_user_id: 'u-ana' }]);
+    expect((await new PostgresDataStore(pool).departmentRequestById(ROW.id))?.targetUserId).toBe('u-ana');
+
+    const insert = fakePool();
+    await new PostgresDataStore(insert.pool).insertDepartmentRequest(makeRequest({ targetUserId: 'u-ana' }));
+    expect(nth(insert.calls, 0).sql).toMatch(/target_user_id/);
+    expect(nth(insert.calls, 0).params).toContain('u-ana');
+  });
+
+  it('Postgres: el guard va en la misma sentencia y compara NULL con IS NOT DISTINCT FROM', async () => {
+    const { pool, calls } = fakePool([ROW]);
+    await new PostgresDataStore(pool).transitionDepartmentRequest(
+      ROW.id,
+      'PENDING',
+      { status: 'IN_PROGRESS', assigneeId: 'u-legal' },
+      { targetUserId: null },
+    );
+    expect(nth(calls, 0).sql).toMatch(/target_user_id IS NOT DISTINCT FROM \$14::uuid/);
+    expect(nth(calls, 0).params.slice(12)).toEqual([true, null]);
+
+    const unguarded = fakePool([ROW]);
+    await new PostgresDataStore(unguarded.pool).transitionDepartmentRequest(ROW.id, 'PENDING', { status: 'IN_PROGRESS' });
+    expect(nth(unguarded.calls, 0).params.slice(12)).toEqual([false, null]);
+  });
+
+  it('Postgres: reasignar condiciona estado y persona en el UPDATE y devuelve null si no ganó', async () => {
+    const { pool, calls } = fakePool([ROW], 0);
+    const result = await new PostgresDataStore(pool).reassignDepartmentRequest(
+      ROW.id,
+      { status: 'IN_PROGRESS', targetUserId: 'u-ana' },
+      { targetUserId: 'u-luis', assigneeId: 'u-luis', updatedAt: '2026-11-13T10:00:00.000Z' },
+    );
+    expect(result).toBeNull();
+    expect(nth(calls, 0).sql).toMatch(/UPDATE department_requests SET[\s\S]*target_user_id = \$2::uuid[\s\S]*WHERE id = \$1 AND status = \$6/);
+    expect(nth(calls, 0).sql).toMatch(/target_user_id IS NOT DISTINCT FROM \$7::uuid/);
+    expect(nth(calls, 0).params).toEqual([ROW.id, 'u-luis', true, 'u-luis', '2026-11-13T10:00:00.000Z', 'IN_PROGRESS', 'u-ana']);
   });
 });

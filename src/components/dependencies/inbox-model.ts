@@ -21,6 +21,8 @@ export interface InboxFilters {
   status: InboxStatusFilter;
   department: Department | 'ALL';
   onlyBlocking: boolean;
+  /** Spec 004: solo las peticiones dirigidas a la persona de la sesión. */
+  onlyForMe: boolean;
   query: string;
 }
 
@@ -29,6 +31,7 @@ export const DEFAULT_INBOX_FILTERS: InboxFilters = {
   status: 'OPEN',
   department: 'ALL',
   onlyBlocking: false,
+  onlyForMe: false,
   query: '',
 };
 
@@ -41,6 +44,8 @@ interface InboxItemBase {
   isIncoming: boolean;
   isOutgoing: boolean;
   isBlocking: boolean;
+  /** Spec 004: va dirigida a la persona de la sesión (las 🆘 de iniciativa nunca). */
+  isForMe: boolean;
   status: CommonStatus;
   departments: [Department, Department];
   searchText: string;
@@ -69,10 +74,17 @@ export function buildInboxItems(
     isIncoming: request.isIncoming,
     isOutgoing: request.isOutgoing,
     isBlocking: request.blocksInitiative,
+    isForMe: request.isForMe,
     status: request.status === 'RESOLVED' ? 'CLOSED' : request.status,
     departments: [request.sourceDepartment, request.targetDepartment],
     searchText: normalize(
-      [request.title, request.description, request.initiativeId ?? '', request.initiativeTitle ?? ''].join(' '),
+      [
+        request.title,
+        request.description,
+        request.initiativeId ?? '',
+        request.initiativeTitle ?? '',
+        request.targetPersonName ?? '',
+      ].join(' '),
     ),
   }));
 
@@ -84,6 +96,7 @@ export function buildInboxItems(
     isIncoming: dependency.isIncoming,
     isOutgoing: dependency.isOutgoing,
     isBlocking: dependency.isBlocking,
+    isForMe: false,
     status: dependency.status === 'PENDING' ? 'PENDING' : 'CLOSED',
     departments: [dependency.ownerDepartment, dependency.targetDepartment],
     searchText: normalize([dependency.description, dependency.initiativeId, dependency.initiativeTitle].join(' ')),
@@ -111,6 +124,7 @@ function matchesRest(item: InboxItem, filters: InboxFilters): boolean {
     matchesStatus(item, filters.status) &&
     (filters.department === 'ALL' || item.departments.includes(filters.department)) &&
     (!filters.onlyBlocking || item.isBlocking) &&
+    (!filters.onlyForMe || item.isForMe) &&
     (query === '' || item.searchText.includes(query))
   );
 }

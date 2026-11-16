@@ -3,6 +3,7 @@
 import {
   addDepartmentRequestLinks,
   createDepartmentRequest,
+  reassignDepartmentRequest,
   removeDepartmentRequestAttachment,
   resolveDepartmentRequest,
   startDepartmentRequest,
@@ -10,6 +11,7 @@ import {
 import {
   addDepartmentRequestLinksSchema,
   createDepartmentRequestSchema,
+  reassignDepartmentRequestSchema,
   removeDepartmentRequestAttachmentSchema,
   resolveDepartmentRequestSchema,
   startDepartmentRequestSchema,
@@ -49,6 +51,18 @@ export async function resolveDepartmentRequestAction(input: unknown): Promise<Ac
     input,
     handler: async ({ store, session, input: data }) => {
       await resolveDepartmentRequest(store, session, data);
+      return undefined;
+    },
+  });
+}
+
+/** Spec 004: cambia la persona destinataria dentro del área destino. */
+export async function reassignDepartmentRequestAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: reassignDepartmentRequestSchema,
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await reassignDepartmentRequest(store, session, data);
       return undefined;
     },
   });

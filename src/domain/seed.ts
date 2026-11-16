@@ -21,6 +21,7 @@ import type {
 import { SEED_CHECKLIST_ITEMS, SEED_STAGES, STAGE_ID_BY_KEY, checklistItemId } from './workflow';
 import type { StageKey, StopReason } from './enums';
 import type { DepartmentRequest, DepartmentRequestAttachment } from './department-request';
+import type { DeptTaskReadCycle } from './task-read';
 import type { PushSubscriptionRecord, SleRiskNotice } from './push';
 
 /**
@@ -67,6 +68,8 @@ export interface SeedData {
   /** Opcionales: las semillas y snapshots anteriores a las notificaciones push (spec 002) no los traen. */
   pushSubscriptions?: PushSubscriptionRecord[];
   sleRiskNotices?: SleRiskNotice[];
+  /** Opcional: las semillas y snapshots anteriores a la confirmación de lectura (spec 003) no lo traen. */
+  deptTaskReads?: DeptTaskReadCycle[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */
