@@ -16,7 +16,8 @@ export interface PushMessageContext {
   TASK_ASSIGNED: { taskId: string; department: Department; initiativeId: string | null };
   INITIATIVE_ASSIGNED: { initiativeId: string };
   DEPENDENCY_INCOMING: { dependencyId: string; initiativeId: string; fromDepartment: Department; toDepartment: Department };
-  REQUEST_INCOMING: { requestId: string; fromDepartment: Department; toDepartment: Department };
+  /** `forYou` (spec 004): va dirigida a la persona que recibe el aviso, no a toda el área. */
+  REQUEST_INCOMING: { requestId: string; fromDepartment: Department; toDepartment: Department; forYou?: boolean };
   DEPENDENCY_RESOLVED: { dependencyId: string; initiativeId: string; byDepartment: Department };
   REQUEST_RESOLVED: { requestId: string; byDepartment: Department };
   ENTERED_BOARD: { initiativeId: string; stageKey: StageKey; department: Department };
@@ -55,8 +56,8 @@ const TEMPLATES: { [K in PushEventKind]: Template<K> } = {
     tag: `DEPENDENCY_INCOMING:${c.dependencyId}`,
   }),
   REQUEST_INCOMING: (c) => ({
-    title: `🆘 Nueva petición de ${area(c.fromDepartment)}`,
-    body: `Para ${area(c.toDepartment)}`,
+    title: c.forYou ? `🆘 Petición para ti de ${area(c.fromDepartment)}` : `🆘 Nueva petición de ${area(c.fromDepartment)}`,
+    body: c.forYou ? `En ${area(c.toDepartment)}` : `Para ${area(c.toDepartment)}`,
     url: '/dependencias',
     tag: `REQUEST_INCOMING:${c.requestId}`,
   }),

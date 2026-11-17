@@ -8,6 +8,15 @@ import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
 import { forbidden, invalid, notFound } from './errors';
 import { canManageDeptTasks, canMoveDeptTask, canWorkInArea } from './rbac';
+import type { DeptTaskReadCycle } from '@/domain/task-read';
+import {
+  readCycleViews,
+  trackAssignment,
+  trackMove,
+  trackRemoval,
+  type ReadCycleView,
+  type ReadHistoryItem,
+} from './dept-task-reads';
 
 /**
  * Tareas de área.
@@ -138,6 +147,8 @@ export async function createDeptTask(
     newValue: { taskId: task.id, code: task.code, title, department, assigneeId, sprintId, estimatedHours, dueDate },
     at: now,
   });
+  // Spec 003 (RF-01): crearla con alguien abre su ciclo de lectura.
+  if (assigneeId) await trackAssignment(store, task, assigneeId, now);
   return task;
 }
 
@@ -162,6 +173,8 @@ export async function moveDeptTask(
     newValue: { taskId: task.id, status: input.status },
     at: now,
   });
+  // Spec 003 (RF-05, RF-07, RF-08): lectura automática y resolución.
+  await trackMove(store, session, task, input.status, now);
   return updated;
 }
 
@@ -194,6 +207,8 @@ export async function assignDeptTask(
     newValue: { taskId: task.id, assigneeId: input.assigneeId },
     at: now,
   });
+  // Spec 003 (RF-01, RF-02): cierra el ciclo anterior y abre el de la nueva persona.
+  await trackAssignment(store, task, input.assigneeId, now);
   return updated;
 }
 
@@ -262,6 +277,8 @@ export async function removeDeptTask(
     oldValue: { taskId: task.id, title: task.title },
     at: now,
   });
+  // Spec 003 (CA-09): retirarla cierra el ciclo abierto.
+  await trackRemoval(store, task, now);
 }
 
 // --- Proyecciones de solo lectura para la interfaz ---------------------------
@@ -285,6 +302,12 @@ export interface DeptTaskView {
   canManage: boolean;
   canMove: boolean;
   canTake: boolean;
+  /**
+   * Spec 003: lectura de la persona asignada. `null` sin persona o cuando la
+   * vista no carga los ciclos (Sprint Tech, de momento).
+   */
+  readCycle: ReadCycleView | null;
+  readHistory: ReadHistoryItem[];
 }
 
 export interface TeamMemberOption {
@@ -303,8 +326,16 @@ export interface TasksPageView {
 }
 
 /** Proyección de una tarea para quien consulta (sin decidir si puede verla). */
-export function toDeptTaskView(task: DeptTask, session: SessionContext, userName: Map<string, string>): DeptTaskView {
+export function toDeptTaskView(
+  task: DeptTask,
+  session: SessionContext,
+  userName: Map<string, string>,
+  /** Spec 003: ciclos de lectura de esta tarea; sin ellos no se proyecta la lectura. */
+  reads?: DeptTaskReadCycle[],
+): DeptTaskView {
+  const reading = reads ? readCycleViews(task, reads, userName) : { readCycle: null, readHistory: [] };
   return {
+    ...reading,
     id: task.id,
     title: task.title,
     description: task.description,
@@ -327,16 +358,20 @@ export function toDeptTaskView(task: DeptTask, session: SessionContext, userName
 }
 
 export async function getTasksView(store: DataStore, session: SessionContext): Promise<TasksPageView> {
-  const [tasks, users, initiatives] = await Promise.all([
+  const [tasks, users, initiatives, reads] = await Promise.all([
     store.listDeptTasks(),
     store.listUsers(),
     store.listInitiatives(),
+    store.listDeptTaskReads(),
   ]);
   const userName = new Map(users.map((user) => [user.id, user.name]));
+  const readsByTask = new Map<string, DeptTaskReadCycle[]>();
+  for (const cycle of reads) readsByTask.set(cycle.taskId, [...(readsByTask.get(cycle.taskId) ?? []), cycle]);
 
+  // Los ciclos solo se proyectan para tareas que ya pasaron el Need-to-Know.
   const views: DeptTaskView[] = tasks
     .filter((task) => !task.isArchived && canWorkInArea(session, task.department))
-    .map((task) => toDeptTaskView(task, session, userName));
+    .map((task) => toDeptTaskView(task, session, userName, readsByTask.get(task.id) ?? []));
 
   const manageableDepartments =
     session.role === 'EXECUTIVE' ? [...DEPARTMENTS] : session.role === 'LEAD' ? [...session.departments] : [];

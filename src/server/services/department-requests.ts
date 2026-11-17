@@ -3,7 +3,9 @@ import type { Department, HelpStatus, HelpType } from '@/domain/enums';
 import { DEPARTMENTS } from '@/domain/enums';
 import {
   DEPARTMENT_REQUEST_HELP_TYPES,
+  effectiveTargetUserId,
   hasControlChars,
+  isEligibleRequestTarget,
   isStorableHttpsUrl,
   type AttachmentSide,
   type DepartmentRequest,
@@ -23,7 +25,9 @@ import {
   MAX_REQUEST_LINK_URL,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
+  MAX_DEPARTMENT_REQUEST_REASSIGN_REASON,
   MIN_DEPARTMENT_REQUEST_TITLE,
+  MIN_REASSIGN_REASON,
   MIN_REQUEST_LINK_LABEL,
 } from '@/domain/rules';
 import type { SessionContext } from '@/domain/types';
@@ -36,6 +40,7 @@ import { detectImageType } from './feedback';
 import {
   canAttachToDepartmentRequest,
   canManageDepartmentRequest,
+  canReassignDepartmentRequest,
   canRemoveDepartmentRequestAttachment,
   canViewDepartmentRequest,
   canViewInitiativeDependencyInInbox,
@@ -65,6 +70,15 @@ export interface DepartmentRequestView {
   blocksInitiative: boolean;
   initiativeId: string | null;
   initiativeTitle: string | null;
+  /** Spec 004: persona destinataria **efectiva** (`null` = la atiende el área). */
+  targetUserId: string | null;
+  targetPersonName: string | null;
+  /** Iba dirigida a una persona que ya no puede recibirla: ahora la atiende el área (RF-6). */
+  targetPersonUnavailable: boolean;
+  /** La persona de la sesión es la destinataria efectiva. */
+  isForMe: boolean;
+  /** Spec 004: el LEAD del área destino o Dirección pueden cambiar la persona. */
+  canReassign: boolean;
   assigneeId: string | null;
   assigneeName: string | null;
   resolutionNotes: string | null;
@@ -127,6 +141,20 @@ export interface DepartmentRequestsView {
   canCreate: boolean;
   /** Iniciativas vivas para dar contexto opcional al crear. */
   initiatives: { id: string; title: string }[];
+  /**
+   * Spec 004 §5.3: personas que pueden recibir una petición (activas y no
+   * anonimizadas). Solo nombre y áreas: nunca correo ni rol. Vacío si la sesión
+   * no puede crear ni reasignar.
+   */
+  people: RequestPersonOption[];
+  /** Persona de la sesión: para no ofrecerse a sí misma como destinataria al crear. */
+  myUserId: string;
+}
+
+export interface RequestPersonOption {
+  id: string;
+  name: string;
+  departments: Department[];
 }
 
 export async function getDepartmentRequestsView(
@@ -142,6 +170,7 @@ export async function getDepartmentRequestsView(
   ]);
   const userName = new Map(users.map((user) => [user.id, user.name]));
   const nameOf = (id: string): string => userName.get(id) ?? RETIRED_PERSON;
+  const usersById = new Map(users.map((user) => [user.id, user]));
   // Los retirados no se proyectan: siguen en la base de datos y en el log.
   const attachmentsByRequest = new Map<string, DepartmentRequestAttachment[]>();
   for (const item of attachments) {
@@ -156,7 +185,8 @@ export async function getDepartmentRequestsView(
   const requestViews: DepartmentRequestView[] = requests
     .filter((request) => canViewDepartmentRequest(session, request))
     .map((request) => {
-      const canManage = canManageDepartmentRequest(session, request);
+      const targetUserId = effectiveTargetUserId(request, usersById);
+      const canManage = canManageDepartmentRequest(session, request, targetUserId);
       return {
         id: request.id,
         title: request.title,
@@ -169,6 +199,11 @@ export async function getDepartmentRequestsView(
         blocksInitiative: request.blocksInitiative,
         initiativeId: request.initiativeId,
         initiativeTitle: request.initiativeId ? (liveInitiatives.get(request.initiativeId)?.title ?? null) : null,
+        targetUserId,
+        targetPersonName: targetUserId ? nameOf(targetUserId) : null,
+        targetPersonUnavailable: request.targetUserId !== null && targetUserId === null,
+        isForMe: targetUserId === session.userId,
+        canReassign: canReassignDepartmentRequest(session, request),
         assigneeId: request.assigneeId,
         assigneeName: request.assigneeId ? nameOf(request.assigneeId) : null,
         resolutionNotes: request.resolutionNotes,
@@ -185,7 +220,7 @@ export async function getDepartmentRequestsView(
           toAttachmentView(item, nameOf, canRemoveDepartmentRequestAttachment(session, request, item)),
         ),
         canAttachRequest: canAttachToDepartmentRequest(session, request, 'REQUEST'),
-        canAttachResponse: canAttachToDepartmentRequest(session, request, 'RESPONSE'),
+        canAttachResponse: canAttachToDepartmentRequest(session, request, 'RESPONSE', targetUserId),
       };
     });
 
@@ -218,14 +253,25 @@ export async function getDepartmentRequestsView(
   const cappedDependencies = capClosed(dependencyViews, (dependency) => dependency.status !== 'PENDING');
 
   const sourceDepartments = [...session.departments];
+  const canCreate = sourceDepartments.length > 0;
+  // Solo quien va a usar el listado lo recibe (spec 004 §5.3).
+  const people: RequestPersonOption[] =
+    canCreate || requestViews.some((request) => request.canReassign)
+      ? users
+          .filter((user) => user.isActive && !user.isAnonymized)
+          .map((user) => ({ id: user.id, name: user.name, departments: [...user.departments] }))
+          .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+      : [];
   return {
     requests: cappedRequests.items,
     initiativeDependencies: cappedDependencies.items,
     closedTruncated: cappedRequests.truncated || cappedDependencies.truncated,
     sourceDepartments,
     targetDepartments: [...DEPARTMENTS],
-    canCreate: sourceDepartments.length > 0,
+    canCreate,
     initiatives: initiatives.map((initiative) => ({ id: initiative.id, title: initiative.title })),
+    people,
+    myUserId: session.userId,
   };
 }
 
@@ -286,6 +332,8 @@ export interface CreateDepartmentRequestInput {
   /** Informativo: nunca escribe `is_blocked` ni toca el SLE. */
   blocksInitiative: boolean;
   initiativeId?: string | null;
+  /** Spec 004: persona concreta del área destino (opcional). */
+  targetUserId?: string | null;
   /** Ampliación A: enlaces «de la petición». Los archivos se suben aparte (Route Handler). */
   links?: RequestLinkInput[];
   now?: Date;
@@ -332,6 +380,17 @@ export async function createDepartmentRequest(
     initiativeId = initiative.id;
   }
 
+  // Spec 004 (RF-3): persona activa del área destino y distinta de quien pide.
+  // Mismo mensaje en todos los casos: no revela si la persona existe.
+  let targetUserId: string | null = null;
+  if (input.targetUserId) {
+    const person = await store.userById(input.targetUserId);
+    if (!person || person.id === session.userId || !isEligibleRequestTarget(person, input.targetDepartment)) {
+      throw invalid(INELIGIBLE_PERSON);
+    }
+    targetUserId = person.id;
+  }
+
   // Los enlaces se validan antes de persistir nada: o entra todo, o nada.
   const links = normalizeLinks(input.links ?? []);
   assertQuota(0, links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
@@ -348,6 +407,7 @@ export async function createDepartmentRequest(
     status: 'PENDING',
     blocksInitiative: input.blocksInitiative,
     initiativeId,
+    targetUserId,
     assigneeId: null,
     resolutionNotes: null,
     resolvedBy: null,
@@ -370,6 +430,7 @@ export async function createDepartmentRequest(
       status: request.status,
       blocksInitiative: request.blocksInitiative,
       initiativeId,
+      targetUserId,
     },
     at: now,
   });
@@ -394,12 +455,34 @@ async function loadDepartmentRequest(
   return request;
 }
 
-function assertCanManage(session: SessionContext, request: DepartmentRequest): void {
-  if (!canManageDepartmentRequest(session, request)) {
+const INELIGIBLE_PERSON = 'La persona elegida no puede recibir esta petición.';
+
+/**
+ * Spec 004 §5.2: persona destinataria que cuenta ahora (`null` si no hay o si
+ * ya no puede recibirla; entonces la atiende el área).
+ */
+async function loadTargetUserId(store: DataStore, request: DepartmentRequest): Promise<string | null> {
+  if (!request.targetUserId) return null;
+  const person = await store.userById(request.targetUserId);
+  return effectiveTargetUserId(request, new Map(person ? [[person.id, person]] : []));
+}
+
+async function assertCanManage(
+  store: DataStore,
+  session: SessionContext,
+  request: DepartmentRequest,
+  targetUserId: string | null,
+): Promise<void> {
+  if (canManageDepartmentRequest(session, request, targetUserId)) return;
+  if (targetUserId && belongsTo(session, request.targetDepartment)) {
+    const person = await store.userById(targetUserId);
     throw forbidden(
-      `Solo ${DEPARTMENT_LABELS[request.targetDepartment]} puede atender esta petición; el área que la pidió solo puede consultarla.`,
+      `Esta petición es para ${person?.name ?? 'otra persona'}; solo esa persona, su responsable o Dirección pueden atenderla.`,
     );
   }
+  throw forbidden(
+    `Solo ${DEPARTMENT_LABELS[request.targetDepartment]} puede atender esta petición; el área que la pidió solo puede consultarla.`,
+  );
 }
 
 export interface StartDepartmentRequestInput {
@@ -415,17 +498,22 @@ export async function startDepartmentRequest(
 ): Promise<DepartmentRequest> {
   const now = input.now ?? new Date();
   const request = await loadDepartmentRequest(store, session, input.requestId);
-  assertCanManage(session, request);
+  await assertCanManage(store, session, request, await loadTargetUserId(store, request));
   if (request.status !== 'PENDING') {
     throw invalidState('Esta petición ya estaba tomada o resuelta.');
   }
 
-  // Atómico: si otra persona la tomó o resolvió entre la lectura y la escritura, no se pisa.
-  const updated = await store.transitionDepartmentRequest(request.id, 'PENDING', {
-    status: 'IN_PROGRESS',
-    assigneeId: session.userId,
-    updatedAt: now.toISOString(),
-  });
+  // Atómico: si otra persona la tomó, resolvió o reasignó entre la lectura y la escritura, no se pisa.
+  const updated = await store.transitionDepartmentRequest(
+    request.id,
+    'PENDING',
+    {
+      status: 'IN_PROGRESS',
+      assigneeId: session.userId,
+      updatedAt: now.toISOString(),
+    },
+    { targetUserId: request.targetUserId },
+  );
   if (!updated) throw invalidState('Esta petición ya estaba tomada o resuelta.');
 
   await audit(store, {
@@ -462,7 +550,7 @@ export async function resolveDepartmentRequest(
 ): Promise<DepartmentRequest> {
   const now = input.now ?? new Date();
   const request = await loadDepartmentRequest(store, session, input.requestId);
-  assertCanManage(session, request);
+  await assertCanManage(store, session, request, await loadTargetUserId(store, request));
   if (request.status === 'RESOLVED') {
     throw invalidState('Esta petición ya estaba resuelta; si hace falta algo más, abre una nueva.');
   }
@@ -481,13 +569,18 @@ export async function resolveDepartmentRequest(
   }
 
   const at = now.toISOString();
-  const updated = await store.transitionDepartmentRequest(request.id, request.status, {
-    status: 'RESOLVED',
-    resolutionNotes: notes,
-    resolvedBy: session.userId,
-    resolvedAt: at,
-    updatedAt: at,
-  });
+  const updated = await store.transitionDepartmentRequest(
+    request.id,
+    request.status,
+    {
+      status: 'RESOLVED',
+      resolutionNotes: notes,
+      resolvedBy: session.userId,
+      resolvedAt: at,
+      updatedAt: at,
+    },
+    { targetUserId: request.targetUserId },
+  );
   if (!updated) throw invalidState('Esta petición cambió mientras la respondías. Recarga para ver su estado.');
 
   await audit(store, {
@@ -508,6 +601,79 @@ export async function resolveDepartmentRequest(
   // Después de auditar la resolución: si guardar un enlace fallara por un motivo
   // ajeno a la validación (red, base de datos), el cierre ya consta en la caja negra.
   if (links.length > 0) await insertLinks(store, session, request.id, 'RESPONSE', links, now);
+
+  return updated;
+}
+
+// --- Spec 004: reasignar la persona destinataria -----------------------------------
+
+const REASSIGN_REASON_ERROR = `Explica el motivo de la reasignación con entre ${MIN_REASSIGN_REASON} y ${MAX_DEPARTMENT_REQUEST_REASSIGN_REASON} caracteres.`;
+
+export interface ReassignDepartmentRequestInput {
+  requestId: string;
+  targetUserId: string;
+  reason: string;
+  now?: Date;
+}
+
+/**
+ * Cambia la persona destinataria dentro del área destino (RF-7). La cambia su
+ * LEAD o Dirección mientras no esté resuelta; si ya estaba en curso, el trabajo
+ * pasa también a la nueva persona. El estado no cambia.
+ */
+export async function reassignDepartmentRequest(
+  store: DataStore,
+  session: SessionContext,
+  input: ReassignDepartmentRequestInput,
+): Promise<DepartmentRequest> {
+  const now = input.now ?? new Date();
+  const request = await loadDepartmentRequest(store, session, input.requestId);
+  if (request.status === 'RESOLVED') {
+    throw invalidState('Esta petición ya está resuelta: no se puede reasignar.');
+  }
+  if (!canReassignDepartmentRequest(session, request)) {
+    throw forbidden(`Solo el responsable de ${DEPARTMENT_LABELS[request.targetDepartment]} o Dirección pueden reasignarla.`);
+  }
+
+  const reason = input.reason.trim();
+  if (reason.length < MIN_REASSIGN_REASON || reason.length > MAX_DEPARTMENT_REQUEST_REASSIGN_REASON) {
+    throw invalid(REASSIGN_REASON_ERROR);
+  }
+
+  const person = await store.userById(input.targetUserId);
+  if (!person || !isEligibleRequestTarget(person, request.targetDepartment)) throw invalid(INELIGIBLE_PERSON);
+  if (person.id === (await loadTargetUserId(store, request))) {
+    throw invalid('La petición ya va dirigida a esa persona.');
+  }
+
+  // En curso, el trabajo cambia de manos; pendiente, la tomará quien la reciba.
+  const updated = await store.reassignDepartmentRequest(
+    request.id,
+    { status: request.status, targetUserId: request.targetUserId },
+    {
+      targetUserId: person.id,
+      ...(request.status === 'IN_PROGRESS' ? { assigneeId: person.id } : {}),
+      updatedAt: now.toISOString(),
+    },
+  );
+  if (!updated) throw invalidState('Esta petición cambió mientras la reasignabas. Recarga para ver su estado.');
+
+  await audit(store, {
+    initiativeId: null,
+    session,
+    actionType: 'DEPARTMENT_REQUEST_REASSIGNED',
+    fieldName: AUDIT_FIELD,
+    oldValue: { targetUserId: request.targetUserId, assigneeId: request.assigneeId },
+    // Como OWNER_REASSIGNED, el motivo queda en la caja negra (spec 004, decisión 7).
+    newValue: {
+      requestId: request.id,
+      targetUserId: updated.targetUserId,
+      assigneeId: updated.assigneeId,
+      targetDepartment: request.targetDepartment,
+      reason,
+    },
+    at: now,
+  });
 
   return updated;
 }
@@ -560,10 +726,17 @@ async function countOnSide(
  * Distingue el motivo: no es tu lado (FORBIDDEN) o el estado ya no lo admite
  * (INVALID_STATE). La visibilidad ya la resolvió `loadDepartmentRequest`.
  */
-function assertCanAttach(session: SessionContext, request: DepartmentRequest, side: AttachmentSide): void {
-  if (canAttachToDepartmentRequest(session, request, side)) return;
+function assertCanAttach(
+  session: SessionContext,
+  request: DepartmentRequest,
+  side: AttachmentSide,
+  targetUserId: string | null,
+): void {
+  if (canAttachToDepartmentRequest(session, request, side, targetUserId)) return;
   const isYourSide =
-    side === 'REQUEST' ? belongsTo(session, request.sourceDepartment) : canManageDepartmentRequest(session, request);
+    side === 'REQUEST'
+      ? belongsTo(session, request.sourceDepartment)
+      : canManageDepartmentRequest(session, request, targetUserId);
   if (!isYourSide) {
     throw forbidden(
       side === 'REQUEST'
@@ -646,7 +819,7 @@ export async function addDepartmentRequestLinks(
 ): Promise<RequestLinkAttachment[]> {
   const now = input.now ?? new Date();
   const request = await loadDepartmentRequest(store, session, input.requestId);
-  assertCanAttach(session, request, input.side);
+  assertCanAttach(session, request, input.side, await loadTargetUserId(store, request));
   const links = normalizeLinks(input.links);
   if (links.length === 0) throw invalid('Añade al menos un enlace.');
   assertQuota(await countOnSide(store, request.id, input.side, 'LINK'), links.length, MAX_REQUEST_LINKS_PER_SIDE, 'enlaces');
@@ -682,7 +855,7 @@ export async function addDepartmentRequestFile(
 ): Promise<RequestFileAttachment> {
   const now = input.now ?? new Date();
   const request = await loadDepartmentRequest(store, session, input.requestId);
-  assertCanAttach(session, request, input.side);
+  assertCanAttach(session, request, input.side, await loadTargetUserId(store, request));
 
   if (input.bytes.byteLength === 0) throw invalid('El archivo está vacío.');
   if (input.bytes.byteLength > MAX_REQUEST_FILE_BYTES) throw invalid('El archivo supera 4 MB.');

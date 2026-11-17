@@ -41,6 +41,7 @@ function makeRequest(overrides: Partial<DepartmentRequest> = {}): DepartmentRequ
     status: 'PENDING',
     blocksInitiative: false,
     initiativeId: null,
+    targetUserId: null,
     assigneeId: null,
     resolutionNotes: null,
     resolvedBy: null,

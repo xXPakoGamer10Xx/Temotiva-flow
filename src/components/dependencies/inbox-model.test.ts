@@ -29,6 +29,11 @@ function request(overrides: Partial<DepartmentRequestView> = {}): DepartmentRequ
     blocksInitiative: false,
     initiativeId: null,
     initiativeTitle: null,
+    targetUserId: null,
+    targetPersonName: null,
+    targetPersonUnavailable: false,
+    isForMe: false,
+    canReassign: false,
     assigneeId: null,
     assigneeName: null,
     resolutionNotes: null,
@@ -158,5 +163,34 @@ describe('requestBlockingLabel (RF-9)', () => {
       'Bloquea iniciativa (No altera SLE)',
     );
     expect(requestBlockingLabel(request({ blocksInitiative: false }))).toBeNull();
+  });
+});
+
+/** Spec 004 (T-07, RF-9): filtro «Para mí». */
+describe('filtro «Para mí»', () => {
+  const view = {
+    requests: [
+      request({ id: 'mine', isForMe: true, targetUserId: 'u-me', targetPersonName: 'Ana Abogada' }),
+      request({ id: 'area' }),
+      request({ id: 'other', targetUserId: 'u-luis', targetPersonName: 'Luis Letrado' }),
+    ],
+    initiativeDependencies: [dependency()],
+  };
+
+  it('por defecto está apagado y no filtra nada', () => {
+    expect(DEFAULT_INBOX_FILTERS.onlyForMe).toBe(false);
+    expect(filterInboxItems(buildInboxItems(view), { ...DEFAULT_INBOX_FILTERS, tab: 'ALL' })).toHaveLength(4);
+  });
+
+  it('deja solo las peticiones dirigidas a la sesión, también en los contadores', () => {
+    const filters: InboxFilters = { ...DEFAULT_INBOX_FILTERS, onlyForMe: true };
+    const items = buildInboxItems(view);
+    expect(filterInboxItems(items, filters).map((item) => item.id)).toEqual(['mine']);
+    expect(countByTab(items, filters).INCOMING).toBe(1);
+  });
+
+  it('busca también por el nombre de la persona destinataria', () => {
+    const filters: InboxFilters = { ...DEFAULT_INBOX_FILTERS, query: 'letrado' };
+    expect(filterInboxItems(buildInboxItems(view), filters).map((item) => item.id)).toEqual(['other']);
   });
 });

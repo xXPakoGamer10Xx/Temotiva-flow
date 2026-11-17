@@ -2,6 +2,7 @@ import type { PullRequestState, TaskStatus } from '@/domain/enums';
 import { TECH_TASK_PREFIX } from '@/domain/rules';
 import type { DeptTask, TaskPullRequest } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
+import { trackMove } from './dept-task-reads';
 
 /**
  * Sincronización con GitHub: un pull request que cita una o varias claves de
@@ -141,6 +142,8 @@ export async function syncPullRequest(store: DataStore, event: PullRequestEvent,
       ...(status && status !== task.status ? { status } : {}),
       updatedAt: now.toISOString(),
     });
+    // Spec 003 (D6): guarda o borra la resolución del ciclo; sin sesión, nunca marca lectura.
+    if (status && status !== task.status) await trackMove(store, null, task, status, now);
     updated += 1;
   }
   return { updated, unknown };

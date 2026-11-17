@@ -129,3 +129,21 @@ describe('contenido mínimo (CA-07)', () => {
     expect(withDescription).toBeDefined();
   });
 });
+
+/** Spec 004 (T-06): aviso de una petición dirigida a la persona que lo recibe. */
+describe('REQUEST_INCOMING para ti', () => {
+  it('cambia el texto, pero no el destino ni la etiqueta', () => {
+    const message = buildPushMessage('REQUEST_INCOMING', {
+      requestId: REQUEST_ID,
+      fromDepartment: 'PRODUCT',
+      toDepartment: 'LEGAL',
+      forYou: true,
+    });
+    expect(message).toMatchObject({
+      title: '🆘 Petición para ti de Producto',
+      body: 'En Legal / DPO',
+      url: '/dependencias',
+      tag: `REQUEST_INCOMING:${REQUEST_ID}`,
+    });
+  });
+});

@@ -7,6 +7,7 @@ import {
   isStorableHttpsUrl,
 } from '@/domain/department-request';
 import {
+  MAX_DEPARTMENT_REQUEST_REASSIGN_REASON,
   MAX_DEPARTMENT_REQUEST_TITLE,
   MAX_REQUEST_LINKS_PER_SIDE,
   MAX_REQUEST_LINK_LABEL,
@@ -14,6 +15,7 @@ import {
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MIN_DEPARTMENT_REQUEST_TITLE,
+  MIN_REASSIGN_REASON,
   MIN_REQUEST_LINK_LABEL,
 } from '@/domain/rules';
 
@@ -33,6 +35,10 @@ const NOTES_MESSAGE = `Escribe una respuesta de al menos ${MIN_DEPARTMENT_REQUES
 const REQUEST_ID_MESSAGE = 'Identificador de petición no válido.';
 
 const requestIdSchema = z.string({ message: REQUEST_ID_MESSAGE }).uuid({ message: REQUEST_ID_MESSAGE });
+
+/** `users.id` es UUID: validar como la base de datos evita que el INSERT falle después. */
+const PERSON_ID_MESSAGE = 'Elige una persona válida.';
+const personIdSchema = z.string({ message: PERSON_ID_MESSAGE }).uuid({ message: PERSON_ID_MESSAGE });
 
 // --- Ampliación A: enlaces y lado de los adjuntos --------------------------------
 
@@ -82,7 +88,22 @@ export const createDepartmentRequestSchema = z.object({
     .string({ message: 'Identificador de iniciativa no válido.' })
     .regex(/^TEMO-\d+$/, 'Identificador de iniciativa no válido.')
     .nullish(),
+  /** Spec 004: persona concreta del área destino; el servicio comprueba que puede recibirla. */
+  targetUserId: personIdSchema.nullish(),
   links: linksSchema.optional(),
+});
+
+const REASSIGN_REASON_MESSAGE = `Explica el motivo de la reasignación con entre ${MIN_REASSIGN_REASON} y ${MAX_DEPARTMENT_REQUEST_REASSIGN_REASON} caracteres.`;
+
+/** Spec 004: cambiar la persona destinataria. El permiso (LEAD del área destino o Dirección) lo decide el servicio. */
+export const reassignDepartmentRequestSchema = z.object({
+  requestId: requestIdSchema,
+  targetUserId: personIdSchema,
+  reason: z
+    .string({ message: REASSIGN_REASON_MESSAGE })
+    .trim()
+    .min(MIN_REASSIGN_REASON, REASSIGN_REASON_MESSAGE)
+    .max(MAX_DEPARTMENT_REQUEST_REASSIGN_REASON, REASSIGN_REASON_MESSAGE),
 });
 
 export const startDepartmentRequestSchema = z.object({

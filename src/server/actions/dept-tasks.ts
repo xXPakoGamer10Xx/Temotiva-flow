@@ -4,7 +4,20 @@ import { z } from 'zod';
 import { DEPARTMENTS, TASK_STATUSES } from '@/domain/enums';
 import { MAX_TASK_DESCRIPTION, MAX_TASK_HOURS, MAX_TASK_TITLE, MIN_TASK_TITLE } from '@/domain/rules';
 import { assignDeptTask, createDeptTask, moveDeptTask, planDeptTask, removeDeptTask } from '@/server/services/dept-tasks';
+import { markDeptTaskRead } from '@/server/services/dept-task-reads';
 import { type ActionResult, runAction } from './shared';
+
+/** Spec 003: la persona asignada confirma que leyó su tarea. El servidor decide quién puede. */
+export async function markDeptTaskReadAction(input: unknown): Promise<ActionResult<undefined>> {
+  return runAction({
+    schema: z.object({ taskId: z.string().min(1) }),
+    input,
+    handler: async ({ store, session, input: data }) => {
+      await markDeptTaskRead(store, session, data);
+      return undefined;
+    },
+  });
+}
 
 const createSchema = z.object({
   title: z.string().trim().min(MIN_TASK_TITLE, 'Ponle un título a la tarea.').max(MAX_TASK_TITLE),

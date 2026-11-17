@@ -29,6 +29,7 @@ import type {
   DepartmentRequestStatus,
 } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
+import type { DeptTaskReadCycle, TaskReadSource } from '@/domain/task-read';
 import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -887,6 +888,90 @@ export class PostgresDataStore implements DataStore {
   private static readonly SPRINT_COLUMNS = `id, department, name, goal, to_char(start_date, 'YYYY-MM-DD') AS start_date,
               to_char(end_date, 'YYYY-MM-DD') AS end_date, capacity_hours, created_by, created_at, updated_at, is_archived`;
 
+  // --- Confirmación de lectura de tareas (spec 003) ----------------------------
+
+  private static readonly DEPT_TASK_READ_COLUMNS =
+    'id, task_id, assignee_id, assigned_at, read_at, read_source, resolved_at, closed_at';
+
+  async listDeptTaskReads(taskId?: string): Promise<DeptTaskReadCycle[]> {
+    // `assigned_at` NULL (tareas previas) va al final de su tarea; `id` desempata.
+    const res = taskId
+      ? await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPT_TASK_READ_COLUMNS} FROM dept_task_reads
+           WHERE task_id = $1 ORDER BY assigned_at NULLS LAST, id`,
+          [taskId],
+        )
+      : await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPT_TASK_READ_COLUMNS} FROM dept_task_reads ORDER BY assigned_at NULLS LAST, id`,
+        );
+    return res.rows.map((r) => this.mapDeptTaskRead(r));
+  }
+
+  async openDeptTaskRead(cycle: DeptTaskReadCycle): Promise<DeptTaskReadCycle> {
+    // Un segundo ciclo abierto choca con `dept_task_reads_open_idx` y lanza.
+    await this.pool.query(
+      `INSERT INTO dept_task_reads (id, task_id, assignee_id, assigned_at, read_at, read_source, resolved_at, closed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [
+        cycle.id,
+        cycle.taskId,
+        cycle.assigneeId,
+        cycle.assignedAt,
+        cycle.readAt,
+        cycle.readSource,
+        cycle.resolvedAt,
+        cycle.closedAt,
+      ],
+    );
+    return cycle;
+  }
+
+  async updateDeptTaskRead(
+    id: string,
+    patch: Partial<Pick<DeptTaskReadCycle, 'readAt' | 'readSource' | 'resolvedAt' | 'closedAt'>>,
+    guard?: { unread: true },
+  ): Promise<DeptTaskReadCycle | null> {
+    // Bandera por columna: `undefined` conserva, `null` vacía. El guard va en la misma sentencia.
+    const res = await this.pool.query(
+      `UPDATE dept_task_reads SET
+         read_at = CASE WHEN $2::boolean THEN $3::timestamptz ELSE read_at END,
+         read_source = CASE WHEN $4::boolean THEN $5::varchar ELSE read_source END,
+         resolved_at = CASE WHEN $6::boolean THEN $7::timestamptz ELSE resolved_at END,
+         closed_at = CASE WHEN $8::boolean THEN $9::timestamptz ELSE closed_at END
+       WHERE id = $1 AND (NOT $10::boolean OR read_at IS NULL)
+       RETURNING ${PostgresDataStore.DEPT_TASK_READ_COLUMNS}`,
+      [
+        id,
+        patch.readAt !== undefined,
+        patch.readAt ?? null,
+        patch.readSource !== undefined,
+        patch.readSource ?? null,
+        patch.resolvedAt !== undefined,
+        patch.resolvedAt ?? null,
+        patch.closedAt !== undefined,
+        patch.closedAt ?? null,
+        guard?.unread === true,
+      ],
+    );
+    if (res.rows.length > 0) return this.mapDeptTaskRead(res.rows[0]);
+    const exists = await this.pool.query('SELECT 1 FROM dept_task_reads WHERE id = $1', [id]);
+    if (exists.rows.length === 0) throw new Error(`Ciclo de lectura no encontrado: ${id}`);
+    return null;
+  }
+
+  private mapDeptTaskRead(r: Record<string, unknown>): DeptTaskReadCycle {
+    return {
+      id: String(r.id),
+      taskId: String(r.task_id),
+      assigneeId: String(r.assignee_id),
+      assignedAt: toNullableIso(r.assigned_at),
+      readAt: toNullableIso(r.read_at),
+      readSource: r.read_source ? (String(r.read_source) as TaskReadSource) : null,
+      resolvedAt: toNullableIso(r.resolved_at),
+      closedAt: toNullableIso(r.closed_at),
+    };
+  }
+
   async listSprints(): Promise<Sprint[]> {
     const res = await this.pool.query(
       `SELECT ${PostgresDataStore.SPRINT_COLUMNS} FROM sprints ORDER BY start_date DESC, created_at DESC`,
@@ -951,7 +1036,7 @@ export class PostgresDataStore implements DataStore {
 
   private static readonly DEPARTMENT_REQUEST_COLUMNS = `id, title, description, source_department, target_department, requested_by,
               help_type, status, blocks_initiative, initiative_id, assignee_id, resolution_notes,
-              resolved_by, created_at, updated_at, resolved_at`;
+              resolved_by, created_at, updated_at, resolved_at, target_user_id`;
 
   async listDepartmentRequests(): Promise<DepartmentRequest[]> {
     const res = await this.pool.query(
@@ -974,8 +1059,9 @@ export class PostgresDataStore implements DataStore {
     await this.pool.query(
       `INSERT INTO department_requests (
         id, title, description, source_department, target_department, requested_by, help_type, status,
-        blocks_initiative, initiative_id, assignee_id, resolution_notes, resolved_by, created_at, updated_at, resolved_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)`,
+        blocks_initiative, initiative_id, assignee_id, resolution_notes, resolved_by, created_at, updated_at, resolved_at,
+        target_user_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)`,
       [
         request.id,
         request.title,
@@ -993,6 +1079,7 @@ export class PostgresDataStore implements DataStore {
         request.createdAt,
         request.updatedAt,
         request.resolvedAt,
+        request.targetUserId,
       ],
     );
     return request;
@@ -1004,7 +1091,7 @@ export class PostgresDataStore implements DataStore {
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
   ): Promise<DepartmentRequest> {
-    await this.applyDepartmentRequestPatch(id, patch, null);
+    await this.applyDepartmentRequestPatch(id, patch, null, undefined);
     const updated = await this.departmentRequestById(id);
     if (!updated) throw new Error(`Petición no encontrada: ${id}`);
     return updated;
@@ -1016,9 +1103,10 @@ export class PostgresDataStore implements DataStore {
     patch: Partial<
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
+    guard?: { targetUserId: string | null },
   ): Promise<DepartmentRequest | null> {
     // La condición `status = $12` va en el propio UPDATE: la comprobación y la escritura son una sola sentencia.
-    const changed = await this.applyDepartmentRequestPatch(id, patch, from);
+    const changed = await this.applyDepartmentRequestPatch(id, patch, from, guard);
     const current = await this.departmentRequestById(id);
     if (!current) throw new Error(`Petición no encontrada: ${id}`);
     return changed ? current : null;
@@ -1031,6 +1119,7 @@ export class PostgresDataStore implements DataStore {
       Pick<DepartmentRequest, 'status' | 'assigneeId' | 'resolutionNotes' | 'resolvedBy' | 'resolvedAt' | 'updatedAt'>
     >,
     expectedStatus: DepartmentRequestStatus | null,
+    guard: { targetUserId: string | null } | undefined,
   ): Promise<boolean> {
     // Los campos anulables llevan su bandera: `undefined` conserva, `null` vacía.
     const res = await this.pool.query(
@@ -1041,7 +1130,8 @@ export class PostgresDataStore implements DataStore {
          resolved_by = CASE WHEN $7::boolean THEN $8::uuid ELSE resolved_by END,
          resolved_at = CASE WHEN $9::boolean THEN $10::timestamptz ELSE resolved_at END,
          updated_at = COALESCE($11, updated_at)
-       WHERE id = $1 AND ($12::varchar IS NULL OR status = $12::varchar)`,
+       WHERE id = $1 AND ($12::varchar IS NULL OR status = $12::varchar)
+         AND (NOT $13::boolean OR target_user_id IS NOT DISTINCT FROM $14::uuid)`,
       [
         id,
         patch.status ?? null,
@@ -1055,9 +1145,38 @@ export class PostgresDataStore implements DataStore {
         patch.resolvedAt ?? null,
         patch.updatedAt ?? null,
         expectedStatus,
+        guard !== undefined,
+        guard?.targetUserId ?? null,
       ],
     );
     return (res.rowCount ?? 0) > 0;
+  }
+
+  async reassignDepartmentRequest(
+    id: string,
+    expected: { status: DepartmentRequestStatus; targetUserId: string | null },
+    patch: { targetUserId: string; assigneeId?: string; updatedAt: string },
+  ): Promise<DepartmentRequest | null> {
+    // Comprobación y escritura en una sola sentencia: no pisa a quien la toma o reasigna a la vez.
+    const res = await this.pool.query(
+      `UPDATE department_requests SET
+         target_user_id = $2::uuid,
+         assignee_id = CASE WHEN $3::boolean THEN $4::uuid ELSE assignee_id END,
+         updated_at = $5
+       WHERE id = $1 AND status = $6::varchar AND target_user_id IS NOT DISTINCT FROM $7::uuid`,
+      [
+        id,
+        patch.targetUserId,
+        patch.assigneeId !== undefined,
+        patch.assigneeId ?? null,
+        patch.updatedAt,
+        expected.status,
+        expected.targetUserId,
+      ],
+    );
+    const current = await this.departmentRequestById(id);
+    if (!current) throw new Error(`Petición no encontrada: ${id}`);
+    return (res.rowCount ?? 0) > 0 ? current : null;
   }
 
   // --- Adjuntos y enlaces de peticiones (ampliación A) -----------------------
@@ -1685,6 +1804,7 @@ export class PostgresDataStore implements DataStore {
       status: String(r.status) as DepartmentRequestStatus,
       blocksInitiative: Boolean(r.blocks_initiative),
       initiativeId: r.initiative_id ? String(r.initiative_id) : null,
+      targetUserId: r.target_user_id ? String(r.target_user_id) : null,
       assigneeId: r.assignee_id ? String(r.assignee_id) : null,
       resolutionNotes: r.resolution_notes != null ? String(r.resolution_notes) : null,
       resolvedBy: r.resolved_by ? String(r.resolved_by) : null,

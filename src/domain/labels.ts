@@ -157,6 +157,8 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   DEPARTMENT_REQUEST_RESOLVED: 'Petición entre áreas resuelta',
   DEPARTMENT_REQUEST_ATTACHMENT_ADDED: 'Adjunto añadido a una petición entre áreas',
   DEPARTMENT_REQUEST_ATTACHMENT_REMOVED: 'Adjunto retirado de una petición entre áreas',
+  DEPARTMENT_REQUEST_REASSIGNED: 'Petición entre áreas reasignada',
+  TASK_READ: 'Tarea de área leída',
 };
 
 /** Peticiones entre áreas (spec 001 — Dependencias). */
