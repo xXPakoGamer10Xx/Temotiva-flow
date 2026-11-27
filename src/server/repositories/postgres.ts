@@ -18,9 +18,13 @@ import type {
   NotificationPref,
   PersonalStep,
   StageChecklistItem,
+  StageNote,
+  StageSignoff,
+  CustomCheck,
   User,
   WorkflowStage,
 } from '@/domain/types';
+import type { TshirtSize } from '@/domain/enums';
 import type { Department, FeedbackStatus, HelpStatus, HelpType, PriorityLevel, PriorityReason, PullRequestState, StageKey, StopReason, UserRole } from '@/domain/enums';
 import type {
   AttachmentSide,
@@ -65,6 +69,37 @@ function toIso(date: unknown): string {
   if (typeof date === 'string') return date;
   return new Date().toISOString();
 }
+
+const CUSTOM_CHECK_COLUMNS =
+  'id, initiative_id, stage_id, label, note, is_completed, completed_by, completed_at, created_by, created_at, is_removed, removed_by, removed_at';
+
+/** Columnas actualizables de `initiatives` (camelCase → snake_case). `links` va aparte (JSONB). */
+const INITIATIVE_COLUMNS: Record<string, string> = {
+  title: 'title',
+  description: 'description',
+  priority: 'priority',
+  priorityReason: 'priority_reason',
+  currentStageId: 'current_stage_id',
+  ownerDepartment: 'owner_department',
+  currentAssigneeId: 'current_assignee_id',
+  isBlocked: 'is_blocked',
+  stopReason: 'stop_reason',
+  blockedDescription: 'blocked_description',
+  manualStopReason: 'manual_stop_reason',
+  manualStopDescription: 'manual_stop_description',
+  blockedSince: 'blocked_since',
+  blockedStartedAt: 'blocked_started_at',
+  blockedMsInStage: 'blocked_ms_in_stage',
+  currentTask: 'current_task',
+  isArchived: 'is_archived',
+  skippedStageIds: 'skipped_stage_ids',
+  estimatedDurationDays: 'estimated_duration_days',
+  stageEnteredAt: 'stage_entered_at',
+  updatedAt: 'updated_at',
+  // Spec 005.
+  finalizedAt: 'finalized_at',
+  finalizedBy: 'finalized_by',
+};
 
 function toNullableIso(date: unknown): string | null {
   if (!date) return null;
@@ -374,7 +409,8 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at,
+        finalized_at, finalized_by
        FROM initiatives
        ${where}
        ORDER BY updated_at DESC`,
@@ -388,7 +424,8 @@ export class PostgresDataStore implements DataStore {
         id, title, description, priority, priority_reason, current_stage_id, owner_department,
         current_assignee_id, created_by, is_blocked, stop_reason, blocked_description,
         manual_stop_reason, manual_stop_description, blocked_since, blocked_started_at,
-        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at
+        blocked_ms_in_stage, current_task, links, is_archived, skipped_stage_ids, estimated_duration_days, stage_entered_at, created_at, updated_at,
+        finalized_at, finalized_by
        FROM initiatives
        WHERE id = $1`,
       [id],
@@ -449,31 +486,7 @@ export class PostgresDataStore implements DataStore {
     const values: unknown[] = [];
     let idx = 1;
 
-    const columnMap: Record<string, string> = {
-      title: 'title',
-      description: 'description',
-      priority: 'priority',
-      priorityReason: 'priority_reason',
-      currentStageId: 'current_stage_id',
-      ownerDepartment: 'owner_department',
-      currentAssigneeId: 'current_assignee_id',
-      isBlocked: 'is_blocked',
-      stopReason: 'stop_reason',
-      blockedDescription: 'blocked_description',
-      manualStopReason: 'manual_stop_reason',
-      manualStopDescription: 'manual_stop_description',
-      blockedSince: 'blocked_since',
-      blockedStartedAt: 'blocked_started_at',
-      blockedMsInStage: 'blocked_ms_in_stage',
-      currentTask: 'current_task',
-      isArchived: 'is_archived',
-      skippedStageIds: 'skipped_stage_ids',
-      estimatedDurationDays: 'estimated_duration_days',
-      stageEnteredAt: 'stage_entered_at',
-      updatedAt: 'updated_at',
-    };
-
-    for (const [key, col] of Object.entries(columnMap)) {
+    for (const [key, col] of Object.entries(INITIATIVE_COLUMNS)) {
       if (key in patch) {
         sets.push(`${col} = $${idx++}`);
         values.push((patch as Record<string, unknown>)[key]);
@@ -536,6 +549,234 @@ export class PostgresDataStore implements DataStore {
       [value.initiativeId, value.checklistId, value.isCompleted, value.completedBy, value.completedAt],
     );
     return value;
+  }
+
+  // --- Aprobaciones, notas de avance y casillas propias (spec 005) ------------
+
+  async listStageSignoffs(initiativeId: string): Promise<StageSignoff[]> {
+    const res = await this.pool.query(
+      `SELECT initiative_id, stage_id, department, is_approved, approved_by, approved_at, note,
+              no_observations, tshirt_size, updated_at
+       FROM initiative_stage_signoffs WHERE initiative_id = $1`,
+      [initiativeId],
+    );
+    return res.rows.map((r) => this.mapStageSignoff(r));
+  }
+
+  async upsertStageSignoff(value: StageSignoff, guard: { expectedStageId: number }): Promise<StageSignoff | null> {
+    // Una sola sentencia: la guarda y la escritura no pueden separarse.
+    const res = await this.pool.query(
+      `INSERT INTO initiative_stage_signoffs (
+         initiative_id, stage_id, department, is_approved, approved_by, approved_at, note,
+         no_observations, tshirt_size, updated_at
+       )
+       SELECT $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+       WHERE $2 = $11 AND EXISTS (
+         SELECT 1 FROM initiatives
+         WHERE id = $1 AND current_stage_id = $11 AND NOT is_archived AND finalized_at IS NULL
+       )
+       ON CONFLICT (initiative_id, stage_id, department) DO UPDATE SET
+         is_approved = EXCLUDED.is_approved,
+         approved_by = EXCLUDED.approved_by,
+         approved_at = EXCLUDED.approved_at,
+         note = EXCLUDED.note,
+         no_observations = EXCLUDED.no_observations,
+         tshirt_size = EXCLUDED.tshirt_size,
+         updated_at = EXCLUDED.updated_at
+       RETURNING initiative_id`,
+      [
+        value.initiativeId,
+        value.stageId,
+        value.department,
+        value.isApproved,
+        value.approvedBy,
+        value.approvedAt,
+        value.note,
+        value.noObservations,
+        value.tshirtSize,
+        value.updatedAt,
+        guard.expectedStageId,
+      ],
+    );
+    return (res.rowCount ?? 0) > 0 ? value : null;
+  }
+
+  async listStageNotes(initiativeId?: string): Promise<StageNote[]> {
+    const res = await this.pool.query(
+      `SELECT id, initiative_id, from_stage_id, to_stage_id, note, author_id,
+              author_departments::text[] AS author_departments, is_override, created_at
+       FROM initiative_stage_notes
+       ${initiativeId ? 'WHERE initiative_id = $1' : ''}
+       ORDER BY created_at ASC`,
+      initiativeId ? [initiativeId] : [],
+    );
+    return res.rows.map((r) => ({
+      id: String(r.id),
+      initiativeId: String(r.initiative_id),
+      fromStageId: Number(r.from_stage_id),
+      toStageId: r.to_stage_id == null ? null : Number(r.to_stage_id),
+      note: String(r.note),
+      authorId: String(r.author_id),
+      authorDepartments: Array.isArray(r.author_departments) ? (r.author_departments as Department[]) : [],
+      isOverride: Boolean(r.is_override),
+      createdAt: toIso(r.created_at),
+    }));
+  }
+
+  async advanceInitiativeWithNote(input: {
+    initiativeId: string;
+    expectedStageId: number;
+    patch: Partial<Omit<Initiative, 'id' | 'createdAt' | 'createdBy'>>;
+    note: StageNote;
+  }): Promise<Initiative | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      const sets: string[] = [];
+      const values: unknown[] = [];
+      let idx = 1;
+      for (const [key, col] of Object.entries(INITIATIVE_COLUMNS)) {
+        if (key in input.patch) {
+          sets.push(`${col} = $${idx++}`);
+          values.push((input.patch as Record<string, unknown>)[key]);
+        }
+      }
+      if (sets.length === 0) throw new Error('advanceInitiativeWithNote sin cambios');
+      values.push(input.initiativeId, input.expectedStageId);
+      // Transición condicional: si otra petición ya movió o cerró la iniciativa, no toca nada.
+      const updated = await client.query(
+        `UPDATE initiatives SET ${sets.join(', ')}
+         WHERE id = $${idx} AND current_stage_id = $${idx + 1} AND NOT is_archived AND finalized_at IS NULL`,
+        values,
+      );
+      if ((updated.rowCount ?? 0) === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      const { note } = input;
+      await client.query(
+        `INSERT INTO initiative_stage_notes (
+           id, initiative_id, from_stage_id, to_stage_id, note, author_id, author_departments, is_override, created_at
+         ) VALUES ($1, $2, $3, $4, $5, $6, $7::department_enum[], $8, $9)`,
+        [
+          note.id,
+          note.initiativeId,
+          note.fromStageId,
+          note.toStageId,
+          note.note,
+          note.authorId,
+          note.authorDepartments,
+          note.isOverride,
+          note.createdAt,
+        ],
+      );
+      await client.query('COMMIT');
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+    return this.initiativeById(input.initiativeId);
+  }
+
+  async listCustomChecks(initiativeId: string): Promise<CustomCheck[]> {
+    const res = await this.pool.query(
+      `SELECT ${CUSTOM_CHECK_COLUMNS} FROM initiative_custom_checks WHERE initiative_id = $1 ORDER BY created_at ASC`,
+      [initiativeId],
+    );
+    return res.rows.map((r) => this.mapCustomCheck(r));
+  }
+
+  async customCheckById(id: string): Promise<CustomCheck | null> {
+    const res = await this.pool.query(`SELECT ${CUSTOM_CHECK_COLUMNS} FROM initiative_custom_checks WHERE id = $1`, [id]);
+    return res.rows[0] ? this.mapCustomCheck(res.rows[0]) : null;
+  }
+
+  async insertCustomCheck(check: CustomCheck): Promise<CustomCheck> {
+    await this.pool.query(
+      `INSERT INTO initiative_custom_checks (${CUSTOM_CHECK_COLUMNS})
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        check.id,
+        check.initiativeId,
+        check.stageId,
+        check.label,
+        check.note,
+        check.isCompleted,
+        check.completedBy,
+        check.completedAt,
+        check.createdBy,
+        check.createdAt,
+        check.isRemoved,
+        check.removedBy,
+        check.removedAt,
+      ],
+    );
+    return check;
+  }
+
+  async updateCustomCheck(
+    id: string,
+    patch: Partial<Pick<CustomCheck, 'isCompleted' | 'completedBy' | 'completedAt' | 'isRemoved' | 'removedBy' | 'removedAt'>>,
+  ): Promise<CustomCheck> {
+    const columns: Record<string, string> = {
+      isCompleted: 'is_completed',
+      completedBy: 'completed_by',
+      completedAt: 'completed_at',
+      isRemoved: 'is_removed',
+      removedBy: 'removed_by',
+      removedAt: 'removed_at',
+    };
+    const sets: string[] = [];
+    const values: unknown[] = [];
+    let idx = 1;
+    for (const [key, col] of Object.entries(columns)) {
+      if (key in patch) {
+        sets.push(`${col} = $${idx++}`);
+        values.push((patch as Record<string, unknown>)[key]);
+      }
+    }
+    if (sets.length > 0) {
+      values.push(id);
+      await this.pool.query(`UPDATE initiative_custom_checks SET ${sets.join(', ')} WHERE id = $${idx}`, values);
+    }
+    const updated = await this.customCheckById(id);
+    if (!updated) throw new Error(`Casilla no encontrada: ${id}`);
+    return updated;
+  }
+
+  private mapStageSignoff(r: Record<string, unknown>): StageSignoff {
+    return {
+      initiativeId: String(r.initiative_id),
+      stageId: Number(r.stage_id),
+      department: r.department as Department,
+      isApproved: Boolean(r.is_approved),
+      approvedBy: r.approved_by ? String(r.approved_by) : null,
+      approvedAt: toNullableIso(r.approved_at),
+      note: r.note == null ? null : String(r.note),
+      noObservations: Boolean(r.no_observations),
+      tshirtSize: (r.tshirt_size as TshirtSize | null) ?? null,
+      updatedAt: toIso(r.updated_at),
+    };
+  }
+
+  private mapCustomCheck(r: Record<string, unknown>): CustomCheck {
+    return {
+      id: String(r.id),
+      initiativeId: String(r.initiative_id),
+      stageId: Number(r.stage_id),
+      label: String(r.label),
+      note: r.note == null ? null : String(r.note),
+      isCompleted: Boolean(r.is_completed),
+      completedBy: r.completed_by ? String(r.completed_by) : null,
+      completedAt: toNullableIso(r.completed_at),
+      createdBy: String(r.created_by),
+      createdAt: toIso(r.created_at),
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
+    };
   }
 
   // --- Dependencias (🆘) ------------------------------------------------------
@@ -1664,6 +1905,8 @@ export class PostgresDataStore implements DataStore {
       isArchived: Boolean(r.is_archived),
       skippedStageIds: Array.isArray(r.skipped_stage_ids) ? r.skipped_stage_ids.map(Number) : [],
       estimatedDurationDays: r.estimated_duration_days == null ? null : Number(r.estimated_duration_days),
+      finalizedAt: toNullableIso(r.finalized_at),
+      finalizedBy: r.finalized_by ? String(r.finalized_by) : null,
       stageEnteredAt: toIso(r.stage_entered_at),
       createdAt: toIso(r.created_at),
       updatedAt: toIso(r.updated_at),

@@ -3,8 +3,8 @@ import { DEPARTMENT_LABELS } from '@/domain/labels';
 import { MIN_STAGE_SKIP_REASON } from '@/domain/rules';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
-import { loadInitiative } from './blocking';
-import { forbidden, invalid, invalidState, notFound } from './errors';
+import { assertInitiativeOpen, loadInitiative } from './blocking';
+import { forbidden, invalid, notFound } from './errors';
 import { canSkipStage } from './rbac';
 
 /**
@@ -90,7 +90,7 @@ async function loadRouteContext(
   input: RouteChangeInput,
 ): Promise<{ initiative: Initiative; stages: WorkflowStage[]; stage: WorkflowStage; current: WorkflowStage }> {
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
   const stages = await store.listStages();
   const stage = stages.find((candidate) => candidate.id === input.stageId);
   const current = stages.find((candidate) => candidate.id === initiative.currentStageId);

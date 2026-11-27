@@ -92,7 +92,12 @@ export function BoardColumn({
         ) : (
           <>
             {column.cards.map((card) => (
-              <DraggableCard key={card.id} cardId={card.id} targetStageId={card.dragTargetStageId ?? null}>
+              <DraggableCard
+                key={card.id}
+                cardId={card.id}
+                targetStageId={card.dragTargetStageId ?? null}
+                gateComplete={card.gate.total > 0 && card.gate.completed === card.gate.total}
+              >
                 <BoardCard card={card} basePath={basePath} query={query} />
               </DraggableCard>
             ))}

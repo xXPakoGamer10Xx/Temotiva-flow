@@ -18,6 +18,23 @@ export const MIN_STAGE_SKIP_REASON = 30;
 export const MIN_DEPENDENCY_DESCRIPTION = 15;
 export const MIN_RESOLUTION_NOTES = 5;
 export const MIN_INITIATIVE_TITLE = 8;
+
+/** Spec 005: descripción obligatoria al crear, nota de avance, aprobaciones y casillas propias. */
+export const MIN_INITIATIVE_DESCRIPTION = 20;
+export const MAX_INITIATIVE_DESCRIPTION = 4000;
+/** Idénticos al CHECK de `initiative_stage_notes.note`. */
+export const MIN_STAGE_ADVANCE_NOTE = 20;
+export const MAX_STAGE_ADVANCE_NOTE = 2000;
+/** Idénticos al CHECK de `initiative_stage_signoffs.note`. */
+export const MIN_SIGNOFF_NOTE = 10;
+export const MAX_SIGNOFF_NOTE = 1000;
+/** Idénticos a `initiative_custom_checks.label` / `.note`. */
+export const MIN_CUSTOM_CHECK_LABEL = 3;
+export const MAX_CUSTOM_CHECK_LABEL = 120;
+export const MAX_CUSTOM_CHECK_NOTE = 300;
+export const MAX_CUSTOM_CHECKS_PER_STAGE = 20;
+/** Rótulo literal de una aprobación de área. */
+export const SIGNOFF_APPROVED_PREFIX = 'APROBADO AL 100% POR:';
 export const MIN_BLOCK_DESCRIPTION = 10;
 
 /** Umbral de riesgo del reloj de SLE: 75 % del objetivo consumido. */

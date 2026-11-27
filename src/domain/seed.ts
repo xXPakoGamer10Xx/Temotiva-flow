@@ -15,11 +15,15 @@ import type {
   NotificationPref,
   PersonalStep,
   StageChecklistItem,
+  StageNote,
+  StageSignoff,
+  CustomCheck,
   User,
   WorkflowStage,
 } from './types';
 import { SEED_CHECKLIST_ITEMS, SEED_STAGES, STAGE_ID_BY_KEY, checklistItemId } from './workflow';
-import type { StageKey, StopReason } from './enums';
+import type { Department, StageKey, StopReason, TshirtSize } from './enums';
+import { requirementFor, signoffsFor } from './signoffs';
 import type { DepartmentRequest, DepartmentRequestAttachment } from './department-request';
 import type { DeptTaskReadCycle } from './task-read';
 import type { PushSubscriptionRecord, SleRiskNotice } from './push';
@@ -70,6 +74,10 @@ export interface SeedData {
   sleRiskNotices?: SleRiskNotice[];
   /** Opcional: las semillas y snapshots anteriores a la confirmación de lectura (spec 003) no lo traen. */
   deptTaskReads?: DeptTaskReadCycle[];
+  /** Opcionales: las semillas y snapshots anteriores a la spec 005 no los traen. */
+  stageSignoffs?: StageSignoff[];
+  stageNotes?: StageNote[];
+  customChecks?: CustomCheck[];
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */
@@ -289,6 +297,17 @@ function seedUsers(): User[] {
 }
 
 const HOUR_MS = 60 * 60 * 1000;
+
+/** Notas de avance ficticias de la demo, una por fase que se cierra (spec 005). */
+const SEED_STAGE_NOTES: Record<StageKey, string> = {
+  IDEATION: 'Concept Brief cerrado con Psicología: problema, hipótesis clínica y métrica de adopción acordadas.',
+  FEASIBILITY: 'Dictamen RGPD favorable, sin rozar MDR. Tech estima el esfuerzo y Ciberseguridad deja sus condiciones.',
+  CO_DESIGN: 'Prototipo navegable validado con microcopy definitivo de Psicología y criterios de accesibilidad AA.',
+  READY: 'Definition of Ready firmada: contrato de API, criterios de QA y protocolo de crisis acordados.',
+  DEV: 'Código revisado e integrado, tests en verde y despliegue en Staging verificado sin PII en logs.',
+  QA: 'Regresión E2E en verde y flujos críticos de pago y salud validados en staging.',
+  PROD: 'Despliegue en producción completado, monitorización activa y comunicación entregada a soporte.',
+};
 
 export function buildSeedData(now: Date = new Date()): SeedData {
   const base = now.getTime();
@@ -722,7 +741,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
   ]);
 
   // ---------------------------------------------------------------------------
-  // TEMO-104 — Co-Diseño, PARADA por decisión de Producto + 2 dependencias
+  // TEMO-104 — Diseño, PARADA por decisión de Producto + 2 dependencias
   // ---------------------------------------------------------------------------
   initiatives.push({
     id: 'TEMO-104',
@@ -1109,7 +1128,7 @@ export function buildSeedData(now: Date = new Date()): SeedData {
   logHistory('TEMO-115', SEED_USER_IDS.oscar, 12, []);
 
   // ---------------------------------------------------------------------------
-  // TEMO-118 — Co-Diseño
+  // TEMO-118 — Diseño
   // ---------------------------------------------------------------------------
   initiatives.push({
     id: 'TEMO-118',
@@ -1149,10 +1168,165 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     { from: 'FEASIBILITY', to: 'CO_DESIGN', atHoursAgo: 30, durationHours: 170, blockedHours: 24 },
   ]);
 
+  // ---------------------------------------------------------------------------
+  // TEMO-92 — finalizada (spec 005): cerró Producción y vive en /finalizadas
+  // ---------------------------------------------------------------------------
+  initiatives.push({
+    id: 'TEMO-92',
+    title: 'Recordatorios de respiración guiada',
+    description:
+      'Avisos opcionales de pausa con ejercicios de respiración de 2 minutos, configurables por franja horaria.',
+    priority: 'NORMAL',
+    priorityReason: 'ROADMAP',
+    currentStageId: STAGE_ID_BY_KEY.PROD,
+    ownerDepartment: 'TECH',
+    currentAssigneeId: null,
+    createdBy: SEED_USER_IDS.nuria,
+    isBlocked: false,
+    stopReason: null,
+    blockedDescription: null,
+    manualStopReason: null,
+    manualStopDescription: null,
+    blockedSince: null,
+    blockedStartedAt: null,
+    blockedMsInStage: 0,
+    currentTask: null,
+    links: [],
+    isArchived: false,
+    skippedStageIds: [],
+    finalizedAt: hoursAgo(180),
+    finalizedBy: SEED_USER_IDS.hugo,
+    stageEnteredAt: hoursAgo(200),
+    createdAt: hoursAgo(1300),
+    updatedAt: hoursAgo(180),
+  });
+  completeChecklist('TEMO-92', 'PROD', [
+    { orderIndex: 1, by: SEED_USER_IDS.hugo, hoursAgo: 198 },
+    { orderIndex: 2, by: SEED_USER_IDS.hugo, hoursAgo: 196 },
+    { orderIndex: 3, by: SEED_USER_IDS.sonia, hoursAgo: 190 },
+    { orderIndex: 4, by: SEED_USER_IDS.clara, hoursAgo: 186 },
+  ]);
+  logHistory('TEMO-92', SEED_USER_IDS.nuria, 1300, [
+    { from: 'IDEATION', to: 'FEASIBILITY', atHoursAgo: 1180, durationHours: 120 },
+    { from: 'FEASIBILITY', to: 'CO_DESIGN', atHoursAgo: 1140, durationHours: 40 },
+    { from: 'CO_DESIGN', to: 'READY', atHoursAgo: 1030, durationHours: 110 },
+    { from: 'READY', to: 'DEV', atHoursAgo: 970, durationHours: 60 },
+    { from: 'DEV', to: 'QA', atHoursAgo: 260, durationHours: 710, blockedHours: 30 },
+    { from: 'QA', to: 'PROD', atHoursAgo: 200, durationHours: 60 },
+  ]);
+  log({
+    initiativeId: 'TEMO-92',
+    userId: SEED_USER_IDS.hugo,
+    actionType: 'INITIATIVE_FINALIZED',
+    fromStageId: STAGE_ID_BY_KEY.PROD,
+    toStageId: null,
+    fieldName: 'finalized_at',
+    oldValue: { finalizedAt: null },
+    newValue: { stageKey: 'PROD', finalizedAt: hoursAgo(180), durationMs: 20 * HOUR_MS, blockedMs: 0, netDurationMs: 20 * HOUR_MS },
+    overrideMetadata: null,
+    createdAt: hoursAgo(180),
+  });
+
+  // ---------------------------------------------------------------------------
+  // Spec 005 — aprobaciones por área y notas de avance de la demo.
+  //
+  // Datos ficticios coherentes con la caja negra: cada cierre de fase lleva su
+  // nota y las aprobaciones de las áreas de la matriz; en la fase actual solo
+  // aprueba el área que ya cerró toda su guía. En una base real no se fabrican
+  // aprobaciones (decisión P-1): esto es solo la semilla de demostración.
+  // ---------------------------------------------------------------------------
+  const users = seedUsers();
+  const memberOf = (department: Department): string => {
+    const candidates = users.filter((user) => user.isActive && user.departments.includes(department));
+    return (candidates.find((user) => user.role !== 'EXECUTIVE') ?? candidates[0])?.id ?? SEED_USER_IDS.marta;
+  };
+  const stageSignoffs: StageSignoff[] = [];
+  const stageNotes: StageNote[] = [];
+  const sizes: TshirtSize[] = ['M', 'S', 'L', 'M', 'XL', 'S'];
+  let sizeIndex = 0;
+
+  const approve = (initiativeId: string, stageKey: StageKey, department: Department, by: string, at: string): void => {
+    const requirement = requirementFor(stageKey, department);
+    stageSignoffs.push({
+      initiativeId,
+      stageId: STAGE_ID_BY_KEY[stageKey],
+      department,
+      isApproved: true,
+      approvedBy: by,
+      approvedAt: at,
+      note: department === 'CYBER' && requirement === 'NOTE_OR_NO_OBSERVATIONS'
+        ? 'Sin datos de salud fuera del tenant; revisar trazas antes de exponer a QA.'
+        : null,
+      noObservations: department === 'LEGAL' && requirement === 'NOTE_OR_NO_OBSERVATIONS',
+      tshirtSize: requirement === 'TSHIRT' ? (sizes[sizeIndex++ % sizes.length] ?? 'M') : null,
+      updatedAt: at,
+    });
+  };
+
+  const stageKeyOf = (stageId: number | null): StageKey | null =>
+    SEED_STAGES.find((stage) => stage.id === stageId)?.key ?? null;
+
+  for (const entry of [...activityLog]) {
+    if (entry.actionType !== 'STAGE_TRANSITION' && entry.actionType !== 'INITIATIVE_FINALIZED') continue;
+    const stageKey = stageKeyOf(entry.fromStageId);
+    if (!entry.initiativeId || !stageKey) continue;
+    const overridden = activityLog.some(
+      (other) =>
+        other.actionType === 'EXCEPTION_OVERRIDE' &&
+        other.initiativeId === entry.initiativeId &&
+        other.fromStageId === entry.fromStageId,
+    );
+    const matrix = signoffsFor(stageKey);
+    matrix.forEach(({ department }, index) => {
+      // Un avance excepcional dejó sin firmar la última aprobación.
+      if (overridden && index === matrix.length - 1) return;
+      approve(
+        entry.initiativeId as string,
+        stageKey,
+        department,
+        memberOf(department),
+        new Date(new Date(entry.createdAt).getTime() - (matrix.length - index) * HOUR_MS).toISOString(),
+      );
+    });
+    stageNotes.push({
+      id: `NOTE-${String(stageNotes.length + 1).padStart(4, '0')}`,
+      initiativeId: entry.initiativeId,
+      fromStageId: entry.fromStageId as number,
+      toStageId: entry.toStageId,
+      note: SEED_STAGE_NOTES[stageKey],
+      authorId: entry.userId,
+      authorDepartments: users.find((user) => user.id === entry.userId)?.departments ?? [],
+      isOverride: overridden,
+      createdAt: entry.createdAt,
+    });
+  }
+
+  for (const initiative of initiatives) {
+    if (initiative.isArchived || initiative.finalizedAt) continue;
+    const stageKey = stageKeyOf(initiative.currentStageId);
+    if (!stageKey) continue;
+    for (const { department } of signoffsFor(stageKey)) {
+      const guide = SEED_CHECKLIST_ITEMS.filter(
+        (item) => item.stageId === initiative.currentStageId && item.responsibleDepartment === department,
+      );
+      const values = guide.map((item) =>
+        checklistValues.find((value) => value.initiativeId === initiative.id && value.checklistId === item.id),
+      );
+      if (guide.length === 0 || !values.every((value) => value?.isCompleted)) continue;
+      const last = values
+        .filter((value): value is ChecklistValue => Boolean(value?.completedAt))
+        .sort((a, b) => (a.completedAt ?? '').localeCompare(b.completedAt ?? ''))
+        .at(-1);
+      approve(initiative.id, stageKey, department, last?.completedBy ?? memberOf(department), last?.completedAt ?? hoursAgo(1));
+    }
+  }
+
   activityLog.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
   return {
-    users: seedUsers(),
+    users,
+    stageSignoffs,
+    stageNotes,
     stages: SEED_STAGES.map((stage) => ({ ...stage })),
     checklistItems: SEED_CHECKLIST_ITEMS.map((item) => ({ ...item })),
     initiatives,

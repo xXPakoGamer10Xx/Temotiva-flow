@@ -7,7 +7,7 @@ import { MIN_DEPENDENCY_DESCRIPTION, MIN_RESOLUTION_NOTES } from '@/domain/rules
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
 import { forbidden, invalid, invalidState, notFound } from './errors';
-import { loadInitiative, syncBlockFromDependencies } from './blocking';
+import { assertInitiativeOpen, loadInitiative, syncBlockFromDependencies } from './blocking';
 
 /**
  * Dependencias 🆘 (TemoFlow.md §1.1.B, DESIGN.md §7.4).
@@ -35,7 +35,7 @@ export async function createDependency(
 ): Promise<{ dependency: Dependency; initiative: Initiative }> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   const description = input.description.trim();
   if (description.length < MIN_DEPENDENCY_DESCRIPTION) {

@@ -37,6 +37,20 @@ export async function loadInitiative(store: DataStore, initiativeId: string): Pr
   return initiative;
 }
 
+/** ¿Ya cerró Producción? (spec 005) */
+export function isFinalized(initiative: Pick<Initiative, 'finalizedAt'>): boolean {
+  return Boolean(initiative.finalizedAt);
+}
+
+/**
+ * Una iniciativa archivada o finalizada es de solo lectura: toda mutación la
+ * rechaza (AGENTS.md §5.8 y spec 005 §5.8).
+ */
+export function assertInitiativeOpen(initiative: Initiative): void {
+  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  if (isFinalized(initiative)) throw invalidState('La iniciativa está finalizada.');
+}
+
 /** Suma al acumulado el tramo de parada abierto y lo cierra. */
 export function consolidateBlockedTime(initiative: Initiative, now: Date): number {
   if (!initiative.isBlocked || !initiative.blockedSince) return initiative.blockedMsInStage;
@@ -215,7 +229,7 @@ export async function setManualStop(
 ): Promise<Initiative> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   assertPermission(
     canBlockInitiative(session, initiative),

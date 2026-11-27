@@ -10,9 +10,11 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
+import { randomUUID } from 'node:crypto';
+import type { StageNote } from '@/domain/types';
 import { audit } from './audit';
 import { createDependency } from './dependencies';
-import { consolidateBlockedTime, loadInitiative } from './blocking';
+import { assertInitiativeOpen, consolidateBlockedTime, isFinalized, loadInitiative } from './blocking';
 import { DomainError, forbidden, invalid, invalidState, notFound } from './errors';
 import { evaluateGate, type GateEvaluation } from './gate';
 import { assertCanSkip, assertSkipReason, nextApplicableStage, stagesSkippedBetween } from './stage-route';
@@ -22,6 +24,7 @@ import {
   canArchiveInitiative,
   canAssignInitiative,
   canChangePriority,
+  canFinalizeInitiative,
   canOverrideGate,
   canReassignOwner,
 } from './rbac';
@@ -36,8 +39,12 @@ import { DEPARTMENT_LABELS } from '@/domain/labels';
  */
 
 import {
+  MAX_INITIATIVE_DESCRIPTION,
+  MAX_STAGE_ADVANCE_NOTE,
   MIN_ARCHIVE_REASON,
+  MIN_INITIATIVE_DESCRIPTION,
   MIN_INITIATIVE_TITLE,
+  MIN_STAGE_ADVANCE_NOTE,
   MIN_OVERRIDE_REASON,
   MIN_OVERRIDE_RISK,
   MIN_REASSIGN_REASON,
@@ -74,6 +81,8 @@ export async function createInitiative(
   const now = input.now ?? new Date();
   const title = input.title.trim();
   if (title.length < MIN_INITIATIVE_TITLE) throw invalid(`El título debe tener al menos ${MIN_INITIATIVE_TITLE} caracteres.`);
+
+  const description = assertDescription(input.description);
 
   // Prioridad y motivo son obligatorios por contrato de tipos; se revalida aquí
   // porque el dominio no confía en que la capa de entrada lo haya hecho.
@@ -115,7 +124,7 @@ export async function createInitiative(
   const initiative: Initiative = {
     id: await store.nextInitiativeId(),
     title,
-    description: input.description.trim(),
+    description,
     priority: input.priority,
     priorityReason: input.priorityReason,
     currentStageId: firstStage.id,
@@ -205,7 +214,7 @@ export async function updateInitiative(
 ): Promise<Initiative> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   if (input.title !== undefined && input.title.trim().length < MIN_INITIATIVE_TITLE) {
     throw invalid(`El título debe tener al menos ${MIN_INITIATIVE_TITLE} caracteres.`);
@@ -231,7 +240,9 @@ export async function updateInitiative(
     changes.title = { from: initiative.title, to: patch.title };
   }
   if (input.description !== undefined && input.description.trim() !== initiative.description) {
-    patch.description = input.description.trim();
+    // Una iniciativa antigua sin descripción puede editar el resto sin tocarla;
+    // si se cambia, el valor nuevo cumple el mínimo (spec 005, RF-2).
+    patch.description = assertDescription(input.description);
     changes.description = { from: initiative.description, to: patch.description };
   }
   if (input.currentTask !== undefined) {
@@ -296,7 +307,7 @@ export async function assignInitiative(
 ): Promise<Initiative> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   assertPermission(
     canAssignInitiative(session, initiative),
@@ -337,7 +348,7 @@ export async function reassignOwner(
 ): Promise<Initiative> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   assertPermission(
     canReassignOwner(session, initiative, input.targetDepartment),
@@ -385,6 +396,8 @@ export type AdvanceResult =
 
 export interface AdvanceStageInput {
   initiativeId: string;
+  /** Qué se hizo o cerró en la fase (spec 005 §5.5). Obligatoria al avanzar. */
+  note: string;
   override?: OverrideInput;
   request?: RequestContext;
   now?: Date;
@@ -405,7 +418,7 @@ export async function advanceStage(
 ): Promise<AdvanceResult> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   // La matriz abre el avance a los tres roles, pero siempre dentro del área que
   // tiene el trabajo: sin esto, cualquiera movería la iniciativa de otro
@@ -422,7 +435,9 @@ export async function advanceStage(
   // Las fases marcadas "No aplica" se saltan; la compuerta de la actual sigue
   // exigiéndose igual (AGENTS.md §5.9).
   const toStage = nextApplicableStage(stages, fromStage, initiative.skippedStageIds);
-  if (!toStage) throw invalidState('La iniciativa ya está en la última fase del ciclo.');
+  if (!toStage) {
+    throw invalidState('La iniciativa ya está en la última fase del ciclo: usa «Finalizar iniciativa».');
+  }
   const skippedStageKeys = stagesSkippedBetween(stages, fromStage, toStage).map((stage) => stage.key);
 
   const gate = await evaluateGate(store, initiative);
@@ -439,9 +454,41 @@ export async function advanceStage(
     overrideMetadata = buildOverrideMetadata(session, gate, input.override, input.request);
   }
 
+  // Sin nota no hay avance, tampoco por override. Se valida tras la compuerta:
+  // con pendientes, la respuesta es el panel de acciones, no un error de nota.
+  const note = assertAdvanceNote(input.note);
+
   const elapsedMs = Math.max(0, now.getTime() - new Date(initiative.stageEnteredAt).getTime());
   const blockedMs = Math.min(elapsedMs, consolidateBlockedTime(initiative, now));
 
+  const stageNote = buildStageNote(session, initiative.id, fromStage.id, toStage.id, note, overrideMetadata !== null, now);
+
+  // Transición condicional y atómica con la nota: dos avances simultáneos no
+  // producen dos saltos ni dos notas (spec 005, RF-4).
+  const updated = await store.advanceInitiativeWithNote({
+    initiativeId: initiative.id,
+    expectedStageId: fromStage.id,
+    note: stageNote,
+    patch: {
+      currentStageId: toStage.id,
+      // La propiedad viaja con la fase y la asignación individual se limpia
+      // para que el equipo receptor decida quién la toma (DESIGN.md §7.6).
+      ownerDepartment: toStage.defaultOwnerDepartment,
+      currentAssigneeId: null,
+      stageEnteredAt: now.toISOString(),
+      blockedMsInStage: 0,
+      // Una parada vigente sobrevive al cambio de fase. El ancla de contabilidad
+      // sí se reinicia (cada fase descuenta solo su propio tiempo parado), pero
+      // `blockedStartedAt` se conserva para no truncar la duración real de la
+      // parada en el radar ni en las métricas.
+      blockedSince: initiative.isBlocked ? now.toISOString() : null,
+      updatedAt: now.toISOString(),
+    },
+  });
+  if (!updated) throw invalidState('La iniciativa ya ha cambiado de fase. Recarga la ficha.');
+
+  // Se audita justo tras el cambio: si la guarda falla, no queda ninguna
+  // excepción registrada de un avance que no ocurrió.
   if (overrideMetadata) {
     await audit(store, {
       initiativeId: initiative.id,
@@ -456,22 +503,6 @@ export async function advanceStage(
       at: now,
     });
   }
-
-  const updated = await store.updateInitiative(initiative.id, {
-    currentStageId: toStage.id,
-    // La propiedad viaja con la fase y la asignación individual se limpia
-    // para que el equipo receptor decida quién la toma (DESIGN.md §7.6).
-    ownerDepartment: toStage.defaultOwnerDepartment,
-    currentAssigneeId: null,
-    stageEnteredAt: now.toISOString(),
-    blockedMsInStage: 0,
-    // Una parada vigente sobrevive al cambio de fase. El ancla de contabilidad
-    // sí se reinicia (cada fase descuenta solo su propio tiempo parado), pero
-    // `blockedStartedAt` se conserva para no truncar la duración real de la
-    // parada en el radar ni en las métricas.
-    blockedSince: initiative.isBlocked ? now.toISOString() : null,
-    updatedAt: now.toISOString(),
-  });
 
   await audit(store, {
     initiativeId: initiative.id,
@@ -489,6 +520,7 @@ export async function advanceStage(
       overridden: overrideMetadata !== null,
       ownerDepartment: toStage.defaultOwnerDepartment,
       skippedStageKeys,
+      noteId: stageNote.id,
     },
     at: now,
   });
@@ -499,6 +531,114 @@ export async function advanceStage(
     fromStage,
     toStage,
     overridden: overrideMetadata !== null,
+  };
+}
+
+export type FinalizeResult =
+  | { status: 'FINALIZED'; initiative: Initiative }
+  | { status: 'GATE_BLOCKED'; gate: GateEvaluation };
+
+/**
+ * Finalizar desde Producción (spec 005 §5.8).
+ *
+ * Exige la aprobación de Producción al 100 % y la nota de cierre; no admite
+ * avance excepcional (RF-17). La iniciativa sigue en PROD, sale del tablero
+ * operativo y queda de solo lectura en «Iniciativas finalizadas».
+ */
+export async function finalizeInitiative(
+  store: DataStore,
+  session: SessionContext,
+  input: { initiativeId: string; note: string; now?: Date },
+): Promise<FinalizeResult> {
+  const now = input.now ?? new Date();
+  const initiative = await loadInitiative(store, input.initiativeId);
+  assertInitiativeOpen(initiative);
+
+  assertPermission(
+    canFinalizeInitiative(session, initiative),
+    `Esta iniciativa la finaliza ${DEPARTMENT_LABELS[initiative.ownerDepartment]}, propietaria de la fase, o Dirección.`,
+  );
+
+  const stage = await store.stageById(initiative.currentStageId);
+  if (!stage) throw notFound('La fase actual de la iniciativa no existe.');
+  if (stage.key !== 'PROD') throw invalidState('Solo se finaliza una iniciativa desde Producción.');
+  if (initiative.isBlocked) throw invalidState('Levanta la parada antes de finalizar la iniciativa.');
+
+  const gate = await evaluateGate(store, initiative);
+  if (!gate.isComplete) return { status: 'GATE_BLOCKED', gate };
+
+  const note = assertAdvanceNote(input.note);
+  const stageNote = buildStageNote(session, initiative.id, stage.id, null, note, false, now);
+
+  const updated = await store.advanceInitiativeWithNote({
+    initiativeId: initiative.id,
+    expectedStageId: stage.id,
+    note: stageNote,
+    patch: { finalizedAt: now.toISOString(), finalizedBy: session.userId, updatedAt: now.toISOString() },
+  });
+  if (!updated) throw invalidState('La iniciativa ya no está abierta en Producción. Recarga la ficha.');
+
+  const elapsedMs = Math.max(0, now.getTime() - new Date(initiative.stageEnteredAt).getTime());
+  await audit(store, {
+    initiativeId: initiative.id,
+    session,
+    actionType: 'INITIATIVE_FINALIZED',
+    fromStageId: stage.id,
+    fieldName: 'finalized_at',
+    oldValue: { finalizedAt: null },
+    newValue: {
+      stageKey: stage.key,
+      finalizedAt: now.toISOString(),
+      durationMs: elapsedMs,
+      blockedMs: initiative.blockedMsInStage,
+      netDurationMs: elapsedMs - initiative.blockedMsInStage,
+      noteId: stageNote.id,
+    },
+    at: now,
+  });
+
+  return { status: 'FINALIZED', initiative: updated };
+}
+
+function assertDescription(value: string): string {
+  const description = value.trim();
+  if (description.length < MIN_INITIATIVE_DESCRIPTION || description.length > MAX_INITIATIVE_DESCRIPTION) {
+    throw invalid(
+      `La descripción es obligatoria: entre ${MIN_INITIATIVE_DESCRIPTION} y ${MAX_INITIATIVE_DESCRIPTION} caracteres.`,
+    );
+  }
+  return description;
+}
+
+function assertAdvanceNote(value: string | undefined): string {
+  const note = (value ?? '').trim();
+  if (note.length < MIN_STAGE_ADVANCE_NOTE || note.length > MAX_STAGE_ADVANCE_NOTE) {
+    throw invalid(
+      `Explica qué se hizo o cerró en esta fase (entre ${MIN_STAGE_ADVANCE_NOTE} y ${MAX_STAGE_ADVANCE_NOTE} caracteres).`,
+    );
+  }
+  return note;
+}
+
+function buildStageNote(
+  session: SessionContext,
+  initiativeId: string,
+  fromStageId: number,
+  toStageId: number | null,
+  note: string,
+  isOverride: boolean,
+  now: Date,
+): StageNote {
+  return {
+    id: randomUUID(),
+    initiativeId,
+    fromStageId,
+    toStageId,
+    note,
+    authorId: session.userId,
+    authorDepartments: [...session.departments],
+    isOverride,
+    createdAt: now.toISOString(),
   };
 }
 
@@ -573,6 +713,7 @@ export async function archiveInitiative(
     'Solo el responsable del área propietaria o Dirección pueden archivar una iniciativa.',
   );
   if (initiative.isArchived) throw invalidState('La iniciativa ya estaba archivada.');
+  if (isFinalized(initiative)) throw invalidState('La iniciativa está finalizada: se consulta en Iniciativas finalizadas.');
 
   const reason = input.reason.trim();
   if (reason.length < MIN_ARCHIVE_REASON) {

@@ -17,6 +17,9 @@ import type {
   Initiative,
   LibraryDocument,
   StageChecklistItem,
+  StageNote,
+  StageSignoff,
+  CustomCheck,
   User,
   WorkflowStage,
 } from '@/domain/types';
@@ -66,6 +69,11 @@ export class InMemoryDataStore implements DataStore {
   private sleRiskNotices = new Map<string, SleRiskNotice>();
   /** Spec 003: ciclos de lectura, en orden de alta. */
   private deptTaskReads: DeptTaskReadCycle[] = [];
+  /** Spec 005: por `${initiativeId}::${stageId}::${department}`, la PK del DDL. */
+  private stageSignoffs = new Map<string, StageSignoff>();
+  /** Spec 005: append-only, en orden de alta. */
+  private stageNotes: StageNote[] = [];
+  private customChecks = new Map<string, CustomCheck>();
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -76,7 +84,13 @@ export class InMemoryDataStore implements DataStore {
   /** Reemplaza el contenido completo (arranque desde seed o desde snapshot). */
   hydrate(data: SeedData): void {
     this.users = new Map(data.users.map((user) => [user.id, clone(user)]));
-    this.stages = new Map(data.stages.map((stage) => [stage.id, clone(stage)]));
+    // Spec 005: los snapshots anteriores conservan el nombre de fábrica «Co-Diseño».
+    this.stages = new Map(
+      data.stages.map((stage) => [
+        stage.id,
+        clone(stage.key === 'CO_DESIGN' && stage.name === 'Co-Diseño' ? { ...stage, name: 'Diseño' } : stage),
+      ]),
+    );
     this.checklistItems = new Map(data.checklistItems.map((item) => [item.id, clone(item)]));
     // Snapshots anteriores a la ruta de fases no traen `skippedStageIds`.
     this.initiatives = new Map(
@@ -130,6 +144,14 @@ export class InMemoryDataStore implements DataStore {
     this.sleRiskNotices = new Map(
       (data.sleRiskNotices ?? []).map((notice) => [sleRiskNoticeKey(notice.initiativeId, notice.stageId), clone(notice)]),
     );
+    this.stageSignoffs = new Map(
+      (data.stageSignoffs ?? []).map((signoff) => [
+        stageSignoffKey(signoff.initiativeId, signoff.stageId, signoff.department),
+        clone(signoff),
+      ]),
+    );
+    this.stageNotes = (data.stageNotes ?? []).map(clone);
+    this.customChecks = new Map((data.customChecks ?? []).map((check) => [check.id, clone(check)]));
     this.activityLog = data.activityLog.map((entry) => clone(entry));
   }
 
@@ -158,6 +180,9 @@ export class InMemoryDataStore implements DataStore {
       pushSubscriptions: [...this.pushSubscriptions.values()].map(clone),
       sleRiskNotices: [...this.sleRiskNotices.values()].map(clone),
       deptTaskReads: this.deptTaskReads.map(clone),
+      stageSignoffs: [...this.stageSignoffs.values()].map(clone),
+      stageNotes: this.stageNotes.map(clone),
+      customChecks: [...this.customChecks.values()].map(clone),
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -328,6 +353,71 @@ export class InMemoryDataStore implements DataStore {
     this.checklistValues.set(checklistValueKey(value.initiativeId, value.checklistId), clone(value));
     this.touched();
     return clone(value);
+  }
+
+  // --- Aprobaciones, notas de avance y casillas propias (spec 005) -----------------
+
+  async listStageSignoffs(initiativeId: string): Promise<StageSignoff[]> {
+    return [...this.stageSignoffs.values()].filter((signoff) => signoff.initiativeId === initiativeId).map(clone);
+  }
+
+  async upsertStageSignoff(value: StageSignoff, guard: { expectedStageId: number }): Promise<StageSignoff | null> {
+    const initiative = this.initiatives.get(value.initiativeId);
+    if (!initiative || !isOpenInStage(initiative, guard.expectedStageId) || value.stageId !== guard.expectedStageId) {
+      return null;
+    }
+    this.stageSignoffs.set(stageSignoffKey(value.initiativeId, value.stageId, value.department), clone(value));
+    this.touched();
+    return clone(value);
+  }
+
+  async listStageNotes(initiativeId?: string): Promise<StageNote[]> {
+    return this.stageNotes.filter((note) => initiativeId === undefined || note.initiativeId === initiativeId).map(clone);
+  }
+
+  async advanceInitiativeWithNote(input: {
+    initiativeId: string;
+    expectedStageId: number;
+    patch: Partial<Omit<Initiative, 'id' | 'createdAt' | 'createdBy'>>;
+    note: StageNote;
+  }): Promise<Initiative | null> {
+    const current = this.initiatives.get(input.initiativeId);
+    if (!current || !isOpenInStage(current, input.expectedStageId)) return null;
+    const updated: Initiative = { ...current, ...input.patch };
+    this.initiatives.set(current.id, updated);
+    this.stageNotes.push(clone(input.note));
+    this.touched();
+    return clone(updated);
+  }
+
+  async listCustomChecks(initiativeId: string): Promise<CustomCheck[]> {
+    return [...this.customChecks.values()]
+      .filter((check) => check.initiativeId === initiativeId)
+      .map(clone)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+  }
+
+  async customCheckById(id: string): Promise<CustomCheck | null> {
+    const check = this.customChecks.get(id);
+    return check ? clone(check) : null;
+  }
+
+  async insertCustomCheck(check: CustomCheck): Promise<CustomCheck> {
+    this.customChecks.set(check.id, clone(check));
+    this.touched();
+    return clone(check);
+  }
+
+  async updateCustomCheck(
+    id: string,
+    patch: Partial<Pick<CustomCheck, 'isCompleted' | 'completedBy' | 'completedAt' | 'isRemoved' | 'removedBy' | 'removedAt'>>,
+  ): Promise<CustomCheck> {
+    const current = this.customChecks.get(id);
+    if (!current) throw new Error(`Casilla no encontrada: ${id}`);
+    const updated: CustomCheck = { ...current, ...patch };
+    this.customChecks.set(id, updated);
+    this.touched();
+    return clone(updated);
   }
 
   // --- Dependencias ----------------------------------------------------------------
@@ -846,6 +936,15 @@ export class InMemoryDataStore implements DataStore {
 
 function checklistValueKey(initiativeId: string, checklistId: string): string {
   return `${initiativeId}::${checklistId}`;
+}
+
+function stageSignoffKey(initiativeId: string, stageId: number, department: string): string {
+  return `${initiativeId}::${stageId}::${department}`;
+}
+
+/** Guarda de las escrituras de la spec 005: sigue en esa fase y abierta. */
+function isOpenInStage(initiative: Initiative, stageId: number): boolean {
+  return initiative.currentStageId === stageId && !initiative.isArchived && !initiative.finalizedAt;
 }
 
 function sleRiskNoticeKey(initiativeId: string, stageId: number): string {

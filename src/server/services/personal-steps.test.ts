@@ -6,7 +6,7 @@ import {
   removePersonalStep,
   setPersonalStepDone,
 } from './personal-steps';
-import { TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore } from './test-utils';
+import { TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore, TEST_ADVANCE_NOTE } from './test-utils';
 
 describe('pasos propios en la ruta', () => {
   it('cualquiera añade un paso propio y solo lo ve quien lo creó', async () => {
@@ -52,7 +52,7 @@ describe('pasos propios en la ruta', () => {
     await addPersonalStep(store, lead, { initiativeId: 'TEMO-500', afterStageId: 2, title: 'Nota privada' });
     await completeGate(store, 'TEMO-500', 'FEASIBILITY', lead.userId);
 
-    const result = await advanceStage(store, lead, { initiativeId: 'TEMO-500', now: TEST_NOW });
+    const result = await advanceStage(store, lead, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     expect(result.status).toBe('ADVANCED');
   });
 });

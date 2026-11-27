@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { STAGE_ID_BY_KEY } from '@/domain/workflow';
 import { advanceStage, createInitiative } from './initiatives';
 import { restoreStage, skipStage } from './stage-route';
-import { TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore, makeUser, sessionOf } from './test-utils';
+import { TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore, makeUser, sessionOf, TEST_ADVANCE_NOTE } from './test-utils';
 
 const REASON = 'No requiere dictamen: no trata datos de salud ni de personas.';
 
@@ -14,12 +14,12 @@ describe('ruta de fases', () => {
     await skipStage(store, lead, { initiativeId: 'TEMO-500', stageId: STAGE_ID_BY_KEY.FEASIBILITY, reason: REASON, now: TEST_NOW });
 
     const product = makeSession('PRODUCT', 'MEMBER');
-    const blocked = await advanceStage(store, product, { initiativeId: 'TEMO-500', now: TEST_NOW });
+    const blocked = await advanceStage(store, product, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     expect(blocked.status).toBe('GATE_BLOCKED');
     if (blocked.status === 'GATE_BLOCKED') expect(blocked.nextStage.key).toBe('CO_DESIGN');
 
     await completeGate(store, 'TEMO-500', 'IDEATION', product.userId);
-    const result = await advanceStage(store, product, { initiativeId: 'TEMO-500', now: TEST_NOW });
+    const result = await advanceStage(store, product, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     expect(result.status).toBe('ADVANCED');
     const after = await store.initiativeById('TEMO-500');
     expect(after?.currentStageId).toBe(STAGE_ID_BY_KEY.CO_DESIGN);
@@ -61,7 +61,7 @@ describe('ruta de fases', () => {
   it('crear con ruta valida permisos por fase, exige motivo y registra un evento por fase', async () => {
     const lead = sessionOf(makeUser({ departments: ['LEGAL'], role: 'LEAD' }));
     const { store } = makeTestStore([]);
-    const base = { title: 'Iniciativa con ruta reducida', description: '', priority: 'NORMAL' as const, priorityReason: 'ROADMAP' as const, now: TEST_NOW };
+    const base = { title: 'Iniciativa con ruta reducida', description: 'Descripción de prueba suficientemente larga.', priority: 'NORMAL' as const, priorityReason: 'ROADMAP' as const, now: TEST_NOW };
 
     await expect(createInitiative(store, lead, { ...base, skippedStageIds: [STAGE_ID_BY_KEY.FEASIBILITY] })).rejects.toThrow(/mínimo/);
     await expect(

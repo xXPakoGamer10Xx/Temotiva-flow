@@ -233,7 +233,7 @@ export function GateProgress({ completed, total }: { completed: number; total: n
         value={completed}
         max={Math.max(total, 1)}
         barClassName={isComplete ? 'bg-[var(--success)]' : 'bg-accent'}
-        label={`Compuerta de salida: ${completed} de ${total}`}
+        label={`Compuerta de salida: ${completed} de ${total} aprobaciones de área`}
       />
     </div>
   );

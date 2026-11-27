@@ -17,7 +17,7 @@ const RECIPES: { title: string; steps: string[] }[] = [
     title: 'Avanzar una iniciativa de fase',
     steps: [
       'Abre su ficha y entra en la pestaña «Compuerta».',
-      'Marca los requisitos que son de tu departamento. Los de otros departamentos los marcan ellos.',
+      'Aprueba la fase en nombre de tu departamento cuando le toca. Las aprobaciones de otras áreas las registran ellas.',
       'Cuando la lista está al 100 %, pulsa «Avanzar fase». La propiedad pasa sola al departamento de la nueva fase.',
       'Si falta algo, la pantalla te lo dice y te deja pedírselo al departamento responsable con un clic.',
     ],

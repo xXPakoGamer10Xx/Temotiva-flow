@@ -9,6 +9,7 @@ import {
   GitPullRequest,
   Archive,
   Bell,
+  CircleCheckBig,
   CircleHelp,
   CornerDownLeft,
   Download,
@@ -62,7 +63,7 @@ interface Command {
   run: () => void;
 }
 
-/** Quita acentos y mayúsculas: buscar "codiseno" tiene que encontrar "Co-Diseño". */
+/** Quita acentos y mayúsculas: buscar "diseno" tiene que encontrar "Diseño". */
 function normalize(value: string): string {
   return value
     .normalize('NFD')
@@ -151,6 +152,15 @@ export function CommandCenter({
         group: 'Ir a',
         icon: <KanbanSquare className="size-3.5" />,
         run: () => go('/board'),
+      },
+      {
+        id: 'go-finalized',
+        label: 'Iniciativas finalizadas',
+        hint: 'G I',
+        group: 'Ir a',
+        icon: <CircleCheckBig className="size-3.5" />,
+        keywords: 'historico terminadas cerradas produccion entregadas',
+        run: () => go('/finalizadas'),
       },
       {
         id: 'go-radar',
@@ -383,7 +393,7 @@ export function CommandCenter({
       const key = event.key.toLowerCase();
 
       if (Date.now() - pendingGo < 1200) {
-        const destination = { m: '/mi-trabajo', b: '/board', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias', s: '/tech' }[key];
+        const destination = { m: '/mi-trabajo', b: '/board', i: '/finalizadas', r: '/radar', d: '/executive', n: '/notifications', a: '/team', h: '/ayuda', f: '/feedback', o: '/documentos', t: '/tareas', p: '/dependencias', s: '/tech' }[key];
         pendingGo = 0;
         if (destination && (destination !== '/team' || canManagePeople) && (destination !== '/tech' || canSeeTechSprint)) {
           event.preventDefault();

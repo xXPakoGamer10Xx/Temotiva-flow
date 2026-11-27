@@ -6,6 +6,7 @@ import { usePathname } from 'next/navigation';
 import type { Route } from 'next';
 import {
   Bell,
+  CircleCheckBig,
   CircleHelp,
   Inbox,
   GitPullRequest,
@@ -47,6 +48,7 @@ export interface SidebarLink {
   icon:
     | 'mywork'
     | 'board'
+    | 'finalized'
     | 'radar'
     | 'executive'
     | 'notifications'
@@ -64,6 +66,7 @@ export interface SidebarLink {
 const ICONS = {
   mywork: Inbox,
   board: KanbanSquare,
+  finalized: CircleCheckBig,
   radar: Radar,
   executive: TrendingUp,
   notifications: Bell,

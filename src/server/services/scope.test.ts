@@ -1,10 +1,11 @@
+import { evaluateGate } from './gate';
 import { describe, expect, it } from 'vitest';
 import { createDependency, resolveDependency } from './dependencies';
 import { clearManualStop, setManualStop } from './blocking';
 import { advanceStage, assignInitiative, updateInitiative } from './initiatives';
 import { getFlowMetrics } from './metrics';
 import { checklistItemId } from '@/domain/workflow';
-import { HOUR, TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore, makeUser } from './test-utils';
+import { HOUR, TEST_NOW, completeGate, makeInitiative, makeSession, makeTestStore, makeUser, TEST_ADVANCE_NOTE } from './test-utils';
 
 /**
  * Ámbito de departamento sobre el trabajo (SEGURIDAD.md §4.2).
@@ -20,7 +21,7 @@ describe('ámbito del trabajo', () => {
     await completeGate(store, 'TEMO-500', 'FEASIBILITY', outsider.userId);
 
     await expect(
-      advanceStage(store, outsider, { initiativeId: 'TEMO-500', now: TEST_NOW }),
+      advanceStage(store, outsider, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW }),
     ).rejects.toThrow(/Legal/i);
 
     // Y la iniciativa no se ha movido.
@@ -32,7 +33,7 @@ describe('ámbito del trabajo', () => {
     const owner = makeSession('LEGAL', 'MEMBER');
     await completeGate(store, 'TEMO-500', 'FEASIBILITY', owner.userId);
 
-    const result = await advanceStage(store, owner, { initiativeId: 'TEMO-500', now: TEST_NOW });
+    const result = await advanceStage(store, owner, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     expect(result.status).toBe('ADVANCED');
   });
 
@@ -41,7 +42,7 @@ describe('ámbito del trabajo', () => {
     const director = makeSession('MARKETING', 'EXECUTIVE');
     await completeGate(store, 'TEMO-500', 'FEASIBILITY', director.userId);
 
-    const result = await advanceStage(store, director, { initiativeId: 'TEMO-500', now: TEST_NOW });
+    const result = await advanceStage(store, director, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     expect(result.status).toBe('ADVANCED');
   });
 
@@ -223,7 +224,7 @@ describe('orígenes de la parada', () => {
     });
 
     const later = new Date(TEST_NOW.getTime() + 8 * HOUR);
-    await advanceStage(store, ownerSession, { initiativeId: 'TEMO-500', now: later });
+    await advanceStage(store, ownerSession, { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: later });
 
     const initiative = await store.initiativeById('TEMO-500');
     expect(initiative?.isBlocked).toBe(true);
@@ -357,9 +358,11 @@ describe('calidad del registro', () => {
   it('la firma del avance excepcional guarda la IP de confianza, no la declarada', async () => {
     const { store } = makeTestStore([makeInitiative({ ownerDepartment: 'LEGAL' })]);
     const lead = makeSession('LEGAL', 'LEAD');
-    const gate = await store.listChecklistItems(2);
+    const initiative = await store.initiativeById('TEMO-500');
+    if (!initiative) throw new Error('iniciativa no encontrada');
+    const gate = (await evaluateGate(store, initiative)).pending;
 
-    const result = await advanceStage(store, lead, {
+    const result = await advanceStage(store, lead, { note: TEST_ADVANCE_NOTE,
       initiativeId: 'TEMO-500',
       override: {
         reason: 'El expediente debe presentarse antes del cierre de mes ante la autoridad.',

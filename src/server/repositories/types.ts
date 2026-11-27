@@ -16,6 +16,9 @@ import type {
   NotificationPref,
   PersonalStep,
   StageChecklistItem,
+  StageNote,
+  StageSignoff,
+  CustomCheck,
   User,
   WorkflowStage,
 } from '@/domain/types';
@@ -78,6 +81,37 @@ export interface DataStore {
   // --- Valores de compuerta por iniciativa -----------------------------------
   listChecklistValues(initiativeId?: string): Promise<ChecklistValue[]>;
   upsertChecklistValue(value: ChecklistValue): Promise<ChecklistValue>;
+
+  // --- Aprobaciones por área, notas de avance y casillas propias (spec 005) ---
+  /** De una iniciativa (todas sus fases). */
+  listStageSignoffs(initiativeId: string): Promise<StageSignoff[]>;
+  /**
+   * Inserta o reemplaza la aprobación de (iniciativa, fase, área) solo si la
+   * iniciativa sigue en `expectedStageId`, sin archivar ni finalizar. Devuelve
+   * `null` si la guarda falla (nada se escribe).
+   */
+  upsertStageSignoff(value: StageSignoff, guard: { expectedStageId: number }): Promise<StageSignoff | null>;
+  /** Append-only: no hay actualización ni borrado. En orden de alta. */
+  listStageNotes(initiativeId?: string): Promise<StageNote[]>;
+  /**
+   * Avance (o finalización) atómico: aplica el patch a la iniciativa e inserta
+   * la nota de cierre a la vez, solo si sigue en `expectedStageId` y abierta.
+   * Devuelve `null` si otra petición se adelantó (nada se escribe).
+   */
+  advanceInitiativeWithNote(input: {
+    initiativeId: string;
+    expectedStageId: number;
+    patch: Partial<Omit<Initiative, 'id' | 'createdAt' | 'createdBy'>>;
+    note: StageNote;
+  }): Promise<Initiative | null>;
+  /** Incluye las retiradas: quien pinta decide si las muestra. */
+  listCustomChecks(initiativeId: string): Promise<CustomCheck[]>;
+  customCheckById(id: string): Promise<CustomCheck | null>;
+  insertCustomCheck(check: CustomCheck): Promise<CustomCheck>;
+  updateCustomCheck(
+    id: string,
+    patch: Partial<Pick<CustomCheck, 'isCompleted' | 'completedBy' | 'completedAt' | 'isRemoved' | 'removedBy' | 'removedAt'>>,
+  ): Promise<CustomCheck>;
 
   // --- Dependencias (🆘) ------------------------------------------------------
   listDependencies(initiativeId?: string): Promise<Dependency[]>;

@@ -12,6 +12,7 @@ import type {
   StageKey,
   StopReason,
   TaskStatus,
+  TshirtSize,
   PullRequestState,
   UserRole,
 } from './enums';
@@ -145,6 +146,13 @@ export interface Initiative {
   skippedStageIds: number[];
   /** Tiempo estimado opcional, en días. Orientativo: no entra en el SLE. */
   estimatedDurationDays?: number | null;
+  /**
+   * Finalización (spec 005): instante y persona que cerró Producción. Una
+   * iniciativa finalizada sale del tablero operativo y es de solo lectura.
+   * Opcionales: las filas y snapshots anteriores no los traen (= sin finalizar).
+   */
+  finalizedAt?: string | null;
+  finalizedBy?: string | null;
   stageEnteredAt: string;
   createdAt: string;
   updatedAt: string;
@@ -157,6 +165,57 @@ export interface ChecklistValue {
   isCompleted: boolean;
   completedBy: string | null;
   completedAt: string | null;
+}
+
+/**
+ * Tabla `initiative_stage_signoffs` (spec 005): aprobación de un área en una
+ * fase de una iniciativa. Una fila viva por (iniciativa, fase, área); el
+ * historial de cambios vive en la caja negra. Solo guarda el id de quien
+ * aprueba: el nombre se resuelve al pintar.
+ */
+export interface StageSignoff {
+  initiativeId: string;
+  stageId: number;
+  department: Department;
+  isApproved: boolean;
+  approvedBy: string | null;
+  approvedAt: string | null;
+  note: string | null;
+  noObservations: boolean;
+  tshirtSize: TshirtSize | null;
+  updatedAt: string;
+}
+
+/** Tabla `initiative_stage_notes` (spec 005): nota de cierre de fase. Append-only. */
+export interface StageNote {
+  readonly id: string;
+  readonly initiativeId: string;
+  readonly fromStageId: number;
+  /** `null` = la nota cierra la iniciativa (finalización). */
+  readonly toStageId: number | null;
+  readonly note: string;
+  readonly authorId: string;
+  readonly authorDepartments: Department[];
+  readonly isOverride: boolean;
+  readonly createdAt: string;
+}
+
+/** Tabla `initiative_custom_checks` (spec 005): casilla extra opcional; nunca bloquea. */
+export interface CustomCheck {
+  id: string;
+  initiativeId: string;
+  stageId: number;
+  label: string;
+  note: string | null;
+  isCompleted: boolean;
+  completedBy: string | null;
+  completedAt: string | null;
+  createdBy: string;
+  createdAt: string;
+  /** Baja lógica (AGENTS.md §5.8). */
+  isRemoved: boolean;
+  removedBy: string | null;
+  removedAt: string | null;
 }
 
 /** Tabla `initiative_attachments` (EXTENSIÓN V1): PDF/DOCX de apoyo a una iniciativa. */

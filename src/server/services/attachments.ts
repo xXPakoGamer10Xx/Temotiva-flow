@@ -2,8 +2,8 @@ import { randomUUID } from 'node:crypto';
 import type { Attachment, SessionContext } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
-import { loadInitiative } from './blocking';
-import { forbidden, invalid, invalidState, notFound } from './errors';
+import { assertInitiativeOpen, loadInitiative } from './blocking';
+import { forbidden, invalid, notFound } from './errors';
 import { canRemoveAttachment } from './rbac';
 
 /**
@@ -54,7 +54,7 @@ export async function addAttachment(
 ): Promise<Attachment> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   if (input.bytes.byteLength === 0) throw invalid('El archivo está vacío.');
   if (input.bytes.byteLength > MAX_ATTACHMENT_BYTES) throw invalid('El archivo supera 4 MB.');
@@ -106,7 +106,7 @@ export async function removeAttachment(
   const attachment = await store.attachmentById(input.attachmentId);
   if (!attachment || attachment.isRemoved) throw notFound('El documento no existe o ya se retiró.');
   const initiative = await loadInitiative(store, attachment.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
   if (!canRemoveAttachment(session, initiative, attachment)) {
     throw forbidden('Solo quien subió el documento, el responsable del área propietaria o Dirección pueden retirarlo.');
   }
