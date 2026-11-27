@@ -139,6 +139,9 @@ async function run(): Promise<void> {
     console.log('📦 Aplicando migraciones (db/11-dept-task-reads.sql)...');
     await client.query(readFileSync(join(process.cwd(), 'db', '11-dept-task-reads.sql'), 'utf8'));
 
+    console.log('📦 Aplicando migraciones (db/12-initiative-signoffs-notes.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '12-initiative-signoffs-notes.sql'), 'utf8'));
+
     const seed = buildSeedData();
     const stageCount = Number((await client.query('SELECT COUNT(*)::int AS c FROM workflow_stages')).rows[0].c);
 
@@ -232,6 +235,36 @@ async function run(): Promise<void> {
             entry.fieldName, entry.oldValue != null ? JSON.stringify(entry.oldValue) : null,
             entry.newValue != null ? JSON.stringify(entry.newValue) : null,
             entry.overrideMetadata ? JSON.stringify(entry.overrideMetadata) : null, entry.createdAt,
+          ],
+        );
+      }
+
+      // Spec 005: finalización, aprobaciones por área y notas de avance de la demo.
+      for (const init of seed.initiatives) {
+        if (!init.finalizedAt) continue;
+        await client.query(`UPDATE initiatives SET finalized_at = $2, finalized_by = $3 WHERE id = $1 AND finalized_at IS NULL`, [
+          init.id, init.finalizedAt, init.finalizedBy ?? null,
+        ]);
+      }
+      for (const signoff of seed.stageSignoffs ?? []) {
+        await client.query(
+          `INSERT INTO initiative_stage_signoffs (
+            initiative_id, stage_id, department, is_approved, approved_by, approved_at, note, no_observations, tshirt_size, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
+          [
+            signoff.initiativeId, signoff.stageId, signoff.department, signoff.isApproved, signoff.approvedBy,
+            signoff.approvedAt, signoff.note, signoff.noObservations, signoff.tshirtSize, signoff.updatedAt,
+          ],
+        );
+      }
+      for (const note of seed.stageNotes ?? []) {
+        await client.query(
+          `INSERT INTO initiative_stage_notes (
+            id, initiative_id, from_stage_id, to_stage_id, note, author_id, author_departments, is_override, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7::department_enum[],$8,$9) ON CONFLICT (id) DO NOTHING`,
+          [
+            toUuid(note.id), note.initiativeId, note.fromStageId, note.toStageId, note.note, note.authorId,
+            note.authorDepartments, note.isOverride, note.createdAt,
           ],
         );
       }

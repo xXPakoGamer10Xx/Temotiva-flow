@@ -42,7 +42,8 @@ export async function AppShell({
   const paletteInitiatives: PaletteInitiative[] = initiatives.map((initiative) => ({
     id: initiative.id,
     title: initiative.title,
-    stageName: stageNames.get(initiative.currentStageId) ?? '—',
+    // Spec 005: las finalizadas siguen localizables desde la paleta.
+    stageName: initiative.finalizedAt ? 'Finalizada' : (stageNames.get(initiative.currentStageId) ?? '—'),
     ownerDepartment: initiative.ownerDepartment,
     isBlocked: initiative.isBlocked,
   }));
@@ -55,6 +56,7 @@ export async function AppShell({
     ...(canSeeTechSprint(session) ? [{ href: '/tech', label: 'Sprint Tech', icon: 'sprint' as const, shortcut: 'G S' }] : []),
     { href: '/dependencias', label: 'Dependencias', icon: 'dependencies' },
     { href: '/board', label: 'Tablero', icon: 'board', shortcut: 'G B' },
+    { href: '/finalizadas', label: 'Finalizadas', icon: 'finalized', shortcut: 'G I' },
     { href: '/radar', label: 'Radar de esperas', icon: 'radar', shortcut: 'G R' },
     { href: '/executive', label: 'Dirección', icon: 'executive', shortcut: 'G D' },
     { href: '/notifications', label: 'Notificaciones', icon: 'notifications', badge: unseenCount },

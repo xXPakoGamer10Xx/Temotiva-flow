@@ -4,8 +4,8 @@ import type { ChecklistValue, SessionContext, StageChecklistItem } from '@/domai
 import { DEPARTMENT_LABELS } from '@/domain/labels';
 import type { DataStore } from '@/server/repositories/types';
 import { audit } from './audit';
-import { loadInitiative } from './blocking';
-import { invalid, invalidState, notFound } from './errors';
+import { assertInitiativeOpen, loadInitiative } from './blocking';
+import { invalid, notFound } from './errors';
 import { assertPermission, canConfigureChecklistItem, canToggleChecklistItem } from './rbac';
 
 /**
@@ -27,7 +27,7 @@ export async function setChecklistItemState(
 ): Promise<ChecklistValue> {
   const now = input.now ?? new Date();
   const initiative = await loadInitiative(store, input.initiativeId);
-  if (initiative.isArchived) throw invalidState('La iniciativa está archivada.');
+  assertInitiativeOpen(initiative);
 
   const item = await store.checklistItemById(input.checklistItemId);
   if (!item) throw notFound('El requisito de la compuerta no existe.');

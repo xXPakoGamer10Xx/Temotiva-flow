@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { OVERRIDE_SIGNATURE } from '@/domain/rules';
 import { advanceStage, type OverrideInput } from './initiatives';
 import { evaluateGate } from './gate';
-import { TEST_NOW, makeInitiative, makeSession, makeTestStore } from './test-utils';
+import { TEST_NOW, makeInitiative, makeSession, makeTestStore, TEST_ADVANCE_NOTE } from './test-utils';
 import type { InMemoryDataStore } from '@/server/repositories/in-memory';
 
 /**
@@ -37,7 +37,7 @@ describe('avance excepcional', () => {
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({}, acknowledged),
         now: TEST_NOW,
@@ -51,7 +51,7 @@ describe('avance excepcional', () => {
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({}, acknowledged),
         now: TEST_NOW,
@@ -65,7 +65,7 @@ describe('avance excepcional', () => {
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({ reason: 'porque sí' }, acknowledged),
         now: TEST_NOW,
@@ -73,7 +73,7 @@ describe('avance excepcional', () => {
     ).rejects.toThrow(/motivo/i);
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({ riskAccepted: 'ninguno' }, acknowledged),
         now: TEST_NOW,
@@ -87,7 +87,7 @@ describe('avance excepcional', () => {
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({ signature: 'confirmo' }, acknowledged),
         now: TEST_NOW,
@@ -101,7 +101,7 @@ describe('avance excepcional', () => {
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
     await expect(
-      advanceStage(store, session, {
+      advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
         initiativeId: 'TEMO-500',
         override: overrideWith({}, acknowledged.slice(1)),
         now: TEST_NOW,
@@ -114,7 +114,7 @@ describe('avance excepcional', () => {
     const session = makeSession('LEGAL', 'LEAD');
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
-    const result = await advanceStage(store, session, {
+    const result = await advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
       initiativeId: 'TEMO-500',
       override: overrideWith({}, acknowledged),
       request: { ip: '10.20.0.14', userAgent: 'Mozilla/5.0 (pruebas)' },
@@ -146,7 +146,7 @@ describe('avance excepcional', () => {
     const session = makeSession('TECH', 'EXECUTIVE');
     const acknowledged = await pendingIds(store, 'TEMO-500');
 
-    const result = await advanceStage(store, session, {
+    const result = await advanceStage(store, session, { note: TEST_ADVANCE_NOTE,
       initiativeId: 'TEMO-500',
       override: overrideWith({}, acknowledged),
       now: TEST_NOW,

@@ -110,8 +110,18 @@ export const ACTION_TYPES = [
   'DEPARTMENT_REQUEST_ATTACHMENT_REMOVED',
   'DEPARTMENT_REQUEST_REASSIGNED',
   'TASK_READ',
+  'STAGE_SIGNOFF_GRANTED',
+  'STAGE_SIGNOFF_REVOKED',
+  'CUSTOM_CHECK_ADDED',
+  'CUSTOM_CHECK_UPDATED',
+  'CUSTOM_CHECK_REMOVED',
+  'INITIATIVE_FINALIZED',
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
+
+/** Talla de esfuerzo que fija Desarrollo (Tech) en Viabilidad (spec 005). */
+export const TSHIRT_SIZES = ['XS', 'S', 'M', 'L', 'XL'] as const;
+export type TshirtSize = (typeof TSHIRT_SIZES)[number];
 
 /** Estados de una tarea de área: por hacer, en curso, en revisión, hecha. */
 export const TASK_STATUSES = ['TODO', 'DOING', 'REVIEW', 'DONE'] as const;

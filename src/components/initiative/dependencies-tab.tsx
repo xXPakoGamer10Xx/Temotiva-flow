@@ -126,7 +126,7 @@ export function DependenciesTab({
           <ActionError message={create.error} />
 
           <div className="flex gap-2">
-            <Button size="sm" onClick={submit} disabled={create.isPending || detail.card.isArchived}>
+            <Button size="sm" onClick={submit} disabled={create.isPending || detail.card.isArchived || detail.card.isFinalized}>
               <HandHelping className="size-4" />
               {create.isPending ? 'Enviando…' : 'Solicitar ayuda'}
             </Button>
@@ -138,7 +138,7 @@ export function DependenciesTab({
           </div>
         </div>
       ) : (
-        <Button size="sm" variant="outline" onClick={() => setOpen(true)} disabled={detail.card.isArchived}>
+        <Button size="sm" variant="outline" onClick={() => setOpen(true)} disabled={detail.card.isArchived || detail.card.isFinalized}>
           <HandHelping className="size-4" />
           Solicitar ayuda a un departamento
         </Button>

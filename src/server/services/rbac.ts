@@ -1,4 +1,5 @@
-import type { Department, UserRole } from '@/domain/enums';
+import type { Department, StageKey, UserRole } from '@/domain/enums';
+import { signoffsFor } from '@/domain/signoffs';
 import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, SessionContext, StageChecklistItem, User } from '@/domain/types';
 import type { Dependency } from '@/domain/types';
 import type { AttachmentSide, DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
@@ -132,6 +133,30 @@ export function canArchiveInitiative(session: SessionContext, initiative: Initia
  */
 export function canToggleChecklistItem(session: SessionContext, item: StageChecklistItem): boolean {
   return isExecutive(session) || belongsTo(session, item.responsibleDepartment);
+}
+
+/**
+ * Aprobar (o retirar) la casilla obligatoria de un área en una fase (spec 005):
+ * cualquier persona del área, o Dirección en su nombre.
+ */
+export function canSignoffStage(session: SessionContext, department: Department): boolean {
+  return isExecutive(session) || belongsTo(session, department);
+}
+
+/**
+ * Casillas adicionales de una fase: el área propietaria, cualquier área que
+ * aprueba esa fase, o Dirección.
+ */
+export function canManageCustomCheck(session: SessionContext, initiative: Initiative, stageKey: StageKey): boolean {
+  return (
+    worksOnInitiative(session, initiative) ||
+    signoffsFor(stageKey).some((entry) => belongsTo(session, entry.department))
+  );
+}
+
+/** Finalizar desde Producción: quien puede avanzar (área propietaria o Dirección). */
+export function canFinalizeInitiative(session: SessionContext, initiative: Initiative): boolean {
+  return worksOnInitiative(session, initiative);
 }
 
 /** Configurar los items de compuerta de sus áreas: LEAD o EXECUTIVE. */

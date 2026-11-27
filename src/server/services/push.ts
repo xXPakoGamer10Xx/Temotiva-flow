@@ -146,7 +146,7 @@ export async function notifySleRisk(store: DataStore, sender: PushSender, now: D
   let notified = 0;
 
   for (const initiative of initiatives) {
-    if (initiative.isArchived) continue;
+    if (initiative.isArchived || initiative.finalizedAt) continue;
     const stage = stagesById.get(initiative.currentStageId);
     if (!stage) continue;
 

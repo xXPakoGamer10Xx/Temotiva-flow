@@ -5,6 +5,7 @@ export const SHORTCUTS: { keys: string[]; label: string }[] = [
   { keys: ['/'], label: 'Filtrar el tablero' },
   { keys: ['G', 'M'], label: 'Ir a Mi trabajo' },
   { keys: ['G', 'B'], label: 'Ir al tablero' },
+  { keys: ['G', 'I'], label: 'Ir a iniciativas finalizadas' },
   { keys: ['G', 'R'], label: 'Ir al radar de esperas' },
   { keys: ['G', 'D'], label: 'Ir al panel de dirección' },
   { keys: ['G', 'N'], label: 'Ir a notificaciones' },

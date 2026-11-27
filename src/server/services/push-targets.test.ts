@@ -8,7 +8,7 @@ import { setManualStop } from './blocking';
 import { createDependency } from './dependencies';
 import { advanceStage } from './initiatives';
 import { resolvePushTargets } from './push-targets';
-import { TEST_NOW, completeGate, makeInitiative, makeTestStore, makeUser, sessionOf } from './test-utils';
+import { TEST_NOW, completeGate, makeInitiative, makeTestStore, makeUser, sessionOf, TEST_ADVANCE_NOTE } from './test-utils';
 
 /**
  * Quién recibe cada aviso push E1–E10 (spec 002 §6 y §7, T-05).
@@ -224,7 +224,7 @@ describe('destinatarios por evento (E1–E10)', () => {
     });
     const targets = await resolvePushTargets(store, entry);
     expect(sorted(targets?.userIds)).toEqual(idsOf(p.designMember, p.designLead));
-    expect(targets?.message).toMatchObject({ kind: 'ENTERED_BOARD', body: 'Co-Diseño · Diseño' });
+    expect(targets?.message).toMatchObject({ kind: 'ENTERED_BOARD', body: 'Diseño · Diseño' });
   });
 
   it('E7 · reasignación de área: todo el área que la recibe', async () => {
@@ -412,7 +412,7 @@ describe('integración con los servicios reales (la forma de los eventos no se d
     const { store, p } = setup();
     await completeGate(store, 'TEMO-500', 'FEASIBILITY', p.legalMember.id);
     capture();
-    await advanceStage(store, sessionOf(p.legalMember), { initiativeId: 'TEMO-500', now: TEST_NOW });
+    await advanceStage(store, sessionOf(p.legalMember), { note: TEST_ADVANCE_NOTE, initiativeId: 'TEMO-500', now: TEST_NOW });
     const entry = captured.find((e) => e.actionType === 'STAGE_TRANSITION');
     if (!entry) throw new Error('sin evento');
     const targets = await resolvePushTargets(store, entry);

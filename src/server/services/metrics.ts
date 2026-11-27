@@ -56,6 +56,8 @@ export interface FlowMetrics {
     blockedInitiatives: number;
     pendingDependencies: number;
     atRiskOrExceeded: number;
+    /** Spec 005: entregadas (finalizadas desde Producción). */
+    finalizedInitiatives: number;
   };
 }
 
@@ -83,13 +85,17 @@ export async function getFlowMetrics(store: DataStore, options: { now?: Date } =
   ]);
 
   const transitions = log.filter((entry) => entry.actionType === 'STAGE_TRANSITION');
+  // Finalizar también es salir de una fase (Producción): cuenta para su permanencia.
+  const stageExits = log.filter(
+    (entry) => entry.actionType === 'STAGE_TRANSITION' || entry.actionType === 'INITIATIVE_FINALIZED',
+  );
   const overrides = log.filter((entry) => entry.actionType === 'EXCEPTION_OVERRIDE');
   const blockEvents = log.filter((entry) => entry.actionType === 'BLOCKED_SET');
   const unblockEvents = log.filter((entry) => entry.actionType === 'BLOCKED_CLEARED');
 
   // --- Gráfico 1: permanencia media por fase frente al SLE ---------------------
   const stagePerformance: StagePerformance[] = stages.map((stage) => {
-    const samples = transitions.filter((entry) => entry.fromStageId === stage.id);
+    const samples = stageExits.filter((entry) => entry.fromStageId === stage.id);
     const targetMs = stage.sleHours * HOUR_MS;
     const netTotal = samples.reduce((total, entry) => total + numberField(entry, 'netDurationMs'), 0);
     const blockedTotal = samples.reduce((total, entry) => total + numberField(entry, 'blockedMs'), 0);
@@ -102,7 +108,7 @@ export async function getFlowMetrics(store: DataStore, options: { now?: Date } =
       samples: samples.length,
       breaches: samples.filter((entry) => numberField(entry, 'netDurationMs') > targetMs).length,
       currentCount: initiatives.filter(
-        (initiative) => !initiative.isArchived && initiative.currentStageId === stage.id,
+        (initiative) => !initiative.isArchived && !initiative.finalizedAt && initiative.currentStageId === stage.id,
       ).length,
     };
   });
@@ -175,7 +181,7 @@ export async function getFlowMetrics(store: DataStore, options: { now?: Date } =
     };
   });
 
-  const active = initiatives.filter((initiative) => !initiative.isArchived);
+  const active = initiatives.filter((initiative) => !initiative.isArchived && !initiative.finalizedAt);
   const stagesById = new Map(stages.map((stage) => [stage.id, stage]));
 
   return {
@@ -206,6 +212,7 @@ export async function getFlowMetrics(store: DataStore, options: { now?: Date } =
         if (!stage) return false;
         return computeSle(initiative, stage, now).state !== 'ON_TIME';
       }).length,
+      finalizedInitiatives: initiatives.filter((initiative) => !initiative.isArchived && initiative.finalizedAt).length,
     },
   };
 }

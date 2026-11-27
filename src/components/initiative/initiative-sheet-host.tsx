@@ -6,6 +6,7 @@ import {
   canAssignInitiative,
   canBlockInitiative,
   canChangePriority,
+  canManageCustomCheck,
   canOverrideGate,
 } from '@/server/services/rbac';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
@@ -56,6 +57,7 @@ export async function InitiativeSheetHost({
         canAssign: canAssignInitiative(session, initiative),
         canBlock: canBlockInitiative(session, initiative),
         canChangePriority: canChangePriority(session, initiative),
+        canManageCustomChecks: canManageCustomCheck(session, initiative, detail.stage.key),
         ownerLabel: DEPARTMENT_LABELS[initiative.ownerDepartment],
       }}
     />

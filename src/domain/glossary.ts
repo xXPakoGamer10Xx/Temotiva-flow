@@ -41,8 +41,8 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryTerm> = {
   },
   gate: {
     title: 'Compuerta de salida',
-    short: 'La lista de requisitos que hay que cerrar al 100 % para pasar a la siguiente fase.',
-    long: 'Cada fase tiene una lista de requisitos de salida. Cada requisito lo marca el departamento responsable (Dirección puede marcar cualquiera). «Avanzar fase» solo funciona con la lista al 100 %. Si falta algo, la propia pantalla muestra lo pendiente y te deja pedírselo al departamento responsable en un clic, o solicitar un avance excepcional.',
+    short: 'Las aprobaciones de área que hay que tener al 100 % para pasar a la siguiente fase.',
+    long: 'Cada fase exige una aprobación de cada área participante («APROBADO AL 100% POR: nombre»). La registra alguien de esa área (Dirección puede hacerlo en su nombre) con su identidad y la fecha. En Viabilidad, Legal y Ciberseguridad dejan sus consideraciones o «Sin observaciones», y Tech fija la talla T-shirt. «Avanzar fase» solo funciona con todas las aprobaciones y pide una nota de lo que se hizo en la fase. Las casillas adicionales y la guía de la fase ayudan, pero no bloquean. Si falta algo, la pantalla muestra lo pendiente y te deja pedírselo al área en un clic, o solicitar un avance excepcional.',
   },
   dependency: {
     title: 'Dependencia 🆘',
@@ -79,11 +79,11 @@ export const GLOSSARY: Record<GlossaryKey, GlossaryTerm> = {
 export const STAGE_GUIDE: Record<StageKey, string> = {
   IDEATION: 'Se formula la idea como unidad de valor: qué problema atiende y para quién.',
   FEASIBILITY: 'Se comprueba si es viable: riesgo regulatorio, clínico, técnico y económico.',
-  CO_DESIGN: 'Los departamentos diseñan juntos la solución antes de construirla.',
+  CO_DESIGN: 'Diseño da forma a la solución, con el resto de áreas, antes de construirla.',
   READY: 'Definición de «listo»: todo lo necesario para empezar a desarrollar está acordado.',
   DEV: 'Se construye. Tech lleva el trabajo, con ayuda de los demás cuando la pide.',
   QA: 'Se prueba y se prepara el entorno de staging antes de salir.',
-  PROD: 'Está en producción: la iniciativa llega al usuario.',
+  PROD: 'Está en producción: la iniciativa llega al usuario. Cuando Tech la aprueba, se finaliza y pasa a Iniciativas finalizadas.',
 };
 
 export interface RoleGuide {
@@ -96,7 +96,7 @@ export const ROLE_GUIDE: Record<UserRole, RoleGuide> = {
     title: 'Miembro',
     can: [
       'Ver todo el tablero, el radar y las fichas.',
-      'Marcar los requisitos que corresponden a tu departamento.',
+      'Aprobar la fase en nombre de tu departamento cuando le toca.',
       'Avanzar, asignar y parar las iniciativas que son de tu departamento.',
       'Pedir ayuda a otros departamentos y responder a las que te piden.',
     ],

@@ -1,12 +1,12 @@
 'use client';
 
 import * as React from 'react';
-import { ArrowRight, Send, TriangleAlert } from 'lucide-react';
+import { ArrowRight, ChevronRight, Flag, Send, TriangleAlert } from 'lucide-react';
 import type { SessionContext } from '@/domain/types';
 import { DEPARTMENT_LABELS } from '@/domain/labels';
-import { MIN_OVERRIDE_REASON, MIN_OVERRIDE_RISK, OVERRIDE_SIGNATURE } from '@/domain/rules';
-import type { GateItemView, InitiativeDetailView } from '@/server/services/views';
-import { advanceStageAction } from '@/server/actions/initiatives';
+import { MIN_OVERRIDE_REASON, MIN_OVERRIDE_RISK, MIN_STAGE_ADVANCE_NOTE, OVERRIDE_SIGNATURE } from '@/domain/rules';
+import type { GateItemView, InitiativeDetailView, SignoffView } from '@/server/services/views';
+import { advanceStageAction, finalizeInitiativeAction } from '@/server/actions/initiatives';
 import { createDependencyAction, toggleChecklistItemAction } from '@/server/actions/collaboration';
 import { ActionError, useAction } from '@/lib/use-action';
 import { Button } from '@/components/ui/button';
@@ -18,13 +18,17 @@ import type { InitiativeCapabilities } from './initiative-sheet';
 import { InfoHint } from '@/components/help/info-hint';
 import type { PersonalStepView } from '@/server/services/personal-steps';
 import { RouteStepper } from './route-stepper';
+import { CustomChecksSection, SignoffRow } from './signoff-panel';
+import { StageNoteDialog } from './stage-note-dialog';
 
 /**
- * Pestaña Compuerta de Salida (TemoFlow.md §1.3).
+ * Pestaña Compuerta de Salida (TemoFlow.md §1.3, spec 005 §5.3).
  *
- * Con requisitos pendientes el botón de avance no falla en silencio: despliega
- * el panel con lo que falta, a quién pedírselo en un clic y la vía de avance
- * excepcional para quien tiene rango para firmarla.
+ * Bloquean las aprobaciones de área («APROBADO AL 100% POR: …»). Las casillas
+ * adicionales y la guía de la fase nunca bloquean. Con aprobaciones
+ * pendientes el botón de avance no falla en silencio: despliega el panel con lo
+ * que falta, a quién pedírselo en un clic y la vía de avance excepcional.
+ * Todo avance (y la finalización) pide la nota de lo que se hizo en la fase.
  */
 export function GateTab({
   detail,
@@ -38,6 +42,8 @@ export function GateTab({
   personalSteps: PersonalStepView[];
 }) {
   const { card, gate, nextStage } = detail;
+  const closed = card.isArchived || card.isFinalized;
+  const isLastStage = !nextStage;
   const skippedAhead = nextStage
     ? detail.route
         .slice(0, detail.route.findIndex((step) => step.stageId === nextStage.id))
@@ -46,34 +52,55 @@ export function GateTab({
     : [];
   const toggle = useAction(toggleChecklistItemAction);
   const advance = useAction(advanceStageAction);
+  const finalize = useAction(finalizeInitiativeAction, { success: `${card.id} finalizada` });
   const request = useAction(createDependencyAction, { success: 'Solicitud enviada al departamento responsable' });
 
   const [panelOpen, setPanelOpen] = React.useState(false);
   const [overrideOpen, setOverrideOpen] = React.useState(false);
+  const [noteOpen, setNoteOpen] = React.useState(false);
   const [advanced, setAdvanced] = React.useState<string | null>(null);
 
+  const pendingSignoffs = detail.signoffs.filter((signoff) => !signoff.isSatisfied);
+  const guideDone = gate.items.filter((item) => item.isCompleted).length;
+
   const canToggle = (item: GateItemView): boolean =>
-    !card.isArchived && (session.role === 'EXECUTIVE' || session.departments.includes(item.responsibleDepartment));
+    !closed && (session.role === 'EXECUTIVE' || session.departments.includes(item.responsibleDepartment));
 
   const tryAdvance = (): void => {
     if (!gate.isComplete) {
       setPanelOpen(true);
       return;
     }
-    advance.run({ initiativeId: card.id }, (data) => {
+    setNoteOpen(true);
+  };
+
+  const submitNote = (note: string): void => {
+    if (isLastStage) {
+      finalize.run({ initiativeId: card.id, note }, (data) => {
+        if (data.status === 'FINALIZED') setNoteOpen(false);
+        else {
+          setNoteOpen(false);
+          setPanelOpen(true);
+        }
+      });
+      return;
+    }
+    advance.run({ initiativeId: card.id, note }, (data) => {
+      setNoteOpen(false);
       if (data.status === 'ADVANCED') setAdvanced(data.toStageName ?? null);
       else setPanelOpen(true);
     });
   };
 
-  const requestToDepartment = (item: GateItemView): void => {
+  const requestToDepartment = (signoff: SignoffView): void => {
     request.run({
       initiativeId: card.id,
-      targetDepartment: item.responsibleDepartment,
+      targetDepartment: signoff.department,
       helpType: 'VALIDATION',
-      description: `Falta cerrar el requisito «${item.label}» para poder avanzar a ${nextStage?.name ?? 'la siguiente fase'}.`,
+      description: isLastStage
+        ? `Falta la aprobación de ${DEPARTMENT_LABELS[signoff.department]} para finalizar la iniciativa.`
+        : `Falta la aprobación de ${DEPARTMENT_LABELS[signoff.department]} para poder avanzar a ${nextStage?.name ?? 'la siguiente fase'}.`,
       isBlocking: false,
-      checklistItemId: item.id,
     });
   };
 
@@ -88,60 +115,106 @@ export function GateTab({
         initiativeId={card.id}
         route={detail.route}
         session={session}
-        disabled={card.isArchived}
+        disabled={closed}
         personalSteps={personalSteps}
       />
 
-      <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
-        {gate.items.map((item) => (
-          <li
-            key={item.id}
-            className={cn('flex items-start gap-2.5 px-3 py-2.5', item.isCompleted && 'bg-surface-2/40')}
-          >
-            <Checkbox
-              checked={item.isCompleted}
-              disabled={!canToggle(item) || toggle.isPending}
-              id={`gate-${item.id}`}
-              onCheckedChange={(checked) =>
-                toggle.run({
-                  initiativeId: card.id,
-                  checklistItemId: item.id,
-                  isCompleted: checked === true,
-                })
-              }
-              className="mt-0.5"
-            />
-            <div className="min-w-0 flex-1 space-y-1">
-              <label
-                htmlFor={`gate-${item.id}`}
-                className={cn(
-                  'block text-sm leading-snug',
-                  item.isCompleted ? 'text-fg-muted line-through' : 'font-medium text-fg',
-                )}
-              >
-                {item.label}
-              </label>
-              {item.description ? (
-                <p className="text-xs leading-relaxed text-fg-subtle">{item.description}</p>
-              ) : null}
-              <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-subtle">
-                <Badge tone={item.isCompleted ? 'success' : 'neutral'}>
-                  {DEPARTMENT_LABELS[item.responsibleDepartment]}
-                </Badge>
-                {item.isCompleted && item.completedBy ? (
-                  <span>
-                    {item.completedBy.name} · {item.completedAt ? formatDateTime(item.completedAt) : ''}
-                  </span>
-                ) : !canToggle(item) ? (
-                  <span>Lo marca {DEPARTMENT_LABELS[item.responsibleDepartment]}</span>
-                ) : null}
-              </div>
-            </div>
-          </li>
-        ))}
-      </ul>
+      {detail.finalized ? (
+        <p className="tone-success rounded-md px-2.5 py-1.5 text-xs">
+          Iniciativa finalizada el {formatDateTime(detail.finalized.at)}
+          {detail.finalized.by ? ` por ${detail.finalized.by.name}` : ''}. Su recorrido está en la pestaña Historial.
+        </p>
+      ) : null}
 
-      <ActionError message={toggle.error} />
+      <section className="space-y-1.5" aria-labelledby="signoffs-title">
+        <div className="flex items-center justify-between gap-2">
+          <SectionLabel id="signoffs-title">Aprobaciones obligatorias</SectionLabel>
+          <Badge tone={gate.isComplete ? 'success' : 'neutral'} className="tabular-nums">
+            {gate.completed}/{gate.total} áreas
+          </Badge>
+        </div>
+        <ul className="divide-y divide-border overflow-hidden rounded-lg border border-border">
+          {detail.signoffs.map((signoff) => (
+            <SignoffRow
+              key={signoff.id}
+              initiativeId={card.id}
+              signoff={signoff}
+              session={session}
+              disabled={closed}
+            />
+          ))}
+        </ul>
+      </section>
+
+      <section className="space-y-1.5" aria-labelledby="custom-checks-title">
+        <SectionLabel id="custom-checks-title">Casillas adicionales (no bloquean)</SectionLabel>
+        <CustomChecksSection
+          initiativeId={card.id}
+          checks={detail.customChecks}
+          canManage={capabilities.canManageCustomChecks}
+          disabled={closed}
+        />
+        {detail.customChecks.length === 0 && (!capabilities.canManageCustomChecks || closed) ? (
+          <p className="text-xs text-fg-subtle">Sin casillas adicionales en esta fase.</p>
+        ) : null}
+      </section>
+
+      {gate.items.length > 0 ? (
+        <details className="group rounded-lg border border-border">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2 text-xs font-medium text-fg-muted hover:text-fg">
+            <span className="flex items-center gap-1.5">
+              <ChevronRight className="size-3.5 transition-transform group-open:rotate-90" />
+              Guía de la fase (no bloquea)
+            </span>
+            <span className="tabular-nums text-fg-subtle">
+              {guideDone}/{gate.items.length}
+            </span>
+          </summary>
+          <ul className="divide-y divide-border border-t border-border">
+            {gate.items.map((item) => (
+              <li
+                key={item.id}
+                className={cn('flex items-start gap-2.5 px-3 py-2', item.isCompleted && 'bg-surface-2/40')}
+              >
+                <Checkbox
+                  checked={item.isCompleted}
+                  disabled={!canToggle(item) || toggle.isPending}
+                  id={`gate-${item.id}`}
+                  onCheckedChange={(checked) =>
+                    toggle.run({
+                      initiativeId: card.id,
+                      checklistItemId: item.id,
+                      isCompleted: checked === true,
+                    })
+                  }
+                  className="mt-0.5"
+                />
+                <div className="min-w-0 flex-1 space-y-0.5">
+                  <label
+                    htmlFor={`gate-${item.id}`}
+                    className={cn(
+                      'block text-xs leading-snug',
+                      item.isCompleted ? 'text-fg-muted line-through' : 'text-fg',
+                    )}
+                  >
+                    {item.label}
+                  </label>
+                  <div className="flex flex-wrap items-center gap-1.5 text-xs text-fg-subtle">
+                    <span>{DEPARTMENT_LABELS[item.responsibleDepartment]}</span>
+                    {item.isCompleted && item.completedBy ? (
+                      <span>
+                        · {item.completedBy.name} · {item.completedAt ? formatDateTime(item.completedAt) : ''}
+                      </span>
+                    ) : null}
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <ActionError message={toggle.error} />
+        </details>
+      ) : null}
+
       <ActionError message={advance.error} />
 
       {advanced ? (
@@ -150,89 +223,101 @@ export function GateTab({
         </p>
       ) : null}
 
-      <div className="flex flex-wrap items-center gap-2.5">
-        {nextStage ? (
+      {!closed ? (
+        <div className="flex flex-wrap items-center gap-2.5">
           <Button
             onClick={tryAdvance}
-            disabled={advance.isPending || card.isArchived || !capabilities.canAdvance}
+            disabled={advance.isPending || finalize.isPending || !capabilities.canAdvance}
             title={
               capabilities.canAdvance
                 ? undefined
-                : `Solo ${capabilities.ownerLabel}, propietaria de la fase, puede avanzarla`
+                : `Solo ${capabilities.ownerLabel}, propietaria de la fase, puede ${isLastStage ? 'finalizarla' : 'avanzarla'}`
             }
           >
             {gate.isComplete ? (
-              <>
-                <ArrowRight className="size-3.5" />
-                Avanzar a {nextStage.name}
-                {skippedAhead.length > 0 ? ` (omite ${skippedAhead.join(', ')})` : ''}
-              </>
+              isLastStage ? (
+                <>
+                  <Flag className="size-3.5" />
+                  Finalizar iniciativa
+                </>
+              ) : (
+                <>
+                  <ArrowRight className="size-3.5" />
+                  Avanzar a {nextStage.name}
+                  {skippedAhead.length > 0 ? ` (omite ${skippedAhead.join(', ')})` : ''}
+                </>
+              )
             ) : (
               <>
                 <span aria-hidden="true" className="text-xs leading-none">
                   🔒
                 </span>
-                Avanzar Fase ({gate.total - gate.completed} pendientes)
+                {isLastStage ? 'Finalizar' : 'Avanzar Fase'} ({gate.total - gate.completed} pendientes)
               </>
             )}
           </Button>
-        ) : (
-          <Badge tone="success">Última fase del ciclo</Badge>
-        )}
-        {nextStage ? (
           <span className="text-xs text-fg-subtle">
-            {capabilities.canAdvance
-              ? `Al avanzar, la propiedad pasa a ${DEPARTMENT_LABELS[nextStage.defaultOwnerDepartment]}.`
-              : `La avanza ${capabilities.ownerLabel}, que es quien tiene el trabajo en esta fase.`}
+            {!capabilities.canAdvance
+              ? `La ${isLastStage ? 'finaliza' : 'avanza'} ${capabilities.ownerLabel}, que es quien tiene el trabajo en esta fase.`
+              : isLastStage
+                ? 'Al finalizar, sale del tablero y se guarda en Iniciativas finalizadas.'
+                : `Al avanzar, la propiedad pasa a ${DEPARTMENT_LABELS[nextStage.defaultOwnerDepartment]}.`}
           </span>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
 
-      {panelOpen && !gate.isComplete && nextStage ? (
+      {panelOpen && !gate.isComplete && !closed ? (
         <div className="space-y-2.5 rounded-lg border border-border bg-surface-2/50 p-3">
           <div>
-            <p className="text-sm font-medium">Para pasar a {nextStage.name}, faltan estos requisitos:</p>
+            <p className="text-sm font-medium">
+              {isLastStage
+                ? 'Para finalizar, faltan estas aprobaciones:'
+                : `Para pasar a ${nextStage.name}, faltan estas aprobaciones:`}
+            </p>
             <p className="mt-0.5 text-xs text-fg-muted">
-              Pídeselos al departamento responsable en un clic, o registra un avance excepcional.
-              <InfoHint term="override" className="ml-1 align-middle" />
+              {isLastStage ? (
+                'Pídeselas al área responsable en un clic. La finalización no admite avance excepcional.'
+              ) : (
+                <>
+                  Pídeselas al área responsable en un clic, o registra un avance excepcional.
+                  <InfoHint term="override" className="ml-1 align-middle" />
+                </>
+              )}
             </p>
           </div>
 
           <ul className="space-y-1.5">
-            {gate.items
-              .filter((item) => !item.isCompleted && item.isMandatory)
-              .map((item) => (
-                <li
-                  key={item.id}
-                  className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5"
-                >
-                  <span className="text-xs">
-                    <span aria-hidden="true" className="text-fg-subtle">
-                      ☐
-                    </span>{' '}
-                    {item.label}
-                    <span className="ml-1.5 text-fg-subtle">· {DEPARTMENT_LABELS[item.responsibleDepartment]}</span>
-                  </span>
-                  {item.linkedDependencyId ? (
-                    <Badge tone="info">Ya solicitado</Badge>
-                  ) : (
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={request.isPending}
-                      onClick={() => requestToDepartment(item)}
-                    >
-                      <Send className="size-3" />
-                      Solicitar a {DEPARTMENT_LABELS[item.responsibleDepartment]}
-                    </Button>
-                  )}
-                </li>
-              ))}
+            {pendingSignoffs.map((signoff) => (
+              <li
+                key={signoff.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-md border border-border bg-surface px-2.5 py-1.5"
+              >
+                <span className="text-xs">
+                  <span aria-hidden="true" className="text-fg-subtle">
+                    ☐
+                  </span>{' '}
+                  Aprobación de {DEPARTMENT_LABELS[signoff.department]}
+                </span>
+                {signoff.linkedDependencyId ? (
+                  <Badge tone="info">Ya solicitado</Badge>
+                ) : (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={request.isPending}
+                    onClick={() => requestToDepartment(signoff)}
+                  >
+                    <Send className="size-3" />
+                    Solicitar a {DEPARTMENT_LABELS[signoff.department]}
+                  </Button>
+                )}
+              </li>
+            ))}
           </ul>
 
           <ActionError message={request.error} />
 
-          {capabilities.canOverride ? (
+          {isLastStage ? null : capabilities.canOverride ? (
             <Button variant="danger" size="sm" onClick={() => setOverrideOpen(true)}>
               <span aria-hidden="true" className="text-xs leading-none">
                 🚨
@@ -245,6 +330,22 @@ export function GateTab({
             </p>
           )}
         </div>
+      ) : null}
+
+      {noteOpen ? (
+        <StageNoteDialog
+          title={isLastStage ? 'Finalizar iniciativa' : `Avanzar a ${nextStage.name}`}
+          description={
+            isLastStage
+              ? `Cierra ${detail.stage.name}: la iniciativa sale del tablero y queda en Iniciativas finalizadas.`
+              : `Cierra ${detail.stage.name}. La nota queda en el historial de la iniciativa con tu nombre y la fecha.`
+          }
+          confirmLabel={isLastStage ? 'Finalizar' : 'Avanzar'}
+          pending={advance.isPending || finalize.isPending}
+          error={advance.error ?? finalize.error}
+          onSubmit={submitNote}
+          onClose={() => setNoteOpen(false)}
+        />
       ) : null}
 
       {overrideOpen && nextStage ? (
@@ -276,9 +377,10 @@ function OverrideDialog({
   onDone: (stageName: string | null) => void;
 }) {
   const advance = useAction(advanceStageAction);
-  const pending = detail.gate.items.filter((item) => !item.isCompleted && item.isMandatory);
+  const pending = detail.signoffs.filter((signoff) => !signoff.isSatisfied);
 
   const [acknowledged, setAcknowledged] = React.useState<string[]>([]);
+  const [note, setNote] = React.useState('');
   const [reason, setReason] = React.useState('');
   const [risk, setRisk] = React.useState('');
   const [signature, setSignature] = React.useState('');
@@ -287,6 +389,7 @@ function OverrideDialog({
   const signatureOk = signature.trim().toUpperCase() === OVERRIDE_SIGNATURE;
   const canSubmit =
     allAcknowledged &&
+    note.trim().length >= MIN_STAGE_ADVANCE_NOTE &&
     reason.trim().length >= MIN_OVERRIDE_REASON &&
     risk.trim().length >= MIN_OVERRIDE_RISK &&
     signatureOk &&
@@ -296,6 +399,7 @@ function OverrideDialog({
     advance.run(
       {
         initiativeId: detail.card.id,
+        note,
         override: {
           reason,
           riskAccepted: risk,
@@ -323,7 +427,7 @@ function OverrideDialog({
 
         <DialogBody className="space-y-4">
           <div className="space-y-1.5">
-            <SectionLabel>Requisitos que quedan incumplidos</SectionLabel>
+            <SectionLabel>Aprobaciones que quedan pendientes</SectionLabel>
             <ul className="space-y-1">
               {pending.map((item) => (
                 <li key={item.id} className="flex items-start gap-2 rounded-md border border-border px-2.5 py-2">
@@ -338,17 +442,30 @@ function OverrideDialog({
                     className="mt-0.5"
                   />
                   <label htmlFor={`ack-${item.id}`} className="text-xs leading-snug">
-                    {item.label}
-                    <span className="ml-1 text-fg-subtle">· {DEPARTMENT_LABELS[item.responsibleDepartment]}</span>
+                    Aprobación de {DEPARTMENT_LABELS[item.department]}
                   </label>
                 </li>
               ))}
             </ul>
             {!allAcknowledged ? (
               <p className="text-xs text-fg-subtle">
-                Debes reconocer todos los requisitos incumplidos antes de firmar.
+                Debes reconocer todas las aprobaciones pendientes antes de firmar.
               </p>
             ) : null}
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="override-note">Nota de avance</Label>
+            <Textarea
+              id="override-note"
+              rows={3}
+              value={note}
+              onChange={(event) => setNote(event.target.value)}
+              placeholder="Qué se ha hecho en esta fase y qué queda abierto"
+            />
+            <p className="text-xs tabular-nums text-fg-subtle">
+              {note.trim().length}/{MIN_STAGE_ADVANCE_NOTE} caracteres mínimos
+            </p>
           </div>
 
           <div className="space-y-1.5">

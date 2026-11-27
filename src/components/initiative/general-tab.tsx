@@ -10,7 +10,7 @@ import {
   PRIORITY_LABELS,
   PRIORITY_REASON_LABELS,
 } from '@/domain/labels';
-import { MIN_ARCHIVE_REASON, MIN_REASSIGN_REASON } from '@/domain/rules';
+import { MIN_ARCHIVE_REASON, MIN_INITIATIVE_DESCRIPTION, MIN_REASSIGN_REASON } from '@/domain/rules';
 import type { InitiativeDetailView } from '@/server/services/views';
 import {
   archiveInitiativeAction,
@@ -42,6 +42,8 @@ export function GeneralTab({
   currentUserId: string;
 }) {
   const { card } = detail;
+  // Archivada o finalizada: la ficha es de solo lectura (spec 005 §5.8).
+  const closed = card.isArchived || card.isFinalized;
   const update = useAction(updateInitiativeAction, { success: 'Cambios guardados' });
   const assign = useAction(assignInitiativeAction, { success: 'Responsable actualizado' });
   const reassign = useAction(reassignOwnerAction, { success: 'Propiedad reasignada' });
@@ -68,6 +70,10 @@ export function GeneralTab({
 
   const linksDirty = !sameLinks(links, card.links);
   const linksOk = linksAreValid(links);
+
+  const descriptionTooShort = description.trim().length < MIN_INITIATIVE_DESCRIPTION;
+  // Una iniciativa antigua sin descripción puede guardar el resto sin tocarla.
+  const descriptionOk = description === card.description || !descriptionTooShort;
 
   const isDirty =
     title !== card.title ||
@@ -100,19 +106,30 @@ export function GeneralTab({
             id="initiative-title"
             value={title}
             onChange={(event) => setTitle(event.target.value)}
-            disabled={card.isArchived}
+            disabled={closed}
           />
         </div>
 
         <div className="space-y-1.5">
           <Label htmlFor="initiative-description">Descripción</Label>
+          {!card.description && !closed ? (
+            <p className="tone-warning rounded-md px-2.5 py-1.5 text-xs">
+              Sin descripción. Complétala para que cada área sepa qué problema atiende la iniciativa.
+            </p>
+          ) : null}
           <Textarea
             id="initiative-description"
             rows={4}
             value={description}
             onChange={(event) => setDescription(event.target.value)}
-            disabled={card.isArchived}
+            placeholder={closed ? 'Sin descripción' : undefined}
+            disabled={closed}
           />
+          {description !== card.description && descriptionTooShort ? (
+            <p className="text-xs tabular-nums text-fg-subtle">
+              {description.trim().length}/{MIN_INITIATIVE_DESCRIPTION} caracteres mínimos
+            </p>
+          ) : null}
         </div>
 
         <div className="space-y-1.5">
@@ -127,7 +144,7 @@ export function GeneralTab({
             value={estimate}
             placeholder="Sin estimar"
             onChange={(event) => setEstimate(event.target.value)}
-            disabled={card.isArchived}
+            disabled={closed}
             className="tabular-nums sm:w-40"
           />
         </div>
@@ -140,7 +157,7 @@ export function GeneralTab({
               value={currentTask}
               placeholder="Qué se está haciendo ahora mismo"
               onChange={(event) => setCurrentTask(event.target.value)}
-              disabled={card.isArchived}
+              disabled={closed}
             />
           </div>
 
@@ -151,7 +168,7 @@ export function GeneralTab({
                 id="initiative-priority"
                 value={priority}
                 onChange={(event) => setPriority(event.target.value as PriorityLevel)}
-                disabled={card.isArchived || !capabilities.canChangePriority}
+                disabled={closed || !capabilities.canChangePriority}
               >
                 {PRIORITY_LEVELS.map((level) => (
                   <option key={level} value={level}>
@@ -166,7 +183,7 @@ export function GeneralTab({
                 id="initiative-priority-reason"
                 value={priorityReason}
                 onChange={(event) => setPriorityReason(event.target.value as PriorityReason)}
-                disabled={card.isArchived || !capabilities.canChangePriority}
+                disabled={closed || !capabilities.canChangePriority}
               >
                 {PRIORITY_REASONS.map((reason) => (
                   <option key={reason} value={reason}>
@@ -181,7 +198,7 @@ export function GeneralTab({
         <ActionError message={update.error} />
 
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={save} disabled={!isDirty || !linksOk || !estimateOk || update.isPending || card.isArchived} size="sm">
+          <Button onClick={save} disabled={!isDirty || !linksOk || !estimateOk || !descriptionOk || update.isPending || closed} size="sm">
             <Save className="size-4" />
             {update.isPending ? 'Guardando…' : 'Guardar cambios'}
           </Button>
@@ -203,7 +220,7 @@ export function GeneralTab({
           <p className="text-xs text-fg-muted">
             La propiedad viaja con la fase. Abrir una dependencia a otro departamento no la transfiere.
           </p>
-          {capabilities.canReassign && !card.isArchived ? (
+          {capabilities.canReassign && !closed ? (
             reassignOpen ? (
               <div className="space-y-2 rounded-md border border-border p-3">
                 <Select
@@ -260,7 +277,7 @@ export function GeneralTab({
           <Select
             id="initiative-assignee"
             value={card.assignee?.id ?? ''}
-            disabled={assign.isPending || card.isArchived || !capabilities.canAssign}
+            disabled={assign.isPending || closed || !capabilities.canAssign}
             onChange={(event) =>
               assign.run({ initiativeId: card.id, assigneeId: event.target.value || null })
             }
@@ -302,9 +319,9 @@ export function GeneralTab({
             ))}
           </ul>
         ) : null}
-        <LinksEditor value={links} onChange={setLinks} disabled={card.isArchived} />
+        <LinksEditor value={links} onChange={setLinks} disabled={closed} />
         <div className="flex flex-wrap items-center gap-2">
-          <Button onClick={save} disabled={!linksDirty || !linksOk || update.isPending || card.isArchived} size="sm">
+          <Button onClick={save} disabled={!linksDirty || !linksOk || update.isPending || closed} size="sm">
             <Save className="size-4" />
             {update.isPending ? 'Guardando…' : 'Guardar enlaces'}
           </Button>
@@ -319,7 +336,7 @@ export function GeneralTab({
         attachments={detail.attachments}
         currentUserId={currentUserId}
         canManageAll={capabilities.canArchive}
-        disabled={card.isArchived}
+        disabled={closed}
       />
 
       <Separator />
@@ -341,7 +358,7 @@ export function GeneralTab({
           </div>
         </dl>
 
-        {capabilities.canArchive ? (
+        {capabilities.canArchive && !card.isFinalized ? (
           card.isArchived ? (
             <Button
               size="sm"

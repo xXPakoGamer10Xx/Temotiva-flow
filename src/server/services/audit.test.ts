@@ -65,7 +65,8 @@ describe('proyecciones de lectura sobre el estado semilla', () => {
 
     expect(columns).toHaveLength(7);
     const total = columns.reduce((count, column) => count + column.cards.length, 0);
-    expect(total).toBe((await store.listInitiatives()).length);
+    // Las finalizadas no están en el tablero operativo (spec 005, RF-19).
+    expect(total).toBe((await store.listInitiatives()).filter((initiative) => !initiative.finalizedAt).length);
     for (const column of columns) {
       expect(column.isSaturated).toBe(column.wipCount > column.wipLimit);
     }

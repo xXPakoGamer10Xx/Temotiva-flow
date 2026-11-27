@@ -1,7 +1,10 @@
-import type { Department, HelpStatus, HelpType, PriorityLevel, PriorityReason, StopReason } from '@/domain/enums';
+import type { Department, HelpStatus, HelpType, PriorityLevel, PriorityReason, StopReason, TshirtSize } from '@/domain/enums';
 import type {
   ActivityLogEntry,
+  CustomCheck,
   Dependency,
+  StageNote,
+  StageSignoff,
   Initiative,
   InitiativeLink,
   OverrideMetadata,
@@ -11,12 +14,13 @@ import type {
   WorkflowStage,
 } from '@/domain/types';
 import type { DataStore } from '@/server/repositories/types';
-import { evaluateGate } from './gate';
+import { evaluateGate, type GatePendingItem } from './gate';
 import { computeSle, type SleReading } from './sle';
 import { notFound } from './errors';
 import { nextApplicableStage } from './stage-route';
 import { canAdvanceInitiative } from './rbac';
 import { DEPARTMENT_SHORT, HELP_TYPE_LABELS } from '@/domain/labels';
+import { isSignoffSatisfied, signoffId, signoffsFor, type SignoffRequirementKind } from '@/domain/signoffs';
 
 /**
  * Proyecciones de solo lectura que consumen las vistas.
@@ -81,6 +85,9 @@ export interface InitiativeCardView {
   pendingCount: number;
   lastOverride: OverrideMark | null;
   isArchived: boolean;
+  /** Spec 005: cerró Producción; sale del tablero y es de solo lectura. */
+  isFinalized: boolean;
+  finalizedAt: string | null;
   /** Fases marcadas "No aplica" en la ruta de esta iniciativa. */
   skippedStageCount: number;
   attachmentCount: number;
@@ -132,7 +139,7 @@ interface CardContext {
   logByInitiative: Map<string, ActivityLogEntry[]>;
   gateByInitiative: Map<string, { completed: number; total: number }>;
   /** Items obligatorios pendientes de la fase actual, para "Esperando de mí". */
-  gatePendingByInitiative: Map<string, StageChecklistItem[]>;
+  gatePendingByInitiative: Map<string, GatePendingItem[]>;
   attachmentCountByInitiative: Map<string, number>;
   now: Date;
 }
@@ -175,6 +182,8 @@ function buildCard(initiative: Initiative, context: CardContext): InitiativeCard
     pendingCount: pending.length,
     lastOverride: overrideMarkOf(context.logByInitiative.get(initiative.id) ?? [], context.stagesById),
     isArchived: initiative.isArchived,
+    isFinalized: Boolean(initiative.finalizedAt),
+    finalizedAt: initiative.finalizedAt ?? null,
     skippedStageCount: initiative.skippedStageIds.length,
     attachmentCount: context.attachmentCountByInitiative.get(initiative.id) ?? 0,
     updatedAt: initiative.updatedAt,
@@ -233,7 +242,7 @@ async function buildContext(
   }
 
   const gateByInitiative = new Map<string, { completed: number; total: number }>();
-  const gatePendingByInitiative = new Map<string, StageChecklistItem[]>();
+  const gatePendingByInitiative = new Map<string, GatePendingItem[]>();
   await Promise.all(
     initiatives.map(async (initiative) => {
       const gate = await evaluateGate(store, initiative);
@@ -338,7 +347,8 @@ export async function getMyWork(
   options: { now?: Date } = {},
 ): Promise<MyWorkView> {
   const now = options.now ?? new Date();
-  const initiatives = await store.listInitiatives();
+  // Las finalizadas ya no esperan nada de nadie (spec 005, RF-19).
+  const initiatives = (await store.listInitiatives()).filter((initiative) => !initiative.finalizedAt);
   const context = await buildContext(store, initiatives, now);
 
   const view: MyWorkView = { waiting: [], mine: [], blocked: [], unassignedInMyArea: [] };
@@ -417,10 +427,12 @@ export async function getBoardView(
 ): Promise<BoardColumnView[]> {
   const now = options.now ?? new Date();
   const filter = options.filter ?? {};
-  const [stages, initiatives] = await Promise.all([
+  const [stages, listed] = await Promise.all([
     store.listStages(),
     store.listInitiatives({ includeArchived: options.includeArchived }),
   ]);
+  // Las finalizadas salen del tablero operativo: viven en /finalizadas (spec 005, RF-19).
+  const initiatives = listed.filter((initiative) => !initiative.finalizedAt);
   const context = await buildContext(store, initiatives, now);
   const cards = initiatives.map((initiative) => {
     const card = buildCard(initiative, context);
@@ -504,6 +516,7 @@ export async function getRadarRows(store: DataStore, options: { now?: Date } = {
   const usersById = new Map(users.map((user) => [user.id, user]));
 
   return initiatives
+    .filter((initiative) => !initiative.finalizedAt)
     .map((initiative) => {
       const stage = stagesById.get(initiative.currentStageId);
       const pending = dependencies.filter(
@@ -601,6 +614,59 @@ export interface RouteStepView {
   skip: { reason: string; by: string; at: string } | null;
 }
 
+/** Aprobación obligatoria de un área en una fase (spec 005 §5.4). */
+export interface SignoffView {
+  /** `SIGNOFF:<STAGE_KEY>:<DEPARTMENT>`. */
+  id: string;
+  stageId: number;
+  department: Department;
+  requirement: SignoffRequirementKind;
+  isApproved: boolean;
+  /** Aprobada y con su requisito extra cumplido. */
+  isSatisfied: boolean;
+  approvedBy: PersonView | null;
+  /** Aprobó alguien de fuera del área (Dirección en su nombre). */
+  onBehalf: boolean;
+  approvedAt: string | null;
+  note: string | null;
+  noObservations: boolean;
+  tshirtSize: TshirtSize | null;
+  /** Solicitud de ayuda abierta a esa área, si la hay (evita pedirla dos veces). */
+  linkedDependencyId: string | null;
+}
+
+export interface CustomCheckView {
+  id: string;
+  label: string;
+  note: string | null;
+  isCompleted: boolean;
+  completedBy: PersonView | null;
+  completedAt: string | null;
+  createdBy: PersonView | null;
+  createdAt: string;
+}
+
+/** Un bloque del historial: una fase ya cerrada (spec 005 §5.7). */
+export interface StageHistoryView {
+  /** Clave estable para la lista: el id del evento de cierre. */
+  key: string;
+  stageId: number;
+  stageName: string;
+  kind: 'ADVANCED' | 'FINALIZED';
+  toStageName: string | null;
+  closedAt: string;
+  closedBy: PersonView | null;
+  isOverride: boolean;
+  /** `null` en avances anteriores a la nota obligatoria. */
+  note: string | null;
+  isLegacy: boolean;
+  netDurationMs: number | null;
+  skippedStageNames: string[];
+  signoffs: SignoffView[];
+  customChecks: CustomCheckView[];
+  tshirtSize: TshirtSize | null;
+}
+
 export interface InitiativeDetailView {
   card: InitiativeCardView;
   stage: WorkflowStage;
@@ -609,6 +675,15 @@ export interface InitiativeDetailView {
   route: RouteStepView[];
   attachments: AttachmentView[];
   gate: { items: GateItemView[]; completed: number; total: number; isComplete: boolean };
+  /** Aprobaciones de la fase actual. */
+  signoffs: SignoffView[];
+  /** Casillas adicionales vivas de la fase actual. */
+  customChecks: CustomCheckView[];
+  /** Fases cerradas, en orden cronológico. */
+  history: StageHistoryView[];
+  finalized: { at: string; by: PersonView | null } | null;
+  /** Talla T-shirt que fijó Tech en Viabilidad, si la hay. */
+  tshirtSize: TshirtSize | null;
   dependencies: DependencyView[];
   audit: AuditEntryView[];
   creator: PersonView | null;
@@ -627,14 +702,18 @@ export async function getInitiativeDetail(
   const initiative = await store.initiativeById(initiativeId);
   if (!initiative) throw notFound(`No existe la iniciativa ${initiativeId}.`);
 
-  const [stages, users, dependencies, log, gate, attachmentRows] = await Promise.all([
-    store.listStages(),
-    store.listUsers(),
-    store.listDependencies(initiativeId),
-    store.listActivityLog(initiativeId),
-    evaluateGate(store, initiative),
-    store.listAttachments(initiativeId),
-  ]);
+  const [stages, users, dependencies, log, gate, attachmentRows, signoffRows, stageNotes, customCheckRows] =
+    await Promise.all([
+      store.listStages(),
+      store.listUsers(),
+      store.listDependencies(initiativeId),
+      store.listActivityLog(initiativeId),
+      evaluateGate(store, initiative),
+      store.listAttachments(initiativeId),
+      store.listStageSignoffs(initiativeId),
+      store.listStageNotes(initiativeId),
+      store.listCustomChecks(initiativeId),
+    ]);
   const liveAttachments = attachmentRows.filter((attachment) => !attachment.isRemoved);
 
   const stagesById = new Map(stages.map((stage) => [stage.id, stage]));
@@ -705,11 +784,32 @@ export async function getInitiativeDetail(
       pendingDependencies.find((dependency) => dependency.checklistItemId === state.item.id)?.id ?? null,
   }));
 
+  // Solo cuentan como «ya solicitada» las peticiones abiertas en esta fase.
+  const currentSignoffs = signoffViewsFor(
+    stage,
+    signoffRows,
+    usersById,
+    pendingDependencies.filter((dependency) => dependency.createdAt >= initiative.stageEnteredAt),
+  );
+  const history = buildHistory(log, stagesById, usersById, stageNotes, signoffRows, customCheckRows);
+
   return {
     card,
     stage,
     nextStage,
     route,
+    signoffs: currentSignoffs,
+    customChecks: customCheckRows
+      .filter((check) => check.stageId === stage.id && !check.isRemoved)
+      .map((check) => customCheckViewOf(check, usersById)),
+    history,
+    finalized: initiative.finalizedAt
+      ? {
+          at: initiative.finalizedAt,
+          by: personOf(initiative.finalizedBy ? usersById.get(initiative.finalizedBy) : undefined),
+        }
+      : null,
+    tshirtSize: tshirtOf(signoffRows, stagesById),
     attachments: liveAttachments.map((attachment) => ({
       id: attachment.id,
       fileName: attachment.fileName,
@@ -759,6 +859,178 @@ export async function getInitiativeDetail(
     createdAt: initiative.createdAt,
     stageEnteredAt: initiative.stageEnteredAt,
   };
+}
+
+function signoffViewsFor(
+  stage: WorkflowStage,
+  rows: StageSignoff[],
+  usersById: Map<string, User>,
+  pendingDependencies: Dependency[],
+): SignoffView[] {
+  return signoffsFor(stage.key).map(({ department, requirement }) => {
+    const row = rows.find((candidate) => candidate.stageId === stage.id && candidate.department === department);
+    const approver = row?.approvedBy ? usersById.get(row.approvedBy) : undefined;
+    return {
+      id: signoffId(stage.key, department),
+      stageId: stage.id,
+      department,
+      requirement,
+      isApproved: row?.isApproved ?? false,
+      isSatisfied: isSignoffSatisfied(requirement, row),
+      approvedBy: personOf(approver),
+      onBehalf: Boolean(row?.isApproved && approver && !approver.departments.includes(department)),
+      approvedAt: row?.approvedAt ?? null,
+      note: row?.note ?? null,
+      noObservations: row?.noObservations ?? false,
+      tshirtSize: row?.tshirtSize ?? null,
+      // Una aprobación por área y fase: basta con casar el departamento.
+      linkedDependencyId:
+        pendingDependencies.find(
+          (dependency) => dependency.targetDepartment === department && dependency.checklistItemId === null,
+        )?.id ?? null,
+    };
+  });
+}
+
+function customCheckViewOf(check: CustomCheck, usersById: Map<string, User>): CustomCheckView {
+  return {
+    id: check.id,
+    label: check.label,
+    note: check.note,
+    isCompleted: check.isCompleted,
+    completedBy: personOf(check.completedBy ? usersById.get(check.completedBy) : undefined),
+    completedAt: check.completedAt,
+    createdBy: personOf(usersById.get(check.createdBy)),
+    createdAt: check.createdAt,
+  };
+}
+
+/** Talla T-shirt vigente: la que aprobó Tech en Viabilidad. */
+function tshirtOf(rows: StageSignoff[], stagesById: Map<number, WorkflowStage>): TshirtSize | null {
+  const row = rows.find(
+    (candidate) =>
+      candidate.isApproved && candidate.tshirtSize !== null && stagesById.get(candidate.stageId)?.key === 'FEASIBILITY',
+  );
+  return row?.tshirtSize ?? null;
+}
+
+function objectValue(entry: ActivityLogEntry): Record<string, unknown> {
+  const value = entry.newValue;
+  return value && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
+}
+
+/**
+ * Historial por fase (spec 005 §5.7): un bloque por cada cierre de fase, sea
+ * avance o finalización. Los avances anteriores a la nota obligatoria se
+ * muestran con lo que dejó la caja negra y se rotulan como tales.
+ */
+function buildHistory(
+  log: ActivityLogEntry[],
+  stagesById: Map<number, WorkflowStage>,
+  usersById: Map<string, User>,
+  notes: StageNote[],
+  signoffRows: StageSignoff[],
+  customChecks: CustomCheck[],
+): StageHistoryView[] {
+  const stagesByKey = new Map([...stagesById.values()].map((stage) => [stage.key as string, stage]));
+  const notesById = new Map(notes.map((note) => [note.id, note]));
+
+  return log
+    .filter((entry) => entry.actionType === 'STAGE_TRANSITION' || entry.actionType === 'INITIATIVE_FINALIZED')
+    .filter((entry) => entry.fromStageId !== null)
+    .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+    .map((entry) => {
+      const value = objectValue(entry);
+      const stage = stagesById.get(entry.fromStageId as number) ?? fallbackStage(entry.fromStageId as number);
+      const noteId = typeof value.noteId === 'string' ? value.noteId : null;
+      const note =
+        (noteId ? notesById.get(noteId) : undefined) ??
+        // Respaldo por si el evento no guardó el id: misma fase de origen y mismo instante.
+        notes.find((candidate) => candidate.fromStageId === stage.id && candidate.createdAt === entry.createdAt);
+      const skippedKeys = Array.isArray(value.skippedStageKeys) ? (value.skippedStageKeys as unknown[]) : [];
+      const signoffs = signoffViewsFor(stage, signoffRows, usersById, []);
+      return {
+        key: entry.id,
+        stageId: stage.id,
+        stageName: stage.name,
+        kind: entry.actionType === 'INITIATIVE_FINALIZED' ? ('FINALIZED' as const) : ('ADVANCED' as const),
+        toStageName: entry.toStageId ? (stagesById.get(entry.toStageId)?.name ?? null) : null,
+        closedAt: entry.createdAt,
+        closedBy: personOf(usersById.get(entry.userId)),
+        isOverride: value.overridden === true,
+        note: note?.note ?? null,
+        isLegacy: !note,
+        netDurationMs: typeof value.netDurationMs === 'number' ? value.netDurationMs : null,
+        skippedStageNames: skippedKeys
+          .filter((key): key is string => typeof key === 'string')
+          .map((key) => stagesByKey.get(key)?.name ?? key),
+        signoffs,
+        customChecks: customChecks
+          .filter((check) => check.stageId === stage.id && !check.isRemoved)
+          .map((check) => customCheckViewOf(check, usersById)),
+        tshirtSize: signoffs.find((signoff) => signoff.tshirtSize !== null)?.tshirtSize ?? null,
+      };
+    });
+}
+
+export interface FinalizedRow {
+  id: string;
+  title: string;
+  ownerDepartment: Department;
+  priority: PriorityLevel;
+  priorityReason: PriorityReason;
+  finalizedAt: string;
+  finalizedBy: PersonView | null;
+  tshirtSize: TshirtSize | null;
+  /** Del alta a la finalización. */
+  totalMs: number;
+  overrideCount: number;
+}
+
+/**
+ * Iniciativas finalizadas (spec 005, RF-18): histórico consultable fuera del
+ * tablero operativo. Las archivadas no entran: archivar es descartar.
+ */
+export async function getFinalizedView(
+  store: DataStore,
+  options: { query?: string } = {},
+): Promise<FinalizedRow[]> {
+  const [initiatives, users, stages, log] = await Promise.all([
+    store.listInitiatives(),
+    store.listUsers(),
+    store.listStages(),
+    store.listActivityLog(),
+  ]);
+  const usersById = new Map(users.map((user) => [user.id, user]));
+  const stagesById = new Map(stages.map((stage) => [stage.id, stage]));
+  const needle = options.query ? normalizeText(options.query.trim()) : '';
+
+  const finalized = initiatives.filter(
+    (initiative) =>
+      initiative.finalizedAt &&
+      (!needle || normalizeText(`${initiative.id} ${initiative.title}`).includes(needle)),
+  );
+
+  const rows = await Promise.all(
+    finalized.map(async (initiative) => {
+      const finalizedAt = initiative.finalizedAt as string;
+      return {
+        id: initiative.id,
+        title: initiative.title,
+        ownerDepartment: initiative.ownerDepartment,
+        priority: initiative.priority,
+        priorityReason: initiative.priorityReason,
+        finalizedAt,
+        finalizedBy: personOf(initiative.finalizedBy ? usersById.get(initiative.finalizedBy) : undefined),
+        tshirtSize: tshirtOf(await store.listStageSignoffs(initiative.id), stagesById),
+        totalMs: Math.max(0, new Date(finalizedAt).getTime() - new Date(initiative.createdAt).getTime()),
+        overrideCount: log.filter(
+          (entry) => entry.initiativeId === initiative.id && entry.actionType === 'EXCEPTION_OVERRIDE',
+        ).length,
+      };
+    }),
+  );
+  return rows.sort((a, b) => b.finalizedAt.localeCompare(a.finalizedAt));
 }
 
 function describeEntry(entry: ActivityLogEntry): string {

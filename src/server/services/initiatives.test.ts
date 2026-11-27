@@ -37,7 +37,7 @@ describe('ciclo de vida de la iniciativa', () => {
 
     const initiative = await createInitiative(store, session, {
       title: 'Protocolo de escucha activa',
-      description: '',
+      description: 'Descripción de prueba suficientemente larga.',
       priority: 'NORMAL',
       priorityReason: 'ROADMAP',
       ownerDepartment: 'PSYCHOLOGY',
@@ -53,7 +53,7 @@ describe('ciclo de vida de la iniciativa', () => {
     const { store } = makeTestStore([]);
     const base = {
       title: 'Iniciativa para otra área',
-      description: '',
+      description: 'Descripción de prueba suficientemente larga.',
       priority: 'NORMAL' as const,
       priorityReason: 'ROADMAP' as const,
       ownerDepartment: 'LEGAL' as const,
@@ -72,7 +72,7 @@ describe('ciclo de vida de la iniciativa', () => {
 
     const initiative = await createInitiative(store, session, {
       title: 'Evaluación de riesgo clínico',
-      description: '',
+      description: 'Descripción de prueba suficientemente larga.',
       priority: 'HIGH',
       priorityReason: 'REGULATORY_RISK',
       ownerDepartment: 'PSYCHOLOGY',
@@ -95,7 +95,7 @@ describe('ciclo de vida de la iniciativa', () => {
     await expect(
       createInitiative(store, session, {
         title: 'Ayuda a uno mismo',
-        description: '',
+        description: 'Descripción de prueba suficientemente larga.',
         priority: 'NORMAL',
         priorityReason: 'ROADMAP',
         ownerDepartment: 'PSYCHOLOGY',
@@ -114,7 +114,7 @@ describe('ciclo de vida de la iniciativa', () => {
     // que la capa de entrada haya validado.
     const input = {
       title: 'Iniciativa sin motivo declarado',
-      description: '',
+      description: 'Descripción de prueba suficientemente larga.',
       priority: 'HIGH',
     } as unknown as CreateInitiativeInput;
 
@@ -127,7 +127,7 @@ describe('ciclo de vida de la iniciativa', () => {
 
     const created = await createInitiative(store, session, {
       title: 'Otra iniciativa de prueba',
-      description: '',
+      description: 'Descripción de prueba suficientemente larga.',
       priority: 'NORMAL',
       priorityReason: 'ROADMAP',
       now: TEST_NOW,

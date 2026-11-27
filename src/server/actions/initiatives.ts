@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { DEPARTMENTS, HELP_TYPES_V1, LINK_KINDS, PRIORITY_LEVELS, PRIORITY_REASONS } from '@/domain/enums';
 import { getRequestContext } from '@/lib/session';
 import {
+  MAX_INITIATIVE_DESCRIPTION,
   MIN_ARCHIVE_REASON,
   MIN_OVERRIDE_REASON,
   MIN_OVERRIDE_RISK,
@@ -16,6 +17,7 @@ import {
   archiveInitiatives,
   assignInitiative,
   createInitiative,
+  finalizeInitiative,
   reassignOwner,
   restoreInitiative,
   updateInitiative,
@@ -23,6 +25,7 @@ import {
 import { removeAttachment } from '@/server/services/attachments';
 import { restoreStage, skipStage } from '@/server/services/stage-route';
 import { type ActionResult, initiativeIdSchema, runAction } from './shared';
+import { advanceNoteSchema, initiativeDescriptionSchema } from './signoff-schemas';
 
 const linkSchema = z.object({
   kind: z.enum(LINK_KINDS),
@@ -39,7 +42,7 @@ const durationSchema = z
 
 const createSchema = z.object({
   title: z.string().trim().min(8, 'El título debe tener al menos 8 caracteres.').max(255),
-  description: z.string().trim().max(4000).default(''),
+  description: initiativeDescriptionSchema,
   priority: z.enum(PRIORITY_LEVELS),
   // Motivo de prioridad obligatorio (TemoFlow.md §1.1.A).
   priorityReason: z.enum(PRIORITY_REASONS),
@@ -67,7 +70,9 @@ export async function createInitiativeAction(input: unknown): Promise<ActionResu
 const updateSchema = z.object({
   initiativeId: initiativeIdSchema,
   title: z.string().trim().min(8).max(255).optional(),
-  description: z.string().trim().max(4000).optional(),
+  // Se valida en el servicio solo si cambia: una iniciativa antigua sin
+  // descripción puede editar el resto de campos (spec 005, RF-2).
+  description: z.string().trim().max(MAX_INITIATIVE_DESCRIPTION).optional(),
   currentTask: z.string().trim().max(255).nullable().optional(),
   links: z.array(linkSchema).max(10).optional(),
   estimatedDurationDays: durationSchema.nullable().optional(),
@@ -125,6 +130,7 @@ export async function reassignOwnerAction(input: unknown): Promise<ActionResult<
 
 const advanceSchema = z.object({
   initiativeId: initiativeIdSchema,
+  note: advanceNoteSchema,
   override: z
     .object({
       reason: z
@@ -164,6 +170,7 @@ export async function advanceStageAction(input: unknown): Promise<ActionResult<A
     handler: async ({ store, session, input: data }) => {
       const result = await advanceStage(store, session, {
         initiativeId: data.initiativeId,
+        note: data.note,
         override: data.override,
         request,
       });
@@ -184,6 +191,36 @@ export async function advanceStageAction(input: unknown): Promise<ActionResult<A
         overridden: result.overridden,
         toStageName: result.toStage.name,
       };
+    },
+  });
+}
+
+export interface FinalizeActionResult {
+  status: 'FINALIZED' | 'GATE_BLOCKED';
+  pending?: { id: string; label: string; responsibleDepartment: string }[];
+}
+
+/**
+ * Finalizar desde Producción (spec 005 §5.8): exige la aprobación de Tech y la
+ * nota de cierre, sin avance excepcional.
+ */
+export async function finalizeInitiativeAction(input: unknown): Promise<ActionResult<FinalizeActionResult>> {
+  return runAction({
+    schema: z.object({ initiativeId: initiativeIdSchema, note: advanceNoteSchema }),
+    input,
+    handler: async ({ store, session, input: data }) => {
+      const result = await finalizeInitiative(store, session, data);
+      if (result.status === 'GATE_BLOCKED') {
+        return {
+          status: 'GATE_BLOCKED' as const,
+          pending: result.gate.pending.map((item) => ({
+            id: item.id,
+            label: item.label,
+            responsibleDepartment: item.responsibleDepartment,
+          })),
+        };
+      }
+      return { status: 'FINALIZED' as const };
     },
   });
 }

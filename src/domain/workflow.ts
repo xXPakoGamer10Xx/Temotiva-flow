@@ -38,7 +38,7 @@ export const SEED_STAGES: WorkflowStage[] = [
   {
     id: 3,
     key: 'CO_DESIGN',
-    name: 'Co-Diseño',
+    name: 'Diseño',
     orderIndex: 3,
     defaultOwnerDepartment: 'DESIGN',
     sleHours: 120,

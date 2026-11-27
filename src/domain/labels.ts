@@ -10,10 +10,12 @@ import type {
   PriorityReason,
   StopReason,
   TaskStatus,
+  TshirtSize,
   PullRequestState,
   UserRole,
 } from './enums';
 import type { DepartmentRequestStatus } from './department-request';
+import type { SignoffRequirementKind } from './signoffs';
 
 /**
  * Unica fuente de los textos visibles (AGENTS.md §4.1: codigo en ingles,
@@ -159,6 +161,27 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   DEPARTMENT_REQUEST_ATTACHMENT_REMOVED: 'Adjunto retirado de una petición entre áreas',
   DEPARTMENT_REQUEST_REASSIGNED: 'Petición entre áreas reasignada',
   TASK_READ: 'Tarea de área leída',
+  STAGE_SIGNOFF_GRANTED: 'Aprobación de área registrada',
+  STAGE_SIGNOFF_REVOKED: 'Aprobación de área retirada',
+  CUSTOM_CHECK_ADDED: 'Casilla adicional añadida',
+  CUSTOM_CHECK_UPDATED: 'Casilla adicional actualizada',
+  CUSTOM_CHECK_REMOVED: 'Casilla adicional retirada',
+  INITIATIVE_FINALIZED: 'Iniciativa finalizada',
+};
+
+export const TSHIRT_SIZE_LABELS: Record<TshirtSize, string> = {
+  XS: 'XS',
+  S: 'S',
+  M: 'M',
+  L: 'L',
+  XL: 'XL',
+};
+
+/** Texto de ayuda del requisito extra de una aprobación (spec 005 §5.2). */
+export const SIGNOFF_REQUIREMENT_HINTS: Record<SignoffRequirementKind, string> = {
+  NONE: '',
+  NOTE_OR_NO_OBSERVATIONS: 'Deja tus consideraciones o marca «Sin observaciones» antes de aprobar.',
+  TSHIRT: 'Elige la talla de esfuerzo (T-shirt) antes de aprobar.',
 };
 
 /** Peticiones entre áreas (spec 001 — Dependencias). */

@@ -19,6 +19,8 @@ import {
 import {
   MAX_PERSONAL_STEPS_PER_INITIATIVE,
   MAX_PERSONAL_STEP_TITLE,
+  MAX_INITIATIVE_DESCRIPTION,
+  MIN_INITIATIVE_DESCRIPTION,
   MIN_INITIATIVE_TITLE,
   MIN_PERSONAL_STEP_TITLE,
   MIN_STAGE_SKIP_REASON,
@@ -118,6 +120,7 @@ export function NewInitiativeDialog({
 
   const canSubmit =
     title.trim().length >= MIN_INITIATIVE_TITLE &&
+    description.trim().length >= MIN_INITIATIVE_DESCRIPTION &&
     (skipped.length === 0 || routeReason.trim().length >= MIN_STAGE_SKIP_REASON) &&
     linksAreValid(links) &&
     (estimate.trim() === '' || (Number.isInteger(Number(estimate)) && Number(estimate) >= 1 && Number(estimate) <= 365)) &&
@@ -215,10 +218,18 @@ export function NewInitiativeDialog({
                 <Textarea
                   id="new-description"
                   rows={4}
+                  required
+                  aria-describedby="new-description-hint"
                   value={description}
+                  maxLength={MAX_INITIATIVE_DESCRIPTION}
                   onChange={(event) => setDescription(event.target.value)}
                   placeholder="Problema que atiende, enfoque clínico e impacto esperado"
                 />
+                <p id="new-description-hint" className="text-xs tabular-nums text-fg-subtle">
+                  {description.trim().length < MIN_INITIATIVE_DESCRIPTION
+                    ? `Obligatoria: ${description.trim().length}/${MIN_INITIATIVE_DESCRIPTION} caracteres mínimos`
+                    : `${description.trim().length}/${MAX_INITIATIVE_DESCRIPTION}`}
+                </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">

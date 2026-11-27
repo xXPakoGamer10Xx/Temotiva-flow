@@ -17,6 +17,7 @@ import { GeneralTab } from './general-tab';
 import { GateTab } from './gate-tab';
 import { DependenciesTab } from './dependencies-tab';
 import { AuditTab } from './audit-tab';
+import { HistoryTab } from './history-tab';
 import { BlockControl } from './block-control';
 
 export interface InitiativeCapabilities {
@@ -28,6 +29,8 @@ export interface InitiativeCapabilities {
   canAssign: boolean;
   canBlock: boolean;
   canChangePriority: boolean;
+  /** Spec 005: añadir y marcar casillas adicionales de la fase actual. */
+  canManageCustomChecks: boolean;
   /** Área propietaria, para explicar en la interfaz por qué algo está vedado. */
   ownerLabel: string;
 }
@@ -76,6 +79,7 @@ export function InitiativeSheet({
             <Badge tone="accent">{detail.stage.name}</Badge>
             <Badge tone="neutral">{DEPARTMENT_LABELS[card.ownerDepartment]}</Badge>
             {card.isArchived ? <Badge tone="neutral">Archivada</Badge> : null}
+            {card.isFinalized ? <Badge tone="success">Finalizada</Badge> : null}
             <SheetCloseButton className="ml-auto" />
           </div>
 
@@ -83,22 +87,30 @@ export function InitiativeSheet({
 
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <SleClock reading={card.sle} />
-              <InfoHint term="sle" className="-ml-2" />
+              {card.isFinalized ? null : (
+                <>
+                  <SleClock reading={card.sle} />
+                  <InfoHint term="sle" className="-ml-2" />
+                </>
+              )}
               <span className="text-xs text-fg-subtle">
-                {card.isBlocked && card.blockedStartedAt
+                {card.isFinalized && card.finalizedAt
+                  ? `Finalizada el ${formatDateTime(card.finalizedAt)}`
+                  : card.isBlocked && card.blockedStartedAt
                   ? `En parada desde ${formatDateTime(card.blockedStartedAt)}`
                   : `En ${detail.stage.name} desde ${formatDateTime(detail.stageEnteredAt)}`}
               </span>
             </div>
-            <BlockControl
-              initiativeId={card.id}
-              isBlocked={card.isBlocked}
-              stopReason={card.stopReason}
-              disabled={card.isArchived}
-              canBlock={capabilities.canBlock}
-              ownerLabel={capabilities.ownerLabel}
-            />
+            {card.isFinalized ? null : (
+              <BlockControl
+                initiativeId={card.id}
+                isBlocked={card.isBlocked}
+                stopReason={card.stopReason}
+                disabled={card.isArchived}
+                canBlock={capabilities.canBlock}
+                ownerLabel={capabilities.ownerLabel}
+              />
+            )}
           </div>
         </SheetHeader>
 
@@ -123,7 +135,7 @@ export function InitiativeSheet({
         ) : null}
 
         <SheetBody className="pt-4">
-          <Tabs defaultValue={["general", "gate", "dependencies", "audit"].includes(defaultTab ?? "") ? defaultTab : "general"}>
+          <Tabs defaultValue={['general', 'gate', 'history', 'dependencies', 'audit'].includes(defaultTab ?? '') ? defaultTab : 'general'}>
             <TabsList>
               <TabsTrigger value="general">General</TabsTrigger>
               <TabsTrigger value="gate">
@@ -131,6 +143,14 @@ export function InitiativeSheet({
                 <Badge tone={detail.gate.isComplete ? 'success' : 'neutral'} className="tabular-nums">
                   {detail.gate.completed}/{detail.gate.total}
                 </Badge>
+              </TabsTrigger>
+              <TabsTrigger value="history">
+                Historial
+                {detail.history.length > 0 ? (
+                  <Badge tone="neutral" className="tabular-nums">
+                    {detail.history.length}
+                  </Badge>
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="dependencies">
                 Dependencias
@@ -152,6 +172,10 @@ export function InitiativeSheet({
 
             <TabsContent value="gate">
               <GateTab detail={detail} session={session} capabilities={capabilities} personalSteps={personalSteps} />
+            </TabsContent>
+
+            <TabsContent value="history">
+              <HistoryTab detail={detail} />
             </TabsContent>
 
             <TabsContent value="dependencies">

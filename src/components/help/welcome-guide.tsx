@@ -20,11 +20,11 @@ const COMMON_STEPS: Step[] = [
   },
   {
     title: 'El tablero: lo que te toca',
-    body: 'Cada tarjeta muestra su prioridad, su reloj SLE y cuántos requisitos de salida lleva cerrados. Filtra por tu departamento para ver solo lo tuyo. Pulsa una tarjeta para abrir su ficha completa.',
+    body: 'Cada tarjeta muestra su prioridad, su reloj SLE y cuántas aprobaciones de área lleva su fase. Filtra por tu departamento para ver solo lo tuyo. Pulsa una tarjeta para abrir su ficha completa.',
   },
   {
     title: 'La compuerta: no se avanza a medias',
-    body: 'Para pasar de fase hay que cerrar todos los requisitos de la lista. Si falta alguno, la pantalla te dice cuál y te deja pedírselo al departamento responsable con un clic.',
+    body: 'Para pasar de fase, cada área participante tiene que aprobarla al 100 %, y quien avanza deja una nota de lo que se hizo. Si falta una aprobación, la pantalla te dice cuál y te deja pedírsela al área con un clic.',
   },
   {
     title: 'Pedir ayuda sin perder la iniciativa',
