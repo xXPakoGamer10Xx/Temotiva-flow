@@ -9,6 +9,7 @@ import type {
   PriorityLevel,
   PriorityReason,
   StopReason,
+  TaskNoteKind,
   TaskStatus,
   PullRequestState,
   UserRole,
@@ -159,6 +160,33 @@ export const ACTION_TYPE_LABELS: Record<ActionType, string> = {
   DEPARTMENT_REQUEST_ATTACHMENT_REMOVED: 'Adjunto retirado de una petición entre áreas',
   DEPARTMENT_REQUEST_REASSIGNED: 'Petición entre áreas reasignada',
   TASK_READ: 'Tarea de área leída',
+<<<<<<< Updated upstream
+=======
+  STAGE_SIGNOFF_GRANTED: 'Aprobación de área registrada',
+  STAGE_SIGNOFF_REVOKED: 'Aprobación de área retirada',
+  CUSTOM_CHECK_ADDED: 'Casilla adicional añadida',
+  CUSTOM_CHECK_UPDATED: 'Casilla adicional actualizada',
+  CUSTOM_CHECK_REMOVED: 'Casilla adicional retirada',
+  INITIATIVE_FINALIZED: 'Iniciativa finalizada',
+  TASK_NOTE_ADDED: 'Nota de seguimiento añadida a una tarea',
+  TASK_NOTE_EDITED: 'Nota de seguimiento editada',
+  TASK_NOTE_REMOVED: 'Nota de seguimiento retirada',
+};
+
+export const TSHIRT_SIZE_LABELS: Record<TshirtSize, string> = {
+  XS: 'XS',
+  S: 'S',
+  M: 'M',
+  L: 'L',
+  XL: 'XL',
+};
+
+/** Texto de ayuda del requisito extra de una aprobación (spec 005 §5.2). */
+export const SIGNOFF_REQUIREMENT_HINTS: Record<SignoffRequirementKind, string> = {
+  NONE: '',
+  NOTE_OR_NO_OBSERVATIONS: 'Deja tus consideraciones o marca «Sin observaciones» antes de aprobar.',
+  TSHIRT: 'Elige la talla de esfuerzo (T-shirt) antes de aprobar.',
+>>>>>>> Stashed changes
 };
 
 /** Peticiones entre áreas (spec 001 — Dependencias). */
@@ -183,6 +211,20 @@ export const TASK_STATUS_LABELS: Record<TaskStatus, string> = {
   DOING: 'En curso',
   REVIEW: 'En revisión',
   DONE: 'Hecha',
+};
+
+/** Spec 006: tipo de nota de seguimiento. El pictograma va aparte, con `aria-hidden`. */
+export const TASK_NOTE_KIND_LABELS: Record<TaskNoteKind, string> = {
+  UPDATE: 'Seguimiento',
+  WAITING: 'En espera',
+  BLOCKED: 'Bloqueada',
+};
+
+/** Pictogramas que fija la especificación (⏳ espera, ⛔ bloqueo); el seguimiento no lleva. */
+export const TASK_NOTE_KIND_GLYPHS: Record<TaskNoteKind, string | null> = {
+  UPDATE: null,
+  WAITING: '⏳',
+  BLOCKED: '⛔',
 };
 
 export const PULL_REQUEST_STATE_LABELS: Record<PullRequestState, string> = {

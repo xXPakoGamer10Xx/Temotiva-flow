@@ -110,12 +110,28 @@ export const ACTION_TYPES = [
   'DEPARTMENT_REQUEST_ATTACHMENT_REMOVED',
   'DEPARTMENT_REQUEST_REASSIGNED',
   'TASK_READ',
+<<<<<<< Updated upstream
+=======
+  'STAGE_SIGNOFF_GRANTED',
+  'STAGE_SIGNOFF_REVOKED',
+  'CUSTOM_CHECK_ADDED',
+  'CUSTOM_CHECK_UPDATED',
+  'CUSTOM_CHECK_REMOVED',
+  'INITIATIVE_FINALIZED',
+  'TASK_NOTE_ADDED',
+  'TASK_NOTE_EDITED',
+  'TASK_NOTE_REMOVED',
+>>>>>>> Stashed changes
 ] as const;
 export type ActionType = (typeof ACTION_TYPES)[number];
 
 /** Estados de una tarea de área: por hacer, en curso, en revisión, hecha. */
 export const TASK_STATUSES = ['TODO', 'DOING', 'REVIEW', 'DONE'] as const;
 export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+/** Tipo de una nota de seguimiento de tarea (spec 006): novedad, espera o bloqueo. */
+export const TASK_NOTE_KINDS = ['UPDATE', 'WAITING', 'BLOCKED'] as const;
+export type TaskNoteKind = (typeof TASK_NOTE_KINDS)[number];
 
 /** Estado del último pull request de GitHub enlazado a una tarea. */
 export const PULL_REQUEST_STATES = ['DRAFT', 'OPEN', 'MERGED', 'CLOSED'] as const;

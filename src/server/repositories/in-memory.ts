@@ -25,6 +25,7 @@ import { buildSeedData, type SeedData } from '@/domain/seed';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DeptTaskReadCycle } from '@/domain/task-read';
+import type { DeptTaskNote, DeptTaskNoteRevision } from '@/domain/task-note';
 import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 /** Copia defensiva: nadie fuera del store puede mutar una fila por referencia. */
@@ -66,6 +67,16 @@ export class InMemoryDataStore implements DataStore {
   private sleRiskNotices = new Map<string, SleRiskNotice>();
   /** Spec 003: ciclos de lectura, en orden de alta. */
   private deptTaskReads: DeptTaskReadCycle[] = [];
+<<<<<<< Updated upstream
+=======
+  private deptTaskNotes = new Map<string, DeptTaskNote>();
+  private deptTaskNoteRevisions: DeptTaskNoteRevision[] = [];
+  /** Spec 005: por `${initiativeId}::${stageId}::${department}`, la PK del DDL. */
+  private stageSignoffs = new Map<string, StageSignoff>();
+  /** Spec 005: append-only, en orden de alta. */
+  private stageNotes: StageNote[] = [];
+  private customChecks = new Map<string, CustomCheck>();
+>>>>>>> Stashed changes
   private activityLog: ActivityLogEntry[] = [];
   private onChange: (() => void) | null = null;
 
@@ -127,6 +138,8 @@ export class InMemoryDataStore implements DataStore {
     );
     this.pushSubscriptions = new Map((data.pushSubscriptions ?? []).map((sub) => [sub.endpoint, clone(sub)]));
     this.deptTaskReads = (data.deptTaskReads ?? []).map(clone);
+    this.deptTaskNotes = new Map((data.deptTaskNotes ?? []).map((note) => [note.id, clone(note)]));
+    this.deptTaskNoteRevisions = (data.deptTaskNoteRevisions ?? []).map(clone);
     this.sleRiskNotices = new Map(
       (data.sleRiskNotices ?? []).map((notice) => [sleRiskNoticeKey(notice.initiativeId, notice.stageId), clone(notice)]),
     );
@@ -158,6 +171,14 @@ export class InMemoryDataStore implements DataStore {
       pushSubscriptions: [...this.pushSubscriptions.values()].map(clone),
       sleRiskNotices: [...this.sleRiskNotices.values()].map(clone),
       deptTaskReads: this.deptTaskReads.map(clone),
+<<<<<<< Updated upstream
+=======
+      deptTaskNotes: [...this.deptTaskNotes.values()].map(clone),
+      deptTaskNoteRevisions: this.deptTaskNoteRevisions.map(clone),
+      stageSignoffs: [...this.stageSignoffs.values()].map(clone),
+      stageNotes: this.stageNotes.map(clone),
+      customChecks: [...this.customChecks.values()].map(clone),
+>>>>>>> Stashed changes
       activityLog: this.activityLog.map(clone),
     };
   }
@@ -509,6 +530,60 @@ export class InMemoryDataStore implements DataStore {
     if (guard?.unread && current.readAt !== null) return null;
     const updated: DeptTaskReadCycle = { ...current, ...patch };
     this.deptTaskReads[index] = updated;
+    this.touched();
+    return clone(updated);
+  }
+
+  // --- Notas de seguimiento de tareas (spec 006) -------------------------------------
+
+  async listDeptTaskNotes(taskId?: string): Promise<DeptTaskNote[]> {
+    return [...this.deptTaskNotes.values()]
+      .filter((note) => taskId === undefined || note.taskId === taskId)
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .map(clone);
+  }
+
+  async deptTaskNoteById(id: string): Promise<DeptTaskNote | null> {
+    const note = this.deptTaskNotes.get(id);
+    return note ? clone(note) : null;
+  }
+
+  async listDeptTaskNoteRevisions(noteId: string): Promise<DeptTaskNoteRevision[]> {
+    return this.deptTaskNoteRevisions
+      .filter((revision) => revision.noteId === noteId)
+      .sort((a, b) => a.version - b.version)
+      .map(clone);
+  }
+
+  async insertDeptTaskNote(note: DeptTaskNote): Promise<DeptTaskNote> {
+    if (this.deptTaskNotes.has(note.id)) throw new Error(`La nota ${note.id} ya existe`);
+    this.deptTaskNotes.set(note.id, clone(note));
+    this.touched();
+    return clone(note);
+  }
+
+  async editDeptTaskNote(
+    id: string,
+    expectedVersion: number,
+    patch: Pick<DeptTaskNote, 'kind' | 'body' | 'editedAt' | 'editedBy'>,
+    revision: DeptTaskNoteRevision,
+  ): Promise<DeptTaskNote | null> {
+    // Comprobación y escritura sin `await` intermedio: equivale al UPDATE condicional.
+    const current = this.deptTaskNotes.get(id);
+    if (!current || current.isRemoved || current.version !== expectedVersion) return null;
+    if (this.deptTaskNoteRevisions.some((item) => item.noteId === id && item.version === revision.version)) return null;
+    const updated: DeptTaskNote = { ...current, ...patch, version: current.version + 1 };
+    this.deptTaskNoteRevisions.push(clone(revision));
+    this.deptTaskNotes.set(id, updated);
+    this.touched();
+    return clone(updated);
+  }
+
+  async removeDeptTaskNote(id: string, removedBy: string, removedAt: string): Promise<DeptTaskNote | null> {
+    const current = this.deptTaskNotes.get(id);
+    if (!current || current.isRemoved) return null;
+    const updated: DeptTaskNote = { ...current, isRemoved: true, removedBy, removedAt };
+    this.deptTaskNotes.set(id, updated);
     this.touched();
     return clone(updated);
   }

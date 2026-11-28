@@ -23,6 +23,7 @@ import type { FeedbackStatus, StageKey } from '@/domain/enums';
 import type { DepartmentRequest, DepartmentRequestAttachment, DepartmentRequestStatus } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DeptTaskReadCycle } from '@/domain/task-read';
+import type { DeptTaskNote, DeptTaskNoteRevision } from '@/domain/task-note';
 
 /** Campos de una tarea de área que se pueden cambiar tras crearla. */
 export type DeptTaskPatch = Partial<
@@ -133,6 +134,27 @@ export interface DataStore {
     patch: Partial<Pick<DeptTaskReadCycle, 'readAt' | 'readSource' | 'resolvedAt' | 'closedAt'>>,
     guard?: { unread: true },
   ): Promise<DeptTaskReadCycle | null>;
+
+  // --- Notas de seguimiento de tareas (spec 006) -------------------------------
+  /** De una tarea (o de todas), en orden de alta, incluidas las retiradas. El Need-to-Know va en el servicio. */
+  listDeptTaskNotes(taskId?: string): Promise<DeptTaskNote[]>;
+  deptTaskNoteById(id: string): Promise<DeptTaskNote | null>;
+  /** Versiones reemplazadas de una nota, de la más antigua a la más reciente. */
+  listDeptTaskNoteRevisions(noteId: string): Promise<DeptTaskNoteRevision[]>;
+  insertDeptTaskNote(note: DeptTaskNote): Promise<DeptTaskNote>;
+  /**
+   * Edición atómica: guarda `revision` (la versión anterior) y aplica `patch`
+   * subiendo la versión, solo si la nota sigue vigente y en `expectedVersion`.
+   * Devuelve `null` si otra petición la cambió o retiró antes (nada se escribe).
+   */
+  editDeptTaskNote(
+    id: string,
+    expectedVersion: number,
+    patch: Pick<DeptTaskNote, 'kind' | 'body' | 'editedAt' | 'editedBy'>,
+    revision: DeptTaskNoteRevision,
+  ): Promise<DeptTaskNote | null>;
+  /** Baja lógica, solo si seguía vigente. Devuelve `null` si ya estaba retirada o no existe. */
+  removeDeptTaskNote(id: string, removedBy: string, removedAt: string): Promise<DeptTaskNote | null>;
 
   // --- Sprints (V1: área Tech) ----------------------------------------------------
   /** Incluye los archivados: quien pinta decide si los muestra. */

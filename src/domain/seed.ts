@@ -22,6 +22,7 @@ import { SEED_CHECKLIST_ITEMS, SEED_STAGES, STAGE_ID_BY_KEY, checklistItemId } f
 import type { StageKey, StopReason } from './enums';
 import type { DepartmentRequest, DepartmentRequestAttachment } from './department-request';
 import type { DeptTaskReadCycle } from './task-read';
+import type { DeptTaskNote, DeptTaskNoteRevision } from './task-note';
 import type { PushSubscriptionRecord, SleRiskNotice } from './push';
 
 /**
@@ -70,6 +71,16 @@ export interface SeedData {
   sleRiskNotices?: SleRiskNotice[];
   /** Opcional: las semillas y snapshots anteriores a la confirmación de lectura (spec 003) no lo traen. */
   deptTaskReads?: DeptTaskReadCycle[];
+<<<<<<< Updated upstream
+=======
+  /** Opcionales: las semillas y snapshots anteriores a la spec 005 no los traen. */
+  stageSignoffs?: StageSignoff[];
+  stageNotes?: StageNote[];
+  customChecks?: CustomCheck[];
+  /** Opcionales: las semillas y snapshots anteriores a la spec 006 no los traen. */
+  deptTaskNotes?: DeptTaskNote[];
+  deptTaskNoteRevisions?: DeptTaskNoteRevision[];
+>>>>>>> Stashed changes
 }
 
 /** Claves legibles de los usuarios semilla; sus `id` son UUID como exige el DDL. */
@@ -1151,8 +1162,19 @@ export function buildSeedData(now: Date = new Date()): SeedData {
 
   activityLog.sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
+  const { deptTasks, deptTaskNotes, deptTaskNoteRevisions } = seedDeptTaskNotes(hoursAgo);
+
   return {
+<<<<<<< Updated upstream
     users: seedUsers(),
+=======
+    users,
+    deptTasks,
+    deptTaskNotes,
+    deptTaskNoteRevisions,
+    stageSignoffs,
+    stageNotes,
+>>>>>>> Stashed changes
     stages: SEED_STAGES.map((stage) => ({ ...stage })),
     checklistItems: SEED_CHECKLIST_ITEMS.map((item) => ({ ...item })),
     initiatives,
@@ -1160,4 +1182,147 @@ export function buildSeedData(now: Date = new Date()): SeedData {
     dependencies,
     activityLog,
   };
+}
+
+// --- Spec 006: tareas de área con notas de seguimiento (datos FICTICIOS) ---------------
+
+const SEED_TASK_IDS = {
+  onboarding: '6d0c5a4e-2b7f-4c1a-9e3d-0a6b8c1d0001',
+  wireframes: '6d0c5a4e-2b7f-4c1a-9e3d-0a6b8c1d0002',
+  glossary: '6d0c5a4e-2b7f-4c1a-9e3d-0a6b8c1d0003',
+} as const;
+
+const SEED_TASK_NOTE_ID = (n: number): string => `6d0c5a4e-2b7f-4c1a-9e3d-0a6b8c1d1${String(n).padStart(3, '0')}`;
+
+/** Descripción larga a propósito: comprueba el recorte a 3 líneas y el detalle completo (AC-13). */
+const SEED_LONG_DESCRIPTION = [
+  'Objetivo: que una persona nueva complete el registro y su primera sesión sin ayuda.',
+  '',
+  'Alcance de esta tarea:',
+  '1. Revisar los textos de las cinco pantallas de bienvenida con el equipo de Psicología, para que el tono sea cercano y no clínico.',
+  '2. Recoger las dudas que hoy llegan a soporte durante la primera semana y convertir las tres más frecuentes en ayudas dentro del flujo.',
+  '3. Preparar con Diseño una variante con menos pasos y medir cuántas personas llegan al final en cada una.',
+  '',
+  'Fuera de alcance: el cambio de proveedor de correo y la traducción a otros idiomas, que irán en tareas aparte.',
+  '',
+  'Criterio de hecho: los textos validados, la variante corta lista para prueba y un resumen de resultados compartido con Dirección.',
+].join('\n');
+
+function seedDeptTaskNotes(hoursAgo: (hours: number) => string): {
+  deptTasks: DeptTask[];
+  deptTaskNotes: DeptTaskNote[];
+  deptTaskNoteRevisions: DeptTaskNoteRevision[];
+} {
+  const task = (overrides: Partial<DeptTask> & Pick<DeptTask, 'id' | 'title' | 'department' | 'status' | 'createdBy'>): DeptTask => ({
+    description: '',
+    assigneeId: null,
+    initiativeId: null,
+    dueDate: null,
+    createdAt: hoursAgo(24 * 6),
+    updatedAt: hoursAgo(24),
+    isArchived: false,
+    code: null,
+    estimatedHours: null,
+    sprintId: null,
+    pullRequest: null,
+    ...overrides,
+  });
+  const note = (
+    n: number,
+    overrides: Partial<DeptTaskNote> & Pick<DeptTaskNote, 'taskId' | 'kind' | 'body' | 'authorId' | 'createdAt'>,
+  ): DeptTaskNote => ({
+    id: SEED_TASK_NOTE_ID(n),
+    authorDepartment: null,
+    version: 1,
+    editedAt: null,
+    editedBy: null,
+    isRemoved: false,
+    removedBy: null,
+    removedAt: null,
+    ...overrides,
+  });
+
+  const deptTasks: DeptTask[] = [
+    task({
+      id: SEED_TASK_IDS.onboarding,
+      title: 'Revisar el flujo de bienvenida de la app',
+      description: SEED_LONG_DESCRIPTION,
+      department: 'PRODUCT',
+      status: 'DOING',
+      assigneeId: SEED_USER_IDS.nuria,
+      createdBy: SEED_USER_IDS.clara,
+    }),
+    task({
+      id: SEED_TASK_IDS.wireframes,
+      title: 'Wireframes de la pantalla de progreso',
+      description: 'Tres propuestas en baja fidelidad para comentar con Producto.',
+      department: 'DESIGN',
+      status: 'REVIEW',
+      assigneeId: SEED_USER_IDS.irene,
+      createdBy: SEED_USER_IDS.diego,
+    }),
+    task({
+      id: SEED_TASK_IDS.glossary,
+      title: 'Actualizar el glosario de términos clínicos',
+      department: 'PRODUCT',
+      status: 'TODO',
+      createdBy: SEED_USER_IDS.clara,
+      createdAt: hoursAgo(30),
+      updatedAt: hoursAgo(30),
+    }),
+  ];
+
+  const deptTaskNotes: DeptTaskNote[] = [
+    // Bienvenida: la última nota vigente es una espera → la tarjeta muestra «⏳ En espera».
+    note(1, {
+      taskId: SEED_TASK_IDS.onboarding,
+      kind: 'UPDATE',
+      body: 'Textos de las pantallas 1 a 3 revisados. Quedan la 4 y la 5.',
+      authorId: SEED_USER_IDS.nuria,
+      authorDepartment: 'PRODUCT',
+      createdAt: hoursAgo(50),
+    }),
+    note(2, {
+      taskId: SEED_TASK_IDS.onboarding,
+      kind: 'WAITING',
+      body: 'Esperando la validación de Psicología sobre el tono de la pantalla 4.\nLo piden antes del jueves.',
+      authorId: SEED_USER_IDS.nuria,
+      authorDepartment: 'PRODUCT',
+      createdAt: hoursAgo(6),
+    }),
+    // Wireframes: un bloqueo ya despejado por una nota posterior; la primera se editó una vez.
+    note(3, {
+      taskId: SEED_TASK_IDS.wireframes,
+      kind: 'BLOCKED',
+      body: 'Sin acceso a los datos reales de progreso: no se puede validar la tercera propuesta.',
+      authorId: SEED_USER_IDS.irene,
+      authorDepartment: 'DESIGN',
+      createdAt: hoursAgo(28),
+      version: 2,
+      editedAt: hoursAgo(27),
+      editedBy: SEED_USER_IDS.irene,
+    }),
+    note(4, {
+      taskId: SEED_TASK_IDS.wireframes,
+      kind: 'UPDATE',
+      body: 'Tech nos dio un extracto anonimizado; seguimos con la tercera propuesta.',
+      authorId: SEED_USER_IDS.diego,
+      authorDepartment: 'DESIGN',
+      createdAt: hoursAgo(20),
+    }),
+  ];
+
+  const deptTaskNoteRevisions: DeptTaskNoteRevision[] = [
+    {
+      id: SEED_TASK_NOTE_ID(900),
+      noteId: SEED_TASK_NOTE_ID(3),
+      version: 1,
+      kind: 'WAITING',
+      body: 'Sin datos de progreso todavía.',
+      replacedBy: SEED_USER_IDS.irene,
+      replacedAt: hoursAgo(27),
+    },
+  ];
+
+  return { deptTasks, deptTaskNotes, deptTaskNoteRevisions };
 }

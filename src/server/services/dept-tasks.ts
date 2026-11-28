@@ -9,6 +9,8 @@ import { audit } from './audit';
 import { forbidden, invalid, notFound } from './errors';
 import { canManageDeptTasks, canMoveDeptTask, canWorkInArea } from './rbac';
 import type { DeptTaskReadCycle } from '@/domain/task-read';
+import type { DeptTaskNote } from '@/domain/task-note';
+import { type TaskNotesProjection, projectTaskNotes } from './dept-task-notes';
 import {
   readCycleViews,
   trackAssignment,
@@ -283,7 +285,8 @@ export async function removeDeptTask(
 
 // --- Proyecciones de solo lectura para la interfaz ---------------------------
 
-export interface DeptTaskView {
+/** Incluye las notas de seguimiento de la spec 006 (`notes`, `noteSignal`, `canAddNote`…). */
+export interface DeptTaskView extends TaskNotesProjection {
   id: string;
   title: string;
   description: string;
@@ -332,10 +335,14 @@ export function toDeptTaskView(
   userName: Map<string, string>,
   /** Spec 003: ciclos de lectura de esta tarea; sin ellos no se proyecta la lectura. */
   reads?: DeptTaskReadCycle[],
+  /** Spec 006: notas de seguimiento (de esta tarea o de todas; se filtran por id). */
+  notes: readonly DeptTaskNote[] = [],
+  now: Date = new Date(),
 ): DeptTaskView {
   const reading = reads ? readCycleViews(task, reads, userName) : { readCycle: null, readHistory: [] };
   return {
     ...reading,
+    ...projectTaskNotes(task, session, notes, userName, now),
     id: task.id,
     title: task.title,
     description: task.description,
@@ -358,20 +365,26 @@ export function toDeptTaskView(
 }
 
 export async function getTasksView(store: DataStore, session: SessionContext): Promise<TasksPageView> {
-  const [tasks, users, initiatives, reads] = await Promise.all([
+  const [tasks, users, initiatives, reads, allNotes] = await Promise.all([
     store.listDeptTasks(),
     store.listUsers(),
     store.listInitiatives(),
     store.listDeptTaskReads(),
+    store.listDeptTaskNotes(),
   ]);
+  const now = new Date();
+  const notesByTask = new Map<string, DeptTaskNote[]>();
+  for (const note of allNotes) notesByTask.set(note.taskId, [...(notesByTask.get(note.taskId) ?? []), note]);
   const userName = new Map(users.map((user) => [user.id, user.name]));
   const readsByTask = new Map<string, DeptTaskReadCycle[]>();
   for (const cycle of reads) readsByTask.set(cycle.taskId, [...(readsByTask.get(cycle.taskId) ?? []), cycle]);
 
-  // Los ciclos solo se proyectan para tareas que ya pasaron el Need-to-Know.
+  // Los ciclos y las notas solo se proyectan para tareas que ya pasaron el Need-to-Know.
   const views: DeptTaskView[] = tasks
     .filter((task) => !task.isArchived && canWorkInArea(session, task.department))
-    .map((task) => toDeptTaskView(task, session, userName, readsByTask.get(task.id) ?? []));
+    .map((task) =>
+      toDeptTaskView(task, session, userName, readsByTask.get(task.id) ?? [], notesByTask.get(task.id) ?? [], now),
+    );
 
   const manageableDepartments =
     session.role === 'EXECUTIVE' ? [...DEPARTMENTS] : session.role === 'LEAD' ? [...session.departments] : [];

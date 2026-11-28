@@ -26,6 +26,9 @@ import {
 } from '@/server/actions/dept-tasks';
 import { carryOverSprintAction, createSprintAction, updateSprintAction } from '@/server/actions/tech-sprint';
 import type { DeptTaskView } from '@/server/services/dept-tasks';
+import { TaskDetailDialog } from '@/components/tasks/task-detail-dialog';
+import { TaskNoteSignal } from '@/components/tasks/task-note-signal';
+import { CharCounter } from '@/components/ui/char-counter';
 import type { PersonLoad, SprintOption, SprintPace, TechSprintView } from '@/server/services/tech-sprint';
 import { ActionError, useAction } from '@/lib/use-action';
 import { toast } from '@/lib/toast';
@@ -487,6 +490,8 @@ function TaskCard({ task, view, myUserId }: { task: DeptTaskView; view: TechSpri
   const move = useAction(moveDeptTaskAction);
   const assign = useAction(assignDeptTaskAction, { success: 'Tarea asignada' });
   const plan = useAction(planDeptTaskAction);
+  // Spec 006: el título abre el detalle con la descripción completa y las notas.
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const index = TASK_STATUSES.indexOf(task.status);
   const prev = TASK_STATUSES[index - 1];
@@ -506,17 +511,21 @@ function TaskCard({ task, view, myUserId }: { task: DeptTaskView; view: TechSpri
           {task.pullRequest ? <PullRequestBadge task={task} /> : null}
           {task.initiativeId ? <Badge tone="info">{task.initiativeId}</Badge> : null}
         </div>
-        <p
+        <button
+          type="button"
+          onClick={() => setDetailOpen(true)}
+          title="Ver detalle y notas"
           className={cn(
-            'text-sm font-medium [overflow-wrap:anywhere]',
+            'block w-full rounded-sm text-left text-sm font-medium [overflow-wrap:anywhere] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent',
             task.status === 'DONE' ? 'text-fg-muted line-through' : 'text-fg',
           )}
         >
           {task.title}
-        </p>
+        </button>
         {task.description ? (
-          <p className="line-clamp-3 text-xs text-fg-muted [overflow-wrap:anywhere]">{task.description}</p>
+          <p className="line-clamp-3 whitespace-pre-wrap text-xs text-fg-muted [overflow-wrap:anywhere]">{task.description}</p>
         ) : null}
+        <TaskNoteSignal task={task} />
 
         {task.canManage ? (
           <div className="space-y-1.5">
@@ -603,6 +612,7 @@ function TaskCard({ task, view, myUserId }: { task: DeptTaskView; view: TechSpri
         </div>
         <ActionError message={move.error ?? assign.error ?? plan.error} />
       </Card>
+      {detailOpen ? <TaskDetailDialog task={task} onClose={() => setDetailOpen(false)} /> : null}
     </li>
   );
 }
@@ -832,8 +842,11 @@ function TaskDialog({ view, onClose }: { view: TechSprintView; onClose: () => vo
                 rows={3}
                 value={description}
                 maxLength={MAX_TASK_DESCRIPTION}
+                className="max-h-60 overflow-y-auto field-sizing-content"
+                aria-describedby="tech-description-count"
                 onChange={(event) => setDescription(event.target.value)}
               />
+              <CharCounter id="tech-description-count" value={description} max={MAX_TASK_DESCRIPTION} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">

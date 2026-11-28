@@ -25,8 +25,11 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge, Card, EmptyState, Input, Label, SectionLabel, Select, Textarea } from '@/components/ui/primitives';
+import { CharCounter } from '@/components/ui/char-counter';
 import { formatDate } from '@/lib/utils';
 import { TaskReadStatus } from './task-read-status';
+import { TaskDetailDialog } from './task-detail-dialog';
+import { TaskNoteSignal } from './task-note-signal';
 
 const todayKey = (): string => new Date().toISOString().slice(0, 10);
 
@@ -164,6 +167,8 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
   const move = useAction(moveDeptTaskAction);
   const assign = useAction(assignDeptTaskAction, { success: 'Tarea asignada' });
   const remove = useAction(removeDeptTaskAction, { success: 'Tarea retirada' });
+  // Spec 006: el título abre el detalle con la descripción completa y las notas.
+  const [detailOpen, setDetailOpen] = React.useState(false);
 
   const index = TASK_STATUSES.indexOf(task.status);
   const prev = TASK_STATUSES[index - 1];
@@ -179,10 +184,18 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
         draggable={task.canMove}
         onDragStart={(event: React.DragEvent) => event.dataTransfer.setData('text/plain', task.id)}
       >
-        <p className={`text-sm font-medium [overflow-wrap:anywhere] ${task.status === 'DONE' ? 'text-fg-muted line-through' : 'text-fg'}`}>
+        <button
+          type="button"
+          onClick={() => setDetailOpen(true)}
+          title="Ver detalle y notas"
+          className={`block w-full rounded-sm text-left text-sm font-medium [overflow-wrap:anywhere] hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent ${task.status === 'DONE' ? 'text-fg-muted line-through' : 'text-fg'}`}
+        >
           {task.title}
-        </p>
-        {task.description ? <p className="text-xs text-fg-muted [overflow-wrap:anywhere]">{task.description}</p> : null}
+        </button>
+        {/* Spec 006 (RF-13): recortada a 3 líneas; el texto completo está en el detalle. */}
+        {task.description ? (
+          <p className="line-clamp-3 whitespace-pre-wrap text-xs text-fg-muted [overflow-wrap:anywhere]">{task.description}</p>
+        ) : null}
         <div className="flex flex-wrap gap-1.5">
           {task.code ? <Badge tone="neutral" className="font-mono">{task.code}</Badge> : null}
           <Badge tone="accent">{DEPARTMENT_LABELS[task.department]}</Badge>
@@ -197,6 +210,7 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
             {task.isMine ? 'Tuya' : (task.assigneeName ?? 'Sin asignar')}
           </Badge>
         </div>
+        <TaskNoteSignal task={task} />
         <TaskReadStatus task={task} />
 
         {task.canManage ? (
@@ -246,6 +260,7 @@ function TaskCard({ task, people, myUserId }: { task: DeptTaskView; people: Task
         </div>
         <ActionError message={move.error ?? assign.error ?? remove.error} />
       </Card>
+      {detailOpen ? <TaskDetailDialog task={task} onClose={() => setDetailOpen(false)} /> : null}
     </li>
   );
 }
@@ -325,8 +340,11 @@ function CreateDialog({
                 rows={3}
                 value={description}
                 maxLength={MAX_TASK_DESCRIPTION}
+                className="max-h-60 overflow-y-auto field-sizing-content"
+                aria-describedby="task-description-count"
                 onChange={(event) => setDescription(event.target.value)}
               />
+              <CharCounter id="task-description-count" value={description} max={MAX_TASK_DESCRIPTION} />
             </div>
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">

@@ -39,6 +39,15 @@ const RECIPES: { title: string; steps: string[] }[] = [
       'Mientras dure, el reloj SLE queda en pausa. Cuando se resuelva, levántala desde el mismo sitio.',
     ],
   },
+  {
+    title: 'Dejar una nota de seguimiento en una tarea',
+    steps: [
+      'En «Tareas» o en el sprint de Tech, pulsa el título de la tarea para abrir su detalle.',
+      'Elige el tipo: «Seguimiento» para una novedad, «⏳ En espera» si dependes de alguien o «⛔ Bloqueada» si no puedes avanzar.',
+      'La tarjeta muestra la espera o el bloqueo hasta que alguien añade una nota de seguimiento. Es solo un aviso: no para la iniciativa ni su reloj SLE.',
+      'Solo quien escribió la nota (o Dirección) puede editarla o retirarla; las versiones anteriores quedan guardadas.',
+    ],
+  },
 ];
 
 /** Página de ayuda: cómo se trabaja, qué significa cada término y qué puede hacer cada rol. */

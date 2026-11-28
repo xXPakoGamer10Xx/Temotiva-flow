@@ -135,7 +135,11 @@ export const MCP_TOOLS: McpTool[] = [
     writes: true,
     schema: z.object({
       title: z.string().trim().min(MIN_TASK_TITLE, 'Ponle un título a la tarea.').max(MAX_TASK_TITLE),
-      description: z.string().trim().max(MAX_TASK_DESCRIPTION).optional(),
+      description: z
+        .string()
+        .trim()
+        .max(MAX_TASK_DESCRIPTION, `La descripción admite hasta ${MAX_TASK_DESCRIPTION} caracteres.`)
+        .optional(),
       department: z.enum(DEPARTMENTS).optional().describe('Área de la tarea; por defecto, la primera de esta persona'),
       assigneeId: z.string().min(1).nullish().describe('Id de la persona (de `tareas`); debe ser del área'),
       initiativeId: z.string().regex(/^TEMO-\d+$/, 'Usa el formato TEMO-123.').nullish(),

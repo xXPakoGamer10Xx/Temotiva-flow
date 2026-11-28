@@ -431,7 +431,13 @@ export async function getTechSprintView(
 ): Promise<TechSprintView> {
   if (!canSeeTechSprint(session)) throw notFound('Esta vista es solo para el área de Tech.');
 
-  const [allSprints, allTasks, users] = await Promise.all([store.listSprints(), store.listDeptTasks(), store.listUsers()]);
+  const [allSprints, allTasks, users, notes] = await Promise.all([
+    store.listSprints(),
+    store.listDeptTasks(),
+    store.listUsers(),
+    store.listDeptTaskNotes(),
+  ]);
+  const now = new Date();
   const sprints = allSprints.filter((sprint) => sprint.department === TECH && !sprint.isArchived);
   const active = activeSprint(sprints, input.today);
   const toOption = (sprint: Sprint): SprintOption => ({
@@ -465,8 +471,9 @@ export async function getTechSprintView(
     sprints: [...sprints].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(toOption),
     selected: selectedSprint ? toOption(selectedSprint) : null,
     suggestion: { ...suggestNextSprint(sprints, input.today), capacityHours: latestCapacity ?? SPRINT_DEFAULT_CAPACITY },
-    tasks: inSprint.map((task) => toDeptTaskView(task, session, userName)),
-    backlog: backlog.map((task) => toDeptTaskView(task, session, userName)),
+    // Spec 006: notas de seguimiento; la vista ya filtró a Tech o Dirección.
+    tasks: inSprint.map((task) => toDeptTaskView(task, session, userName, undefined, notes, now)),
+    backlog: backlog.map((task) => toDeptTaskView(task, session, userName, undefined, notes, now)),
     people,
     load,
     health: selectedSprint ? computeHealth(selectedSprint, inSprint, people.length, input.today) : null,

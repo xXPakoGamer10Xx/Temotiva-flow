@@ -15,6 +15,7 @@ import {
   REQUEST_BLOCKING_LABEL_STANDALONE,
 } from '@/domain/labels';
 import {
+  MAX_DEPARTMENT_REQUEST_DESCRIPTION,
   MAX_DEPARTMENT_REQUEST_REASSIGN_REASON,
   MAX_DEPARTMENT_REQUEST_TITLE,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
@@ -50,6 +51,7 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog';
 import { Badge, Input, Label, SectionLabel, Select, Textarea } from '@/components/ui/primitives';
+import { CharCounter } from '@/components/ui/char-counter';
 import { DepartmentChip } from '@/components/shared/signals';
 import { RequestBlockingBadge, RequestStatusBadge } from './inbox-badges';
 import {
@@ -610,9 +612,13 @@ export function NewRequestDialog({
                 id="request-description"
                 rows={3}
                 value={description}
+                maxLength={MAX_DEPARTMENT_REQUEST_DESCRIPTION}
+                className="max-h-60 overflow-y-auto field-sizing-content"
+                aria-describedby="request-description-count"
                 onChange={(event) => setDescription(event.target.value)}
                 placeholder={`Qué necesitas exactamente (mínimo ${MIN_DEPARTMENT_REQUEST_DESCRIPTION} caracteres)`}
               />
+              <CharCounter id="request-description-count" value={description} max={MAX_DEPARTMENT_REQUEST_DESCRIPTION} />
             </div>
 
             <div className="space-y-1.5">

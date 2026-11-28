@@ -21,7 +21,11 @@ export async function markDeptTaskReadAction(input: unknown): Promise<ActionResu
 
 const createSchema = z.object({
   title: z.string().trim().min(MIN_TASK_TITLE, 'Ponle un título a la tarea.').max(MAX_TASK_TITLE),
-  description: z.string().trim().max(MAX_TASK_DESCRIPTION).optional(),
+  description: z
+    .string()
+    .trim()
+    .max(MAX_TASK_DESCRIPTION, `La descripción admite hasta ${MAX_TASK_DESCRIPTION} caracteres.`)
+    .optional(),
   department: z.enum(DEPARTMENTS).optional(),
   assigneeId: z.string().min(1).nullish(),
   initiativeId: z.string().min(1).nullish(),
