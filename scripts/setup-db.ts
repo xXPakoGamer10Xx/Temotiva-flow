@@ -139,6 +139,15 @@ async function run(): Promise<void> {
     console.log('📦 Aplicando migraciones (db/11-dept-task-reads.sql)...');
     await client.query(readFileSync(join(process.cwd(), 'db', '11-dept-task-reads.sql'), 'utf8'));
 
+<<<<<<< Updated upstream
+=======
+    console.log('📦 Aplicando migraciones (db/12-initiative-signoffs-notes.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '12-initiative-signoffs-notes.sql'), 'utf8'));
+
+    console.log('📦 Aplicando migraciones (db/13-dept-task-notes.sql)...');
+    await client.query(readFileSync(join(process.cwd(), 'db', '13-dept-task-notes.sql'), 'utf8'));
+
+>>>>>>> Stashed changes
     const seed = buildSeedData();
     const stageCount = Number((await client.query('SELECT COUNT(*)::int AS c FROM workflow_stages')).rows[0].c);
 
@@ -235,6 +244,73 @@ async function run(): Promise<void> {
           ],
         );
       }
+<<<<<<< Updated upstream
+=======
+
+      // Spec 005: finalización, aprobaciones por área y notas de avance de la demo.
+      for (const init of seed.initiatives) {
+        if (!init.finalizedAt) continue;
+        await client.query(`UPDATE initiatives SET finalized_at = $2, finalized_by = $3 WHERE id = $1 AND finalized_at IS NULL`, [
+          init.id, init.finalizedAt, init.finalizedBy ?? null,
+        ]);
+      }
+      for (const signoff of seed.stageSignoffs ?? []) {
+        await client.query(
+          `INSERT INTO initiative_stage_signoffs (
+            initiative_id, stage_id, department, is_approved, approved_by, approved_at, note, no_observations, tshirt_size, updated_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) ON CONFLICT DO NOTHING`,
+          [
+            signoff.initiativeId, signoff.stageId, signoff.department, signoff.isApproved, signoff.approvedBy,
+            signoff.approvedAt, signoff.note, signoff.noObservations, signoff.tshirtSize, signoff.updatedAt,
+          ],
+        );
+      }
+      for (const note of seed.stageNotes ?? []) {
+        await client.query(
+          `INSERT INTO initiative_stage_notes (
+            id, initiative_id, from_stage_id, to_stage_id, note, author_id, author_departments, is_override, created_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7::department_enum[],$8,$9) ON CONFLICT (id) DO NOTHING`,
+          [
+            toUuid(note.id), note.initiativeId, note.fromStageId, note.toStageId, note.note, note.authorId,
+            note.authorDepartments, note.isOverride, note.createdAt,
+          ],
+        );
+      }
+
+      // Spec 006: tareas de área de la demo con sus notas de seguimiento.
+      for (const task of seed.deptTasks ?? []) {
+        await client.query(
+          `INSERT INTO dept_tasks (
+            id, title, description, department, status, assignee_id, initiative_id, due_date, created_by, created_at, updated_at,
+            is_archived, code, estimated_hours, sprint_id
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15) ON CONFLICT (id) DO NOTHING`,
+          [
+            task.id, task.title, task.description, task.department, task.status, task.assigneeId, task.initiativeId,
+            task.dueDate, task.createdBy, task.createdAt, task.updatedAt, task.isArchived, task.code, task.estimatedHours,
+            task.sprintId,
+          ],
+        );
+      }
+      for (const note of seed.deptTaskNotes ?? []) {
+        await client.query(
+          `INSERT INTO dept_task_notes (
+            id, task_id, kind, body, author_id, author_department, created_at, version, edited_at, edited_by,
+            is_removed, removed_by, removed_at
+          ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13) ON CONFLICT (id) DO NOTHING`,
+          [
+            note.id, note.taskId, note.kind, note.body, note.authorId, note.authorDepartment, note.createdAt, note.version,
+            note.editedAt, note.editedBy, note.isRemoved, note.removedBy, note.removedAt,
+          ],
+        );
+      }
+      for (const revision of seed.deptTaskNoteRevisions ?? []) {
+        await client.query(
+          `INSERT INTO dept_task_note_revisions (id, note_id, version, kind, body, replaced_by, replaced_at)
+           VALUES ($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (id) DO NOTHING`,
+          [revision.id, revision.noteId, revision.version, revision.kind, revision.body, revision.replacedBy, revision.replacedAt],
+        );
+      }
+>>>>>>> Stashed changes
     }
 
     if (adminEmail) {

@@ -30,6 +30,8 @@ import type {
 } from '@/domain/department-request';
 import type { PushSubscriptionRecord, SleRiskNotice } from '@/domain/push';
 import type { DeptTaskReadCycle, TaskReadSource } from '@/domain/task-read';
+import type { DeptTaskNote, DeptTaskNoteRevision } from '@/domain/task-note';
+import type { TaskNoteKind } from '@/domain/enums';
 import type { DataStore, DeptTaskPatch, SprintPatch } from './types';
 
 const POOL_KEY = Symbol.for('temotiva-flow.pgpool');
@@ -969,6 +971,130 @@ export class PostgresDataStore implements DataStore {
       readSource: r.read_source ? (String(r.read_source) as TaskReadSource) : null,
       resolvedAt: toNullableIso(r.resolved_at),
       closedAt: toNullableIso(r.closed_at),
+    };
+  }
+
+  // --- Notas de seguimiento de tareas (spec 006) -------------------------------
+
+  private static readonly DEPT_TASK_NOTE_COLUMNS = `id, task_id, kind, body, author_id, author_department, created_at,
+              version, edited_at, edited_by, is_removed, removed_by, removed_at`;
+
+  async listDeptTaskNotes(taskId?: string): Promise<DeptTaskNote[]> {
+    const res = taskId
+      ? await this.pool.query(
+          `SELECT ${PostgresDataStore.DEPT_TASK_NOTE_COLUMNS} FROM dept_task_notes WHERE task_id = $1 ORDER BY created_at, id`,
+          [taskId],
+        )
+      : await this.pool.query(`SELECT ${PostgresDataStore.DEPT_TASK_NOTE_COLUMNS} FROM dept_task_notes ORDER BY created_at, id`);
+    return res.rows.map((r) => this.mapDeptTaskNote(r));
+  }
+
+  async deptTaskNoteById(id: string): Promise<DeptTaskNote | null> {
+    const res = await this.pool.query(`SELECT ${PostgresDataStore.DEPT_TASK_NOTE_COLUMNS} FROM dept_task_notes WHERE id = $1`, [id]);
+    return res.rows.length === 0 ? null : this.mapDeptTaskNote(res.rows[0]);
+  }
+
+  async listDeptTaskNoteRevisions(noteId: string): Promise<DeptTaskNoteRevision[]> {
+    const res = await this.pool.query(
+      `SELECT id, note_id, version, kind, body, replaced_by, replaced_at
+       FROM dept_task_note_revisions WHERE note_id = $1 ORDER BY version`,
+      [noteId],
+    );
+    return res.rows.map((r) => ({
+      id: String(r.id),
+      noteId: String(r.note_id),
+      version: Number(r.version),
+      kind: String(r.kind) as TaskNoteKind,
+      body: String(r.body),
+      replacedBy: String(r.replaced_by),
+      replacedAt: toIso(r.replaced_at),
+    }));
+  }
+
+  async insertDeptTaskNote(note: DeptTaskNote): Promise<DeptTaskNote> {
+    await this.pool.query(
+      `INSERT INTO dept_task_notes (id, task_id, kind, body, author_id, author_department, created_at, version,
+         edited_at, edited_by, is_removed, removed_by, removed_at)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)`,
+      [
+        note.id,
+        note.taskId,
+        note.kind,
+        note.body,
+        note.authorId,
+        note.authorDepartment,
+        note.createdAt,
+        note.version,
+        note.editedAt,
+        note.editedBy,
+        note.isRemoved,
+        note.removedBy,
+        note.removedAt,
+      ],
+    );
+    return note;
+  }
+
+  async editDeptTaskNote(
+    id: string,
+    expectedVersion: number,
+    patch: Pick<DeptTaskNote, 'kind' | 'body' | 'editedAt' | 'editedBy'>,
+    revision: DeptTaskNoteRevision,
+  ): Promise<DeptTaskNote | null> {
+    const client = await this.pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Transición condicional: si otra petición editó o retiró la nota, no toca nada.
+      const updated = await client.query(
+        `UPDATE dept_task_notes SET kind = $3, body = $4, edited_at = $5, edited_by = $6, version = version + 1
+         WHERE id = $1 AND version = $2 AND NOT is_removed
+         RETURNING ${PostgresDataStore.DEPT_TASK_NOTE_COLUMNS}`,
+        [id, expectedVersion, patch.kind, patch.body, patch.editedAt, patch.editedBy],
+      );
+      if (updated.rows.length === 0) {
+        await client.query('ROLLBACK');
+        return null;
+      }
+      await client.query(
+        `INSERT INTO dept_task_note_revisions (id, note_id, version, kind, body, replaced_by, replaced_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [revision.id, revision.noteId, revision.version, revision.kind, revision.body, revision.replacedBy, revision.replacedAt],
+      );
+      await client.query('COMMIT');
+      return this.mapDeptTaskNote(updated.rows[0]);
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      client.release();
+    }
+  }
+
+  async removeDeptTaskNote(id: string, removedBy: string, removedAt: string): Promise<DeptTaskNote | null> {
+    const res = await this.pool.query(
+      `UPDATE dept_task_notes SET is_removed = TRUE, removed_by = $2, removed_at = $3
+       WHERE id = $1 AND NOT is_removed
+       RETURNING ${PostgresDataStore.DEPT_TASK_NOTE_COLUMNS}`,
+      [id, removedBy, removedAt],
+    );
+    return res.rows.length === 0 ? null : this.mapDeptTaskNote(res.rows[0]);
+  }
+
+  private mapDeptTaskNote(r: Record<string, unknown>): DeptTaskNote {
+    return {
+      id: String(r.id),
+      taskId: String(r.task_id),
+      kind: String(r.kind) as TaskNoteKind,
+      body: String(r.body),
+      authorId: String(r.author_id),
+      authorDepartment: r.author_department ? (String(r.author_department) as Department) : null,
+      createdAt: toIso(r.created_at),
+      version: Number(r.version),
+      editedAt: toNullableIso(r.edited_at),
+      editedBy: r.edited_by ? String(r.edited_by) : null,
+      isRemoved: Boolean(r.is_removed),
+      removedBy: r.removed_by ? String(r.removed_by) : null,
+      removedAt: toNullableIso(r.removed_at),
     };
   }
 

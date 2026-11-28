@@ -36,7 +36,15 @@ export const ALLOWED_LINK_HOSTS = ['docs.google.com', 'drive.google.com', 'sheet
 /** Tareas de área. */
 export const MIN_TASK_TITLE = 3;
 export const MAX_TASK_TITLE = 120;
-export const MAX_TASK_DESCRIPTION = 500;
+/** Spec 006: descripciones largas (contexto técnico, legal o funcional). La columna es TEXT. */
+export const MAX_TASK_DESCRIPTION = 5000;
+/** Notas de seguimiento de una tarea (spec 006). Idénticos a los CHECK de `db/13-dept-task-notes.sql`. */
+export const MIN_TASK_NOTE = 3;
+export const MAX_TASK_NOTE = 1000;
+/** Tope de notas vigentes por tarea, contra abusos. */
+export const MAX_TASK_NOTES_PER_TASK = 200;
+/** Una nota ajena de las últimas N horas se marca como «Nueva» en la tarjeta. */
+export const TASK_NOTE_RECENT_HOURS = 48;
 /** Horas estimadas de una tarea: de media en media hora, hasta una semana larga. */
 export const MAX_TASK_HOURS = 80;
 export const MAX_SPRINT_NAME = 60;
@@ -56,6 +64,8 @@ export const TECH_TASK_PREFIX = 'TEC';
 export const MIN_DEPARTMENT_REQUEST_TITLE = 8;
 export const MAX_DEPARTMENT_REQUEST_TITLE = 120;
 export const MIN_DEPARTMENT_REQUEST_DESCRIPTION = 15;
+/** Spec 006 (P-6): tope para las peticiones nuevas; las ya guardadas no se tocan. */
+export const MAX_DEPARTMENT_REQUEST_DESCRIPTION = 5000;
 export const MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES = 5;
 /** El buzón devuelve todas las abiertas, pero solo las N cerradas más recientes de cada fuente (spec §10). */
 export const MAX_CLOSED_INBOX_ITEMS = 100;

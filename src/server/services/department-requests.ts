@@ -24,6 +24,7 @@ import {
   MAX_REQUEST_LINK_LABEL,
   MAX_REQUEST_LINK_URL,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
+  MAX_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MAX_DEPARTMENT_REQUEST_REASSIGN_REASON,
   MIN_DEPARTMENT_REQUEST_TITLE,
@@ -368,6 +369,9 @@ export async function createDepartmentRequest(
   const description = input.description.trim();
   if (description.length < MIN_DEPARTMENT_REQUEST_DESCRIPTION) {
     throw invalid(`Describe la petición con al menos ${MIN_DEPARTMENT_REQUEST_DESCRIPTION} caracteres.`);
+  }
+  if (description.length > MAX_DEPARTMENT_REQUEST_DESCRIPTION) {
+    throw invalid(`La descripción admite como máximo ${MAX_DEPARTMENT_REQUEST_DESCRIPTION} caracteres.`);
   }
 
   // Contexto opcional. Mismo mensaje para inexistente y archivada.

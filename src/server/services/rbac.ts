@@ -3,6 +3,7 @@ import type { AreaLink, Attachment, DeptTask, Initiative, LibraryDocument, Sessi
 import type { Dependency } from '@/domain/types';
 import type { AttachmentSide, DepartmentRequest, DepartmentRequestAttachment } from '@/domain/department-request';
 import { belongsTo } from '@/domain/types';
+import { type DeptTaskNote, TASK_NOTE_OPEN_STATUSES } from '@/domain/task-note';
 import { forbidden } from './errors';
 
 /**
@@ -96,6 +97,24 @@ export function canManageDeptTasks(session: SessionContext, department: Departme
 /** Mover una tarea de estado: cualquier miembro del área de la tarea o Dirección. */
 export function canMoveDeptTask(session: SessionContext, task: DeptTask): boolean {
   return canWorkInArea(session, task.department);
+}
+
+/**
+ * Spec 006: añadir una nota de seguimiento. Quien ve la tarea (su área o
+ * Dirección), mientras no esté archivada ni hecha (P-3).
+ */
+export function canAddTaskNote(session: SessionContext, task: DeptTask): boolean {
+  return !task.isArchived && TASK_NOTE_OPEN_STATUSES.includes(task.status) && canWorkInArea(session, task.department);
+}
+
+/** Spec 006 (P-1): editar una nota es de su autor o de Dirección; el LEAD no edita notas ajenas. */
+export function canEditTaskNote(session: SessionContext, note: DeptTaskNote): boolean {
+  return note.authorId === session.userId || isExecutive(session);
+}
+
+/** Spec 006 (P-1): retirar sigue la misma regla que editar. */
+export function canRemoveTaskNote(session: SessionContext, note: DeptTaskNote): boolean {
+  return canEditTaskNote(session, note);
 }
 
 /** Retirar un documento: quien lo subió, el LEAD del área propietaria o Dirección. */

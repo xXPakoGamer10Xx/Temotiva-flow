@@ -13,6 +13,7 @@ import {
   MAX_REQUEST_LINK_LABEL,
   MAX_REQUEST_LINK_URL,
   MIN_DEPARTMENT_REQUEST_DESCRIPTION,
+  MAX_DEPARTMENT_REQUEST_DESCRIPTION,
   MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES,
   MIN_DEPARTMENT_REQUEST_TITLE,
   MIN_REASSIGN_REASON,
@@ -31,6 +32,8 @@ import {
 
 const TITLE_MESSAGE = `El título debe tener entre ${MIN_DEPARTMENT_REQUEST_TITLE} y ${MAX_DEPARTMENT_REQUEST_TITLE} caracteres.`;
 const DESCRIPTION_MESSAGE = `Describe la petición con al menos ${MIN_DEPARTMENT_REQUEST_DESCRIPTION} caracteres.`;
+/** Spec 006 (P-6): solo afecta a peticiones nuevas. */
+const DESCRIPTION_MAX_MESSAGE = `La descripción admite como máximo ${MAX_DEPARTMENT_REQUEST_DESCRIPTION} caracteres.`;
 const NOTES_MESSAGE = `Escribe una respuesta de al menos ${MIN_DEPARTMENT_REQUEST_RESOLUTION_NOTES} caracteres.`;
 const REQUEST_ID_MESSAGE = 'Identificador de petición no válido.';
 
@@ -82,7 +85,11 @@ export const createDepartmentRequestSchema = z.object({
     .trim()
     .min(MIN_DEPARTMENT_REQUEST_TITLE, TITLE_MESSAGE)
     .max(MAX_DEPARTMENT_REQUEST_TITLE, TITLE_MESSAGE),
-  description: z.string({ message: DESCRIPTION_MESSAGE }).trim().min(MIN_DEPARTMENT_REQUEST_DESCRIPTION, DESCRIPTION_MESSAGE),
+  description: z
+    .string({ message: DESCRIPTION_MESSAGE })
+    .trim()
+    .min(MIN_DEPARTMENT_REQUEST_DESCRIPTION, DESCRIPTION_MESSAGE)
+    .max(MAX_DEPARTMENT_REQUEST_DESCRIPTION, DESCRIPTION_MAX_MESSAGE),
   blocksInitiative: z.boolean({ message: 'Indica si la petición bloquea una iniciativa.' }).default(false),
   initiativeId: z
     .string({ message: 'Identificador de iniciativa no válido.' })
